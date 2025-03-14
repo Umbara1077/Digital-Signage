@@ -165,7 +165,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     document.getElementById('replaceMenuItemForm').reset();
                     populateDropdowns();
                     displayCurrentMenuItems();
-                    alert('MOBILE APP MUST BE UPDATED TO REFLECT CHANGES');
                 } else {
                     alert('Menu item not found');
                 }
@@ -192,7 +191,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert(`Menu item marked as ${stockStatus.replace(/([A-Z])/g, ' $1').toLowerCase()} successfully`);
             document.getElementById('updateStockStatusForm').reset();
             displayCurrentMenuItems();
-            alert('MOBILE APP MUST BE UPDATED TO REFLECT CHANGES');
         } catch (error) {
             console.error('Error updating stock status: ', error);
             alert('Error updating stock status.');
@@ -242,10 +240,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let currentVideos = []; // Store videos currently in rotation
 
-    // Function to extract clean video names
     function getCleanVideoName(videoURL) {
         const fullName = videoURL.split('/').pop().split('?')[0]; // Extract name from URL
-        return decodeURIComponent(fullName); // Decode URL-encoded characters like %2F
+        return decodeURIComponent(fullName); // Decode URL-encoded characters
     }
 
     // Function to display current video names in the dropdown
@@ -277,20 +274,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const videoFiles = await storageRef.child('videos/').listAll();
         videoFiles.items.forEach(async (videoRef) => {
-            const videoName = getCleanVideoName(videoRef.name); // Get clean video name
+            const videoName = getCleanVideoName(videoRef.name); 
             
             // Only show videos that are not in the currentVideos array
             if (!currentVideos.includes(videoName)) {
-                const videoURL = await videoRef.getDownloadURL(); // Get URL for swapping
+                const videoURL = await videoRef.getDownloadURL(); 
                 const option = document.createElement('option');
-                option.value = videoURL; // Use URL for easy swap
-                option.textContent = videoName; // Display the clean video name
+                option.value = videoURL; 
+                option.textContent = videoName; 
                 storageVideoSelect.appendChild(option);
             }
         });
     }
 
-    // Automatically refresh available videos from storage
     displayAvailableVideos();
 
     // Remove or Swap video based on button clicked
@@ -329,8 +325,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // Reset form and update display
             document.getElementById('videoActionsForm').reset();
-            displayCurrentVideos(); // Refresh the current video list
-            displayAvailableVideos(); // Refresh the available video list from storage
+            displayCurrentVideos(); 
+            displayAvailableVideos();
         } catch (error) {
             console.error('Error managing videos: ', error);
         }
