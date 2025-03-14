@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Too Early</title>
+    <link rel="icon" href="dolce-logo.png" type="image/x-icon">
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-storage.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-auth.js"></script>
+    <script src="firebaseConfig.js"></script>
+    <script src="network-check.js"></script>
+    <style>
+         body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: black;
+            color: white;
+            font-family: 'Roboto', sans-serif;
+            text-align: center;
+        }
+        #early-message-container {
+            padding: 20px;
+            background-color: #222; 
+            border-radius: 15px;
+            max-width: 800px;
+            width: 100%;
+            box-shadow: 
+            -15px 0 30px rgba(2, 253, 2, 0.5),  
+            0 0 50px rgba(255, 255, 255, 0.9),  
+            15px 0 30px rgba(250, 25, 25, 0.608);  
+}
+
+        .logo img {
+            max-width: 200px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            color: #f9f7f7;
+        }
+        #countdown-timer {
+            font-size: 8em;
+            color: #f9f9f8; 
+            font-weight: bold;
+            animation: pulsate 1s infinite alternate;
+            margin-top: 30px;
+            text-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
+        }
+
+        @keyframes pulsate {
+            from {
+                transform: scale(1);
+                opacity: 1;
+            }
+            to {
+                transform: scale(1.1);
+                opacity: 0.8;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="early-message-container">
+        <div class="logo">
+            <img src="dolce-logo.png" alt="Dolce Vita Gelateria Logo">
+        </div>
+        <h1 id="status-message">Sorry we are closed! Menu will automatically start during buisness hours</h1>
+        <div id="countdown-timer" style="display: none;"></div>
+    </div>
+
+    <script>
+document.addEventListener('DOMContentLoaded', () => {
+    const db = firebase.firestore();
+
+    function fetchBusinessHours(callback) {
+        db.collection("business_hours").doc("hours").get().then((doc) => {
+            if (doc.exists) {
+                const data = doc.data();
+                console.log("📢 Fetched Business Hours for Early Page:", data);
+
+                if (!data.openTime || !data.closeTime) {
+                    console.error("❌ Missing openTime or closeTime in Firestore!");
+                    return;
+                }
+
+                // Ensure openTime and closeTime are numbers
+                const openTime = parseInt(data.openTime, 10);
+                const closeTime = parseInt(data.closeTime, 10);
+
+                // Convert HHMM format to hour and minute values
+                const openHour = Math.floor(openTime / 100);
+                const openMinute = openTime % 100;
+                const closeHour = Math.floor(closeTime / 100);
+                const closeMinute = closeTime % 100;
+
+                console.log(`✅ Open Time: ${openHour}:${openMinute}`);
+                console.log(`✅ Close Time: ${closeHour}:${closeMinute}`);
+
+                callback({ openHour, openMinute, closeHour, closeMinute });
+            } else {
+                console.error("❌ Business hours document not found!");
+            }
+        }).catch((error) => console.error("❌ Firestore fetch error:", error));
+    }
+
+    function checkTime(businessHours) {
+        const now = new Date();
+        const day = now.getDay();
+        const hours = now.getHours();
+        const minutes = now.getMinutes();
+
+        const isBusinessDay = (day === 0 || (day >= 3 && day <= 7)); // Open on Wed-Sun
+
+        const { openHour, openMinute, closeHour, closeMinute } = businessHours;
+
+        // Check if current time is within open hours
+        const isOpenHours = isBusinessDay &&
+                            (hours > openHour || (hours === openHour && minutes >= openMinute)) &&
+                            (hours < closeHour || (hours === closeHour && minutes < closeMinute));
+
+        console.log(`🕒 NOW: ${hours}:${minutes} | OPEN: ${openHour}:${openMinute} - ${closeHour}:${closeMinute} | isOpenHours: ${isOpenHours}`);
+        console.log(`✅ Is Today a Business Day? ${isBusinessDay}`);
+
+        if (isOpenHours) {
+            console.log("✅ Store is OPEN - Redirecting to index.html");
+            setTimeout(() => { window.location.href = "index.html"; }, 500);
+        }
+    }
+
+    fetchBusinessHours(checkTime);
+    setInterval(() => fetchBusinessHours(checkTime), 60000);
+});
+    </script>    
+
+    <!---
+    <script>
+        function startCountdown(duration, callback) {
+            let countdown = duration;
+            const countdownTimer = document.getElementById('countdown-timer');
+            countdownTimer.style.display = 'block';
+            countdownTimer.textContent = `${Math.floor(countdown / 60)}:${(countdown % 60).toString().padStart(2, '0')}`;
+    
+            const countdownInterval = setInterval(() => {
+                countdown -= 1;
+                countdownTimer.textContent = `${Math.floor(countdown / 60)}:${(countdown % 60).toString().padStart(2, '0')}`;
+                if (countdown <= 0) {
+                    clearInterval(countdownInterval);
+                    callback();
+                }
+            }, 1000);
+        }
+    
+        function checkTime() {
+            const now = new Date();
+            const day = now.getDay();
+            const hours = now.getHours();
+            const minutes = now.getMinutes();
+            const seconds = now.getSeconds();
+    
+            // Business hours for Wednesday and Thursday (7 AM to 8 PM) and Friday to Sunday (7 AM to 8 PM)
+            const isWednesdayOrThursday = (day === 3 || day === 4);
+            const isFridayToSunday = (day === 0 || (day >= 5 && day <= 6)); // Include Sunday as part of business days
+            
+            // Countdown period from 6:30 AM to 7:00 AM on business days
+            const isCountdownPeriod = (hours === 6 && minutes >= 30) || (hours === 7 && minutes === 0);
+            
+            // Business hours logic
+            const isOpenHoursWednesdayThursday = (hours > 7 || (hours === 7 && minutes >= 0)) && (hours < 20 || (hours === 20 && minutes === 0));
+            const isOpenHoursFridayToSunday = (hours > 7 || (hours === 7 && minutes >= 0)) && (hours < 20 || (hours === 20 && minutes === 0));
+    
+            const isBusinessDay = isWednesdayOrThursday || isFridayToSunday;
+            const isOpenHours = (isWednesdayOrThursday && isOpenHoursWednesdayThursday) || 
+                                (isFridayToSunday && isOpenHoursFridayToSunday);
+    
+            console.log(`early.html - Current Time: ${hours}:${minutes}:${seconds}`);
+            console.log(`early.html - Day of Week: ${day}`);
+            console.log(`early.html - Is Business Day: ${isBusinessDay}`);
+            console.log(`early.html - Countdown Period: ${isCountdownPeriod}`);
+            console.log(`early.html - Open Hours: ${isOpenHours}`);
+    
+            if (isBusinessDay) {
+                console.log(isWednesdayOrThursday ? "Time Zone: Wednesday and Thursday (7 AM to 8 PM)"
+                                                  : "Time Zone: Friday-Sunday (7 AM to 8 PM)");
+            }
+    
+            if (isOpenHours && isBusinessDay) {
+                console.log("Redirecting to index.html from early.html");
+                setTimeout(() => {
+                    window.location.href = "index.html";
+                }, 500);
+            } else if (isCountdownPeriod && isBusinessDay) {
+                const targetTime = new Date(now);
+                targetTime.setHours(7, 0, 0, 0); // Set target to 7:00 AM
+                const remainingTime = Math.floor((targetTime - now) / 1000); // in seconds
+                console.log("Starting Countdown to Opening");
+                startCountdown(remainingTime, () => window.location.href = "index.html");
+            } else {
+                console.log("Not within Business Hours or Countdown Period - Display 'Check back later!'");
+                const countdownTimer = document.getElementById('countdown-timer');
+                if (countdownTimer) {
+                    countdownTimer.textContent = "Check back later!";
+                }
+            }
+        }
+    
+        checkTime();
+        setInterval(checkTime, 60000); // Check every minute
+    </script> -->
+    
+</body>
+</html>

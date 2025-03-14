@@ -1,0 +1,83 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(to bottom, #ff0000, #ffffff, #008000);
+    background-size: cover;
+    background-attachment: fixed; 
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+
+#home-page {
+    max-width: 100%;
+    padding: 20px;
+    text-align: center;
+}
+
+h1 {
+    margin-top: 20px;
+    font-size: 2em;
+}
+
+.gelato-grid {
+    display: grid;
+    gap: 20px;
+    padding: 10px;
+    grid-template-columns: repeat(6, 1fr);
+    grid-template-rows: repeat(3, auto);
+    justify-items: center;
+    width: 100%;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.gelato-card {
+    width: 100%;
+    max-width: 150px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s;
+}
+
+.gelato-card:hover {
+    transform: scale(1.05);
+}
+
+.gelato-card img {
+    width: 100%;
+    height: auto;
+    max-height: 120px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+.gelato-card h3 {
+    margin-top: 10px;
+    font-size: 1em;
+    text-align: center;
+}
+
+.out-of-stock img {
+    opacity: 0.4;
+}
+
+.out-of-stock h3 {
+    color: #c00;
+    font-weight: bold;
+}
+
+@media (max-width: 768px) {
+    .gelato-grid {
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-rows: auto;
+    }
+}

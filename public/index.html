@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Digital Signage</title>
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-storage.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-auth.js"></script>
+
+    <script src="firebaseConfig.js"></script>
+    <script src="script.js"></script>
+    <script src="network-check.js"></script>
+    <link rel="icon"href="dolce-logo.png" type="image/x-icon">
+</head>
+<body>
+
+    <div id="video-container">
+        <video id="intro-video" autoplay muted>
+            <source src="" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+    </div>
+    
+    <div id="home-page">
+        <header>
+            <div class="logo">
+                <img src="logo.png" alt="Dolce Vita Gelateria">
+            </div>
+        </header>
+        
+        <main>
+            <div class="center-container">
+                <div class="gelato-grid">
+                   
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script>
+document.addEventListener('DOMContentLoaded', () => {
+    const db = firebase.firestore();
+
+    function fetchBusinessHours(callback) {
+        db.collection("business_hours").doc("hours").get().then((doc) => {
+            if (doc.exists) {
+                const data = doc.data();
+                console.log("📢 Fetched Business Hours:", data);
+
+                if (!data.openTime || !data.closeTime) {
+                    console.error("❌ Missing openTime or closeTime in Firestore!");
+                    return;
+                }
+
+                // Ensure openTime and closeTime are numbers
+                const openTime = parseInt(data.openTime, 10);
+                const closeTime = parseInt(data.closeTime, 10);
+
+                // Convert HHMM format to hour and minute values
+                const openHour = Math.floor(openTime / 100);
+                const openMinute = openTime % 100;
+                const closeHour = Math.floor(closeTime / 100);
+                const closeMinute = closeTime % 100;
+
+                console.log(`✅ Open Time: ${openHour}:${openMinute}`);
+                console.log(`✅ Close Time: ${closeHour}:${closeMinute}`);
+
+                callback({ openHour, openMinute, closeHour, closeMinute });
+            } else {
+                console.error("❌ Business hours document not found!");
+            }
+        }).catch((error) => console.error("❌ Firestore fetch error:", error));
+    }
+
+    function checkTime(businessHours) {
+        const now = new Date();
+        const day = now.getDay();
+        const hours = now.getHours();
+        const minutes = now.getMinutes();
+
+        const isBusinessDay = (day === 0 || (day >= 3 && day <= 7)); // Open on Wed-Sun
+
+        const { openHour, openMinute, closeHour, closeMinute } = businessHours;
+
+        // Check if current time is within open hours
+        const isOpenHours = isBusinessDay &&
+                            (hours > openHour || (hours === openHour && minutes >= openMinute)) &&
+                            (hours < closeHour || (hours === closeHour && minutes < closeMinute));
+
+        console.log(`🕒 NOW: ${hours}:${minutes} | OPEN: ${openHour}:${openMinute} - ${closeHour}:${closeMinute} | isOpenHours: ${isOpenHours}`);
+        console.log(`✅ Is Today a Business Day? ${isBusinessDay}`);
+        
+        if (!isOpenHours) {
+            console.log("🔴 Store is CLOSED - Redirecting to early.html");
+            setTimeout(() => { window.location.href = "early.html"; }, 500);
+        }
+    }
+
+    fetchBusinessHours(checkTime);
+    setInterval(() => fetchBusinessHours(checkTime), 60000);
+});
+    </script>   
+<!--
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            function checkTime() {
+                const now = new Date();
+                const day = now.getDay();
+                const hours = now.getHours();
+                const minutes = now.getMinutes();
+                
+                // Business hours for Wednesday and Thursday (7 AM to 8 PM) and Friday to Sunday (7 AM to 8 PM)
+                const isWednesdayOrThursday = (day === 3 || day === 4);
+                const isFridayToSunday = (day === 0 || (day >= 5 && day <= 6)); // Include Sunday as part of business days
+                
+                // Business hours logic
+                const isOpenHoursWednesdayThursday = (hours >= 7 && (hours < 20 || (hours === 20 && minutes === 0)));
+                const isOpenHoursFridayToSunday = (hours >= 7 && (hours < 20 || (hours === 20 && minutes === 0)));
+                
+                // Determine if the business is open
+                const isBusinessDay = isWednesdayOrThursday || isFridayToSunday;
+                const isOpenHours = (isWednesdayOrThursday && isOpenHoursWednesdayThursday) || 
+                                    (isFridayToSunday && isOpenHoursFridayToSunday);
+                
+                const currentPage = window.location.pathname;
+                
+                // Console logs to verify time zones
+                console.log(`index.html - Day: ${day}, Hours: ${hours}:${minutes}`);
+                console.log(`index.html - Is Business Day: ${isBusinessDay}, Is Open Hours: ${isOpenHours}`);
+                
+                if (isBusinessDay) {
+                    console.log(isWednesdayOrThursday ? "Time Zone: Wednesday and Thursday (7 AM to 8 PM)" 
+                                                      : "Time Zone: Friday-Sunday (7 AM to 8 PM)");
+                }
+    
+                if (!isBusinessDay || !isOpenHours) {
+                    if (currentPage !== "/early.html") {
+                        console.log("Redirecting to early.html");
+                        setTimeout(() => {
+                            window.location.href = "early.html";
+                        }, 500);
+                    }
+                } else {
+                    if (currentPage === "/early.html") {
+                        console.log("Redirecting to index.html");
+                        setTimeout(() => {
+                            window.location.href = "index.html";
+                        }, 500);
+                    }
+                }
+            }
+    
+            checkTime();
+            setInterval(checkTime, 60000);
+        });
+    </script>    -->
+
+</body>
+</html>

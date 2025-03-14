@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Sign In</title>
+    <link rel="stylesheet" type="text/css" href="login.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-storage.js"></script>
+
+    <script src="myFirebaseConfig.js"></script>
+    <script src="signInScript.js"></script>
+    <link rel="icon"href="dolce-logo.png" type="image/x-icon">
+    <style>
+    .logo-container {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+
+    .centered-logo {
+        max-width: 100px;
+        height: auto;
+    }
+    </style>
+</head>
+<body>
+    <main>
+        <form id="signInForm">
+            <div class="logo-container">
+                <img src="logo.png" alt="Logo" class="centered-logo">
+            </div>
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email" required>
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required>
+            <button type="submit">Sign In</button>
+        </form>
+        <div id="error-message"></div>
+    </main>
+</body>
+</html>

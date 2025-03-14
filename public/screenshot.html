@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Digital Signage</title>
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-storage.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-auth.js"></script>
+    <!-- html2canvas CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <script src="firebaseConfig.js"></script>
+    <script src="script.js"></script>
+    <script src="network-check.js"></script>
+    <link rel="icon"href="dolce-logo.png" type="image/x-icon">
+</head>
+<body>
+
+    <div id="video-container">
+        <video id="intro-video" autoplay muted>
+            <source src="" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+    </div>
+    
+    <div id="home-page">
+        <header>
+            <div class="logo">
+                <img src="logo.png" alt="Dolce Vita Gelateria">
+            </div>
+        </header>
+        
+        <main>
+            <div class="center-container">
+                <div class="gelato-grid">
+                   
+                </div>
+            </div>
+        </main>
+    </div>
+    <script>
+    function captureScreenshot(requestId) {
+        // Capture screenshot after a 20-second delay
+        setTimeout(() => {
+            html2canvas(document.body).then(function(canvas) {
+                canvas.toBlob(function(blob) {
+                    const screenshotRef = storage.ref(`screenshots/menu_screenshot_${Date.now()}.png`);
+
+                    screenshotRef.put(blob).then(function(snapshot) {
+                        console.log('Screenshot uploaded successfully');
+
+                        screenshotRef.getDownloadURL().then(function(url) {
+                            db.collection('screenshotRequests').doc(requestId).update({
+                                status: 'completed',
+                                screenshotUrl: url
+                            }).then(() => {
+                                console.log('Screenshot URL saved to Firestore');
+                            }).catch((error) => {
+                                console.error('Error updating Firestore document:', error);
+                            });
+                        }).catch(function(error) {
+                            console.error('Error getting screenshot URL:', error);
+                        });
+                    }).catch(function(error) {
+                        console.error('Error uploading screenshot:', error);
+                    });
+                }, 'image/png');
+            }).catch(function(error) {
+                console.error('Error capturing screenshot:', error);
+            });
+        }, 20000); // 20-second delay to skip the first video
+    }
+
+    // Listen for pending screenshot requests
+    db.collection('screenshotRequests').where('status', '==', 'pending').onSnapshot(function(snapshot) {
+        snapshot.forEach(function(doc) {
+            const requestId = doc.id;
+            console.log('Pending screenshot request detected:', requestId);
+            captureScreenshot(requestId); // Start the capture process after a delay
+        });
+    });
+</script>
+</body>
+</html>

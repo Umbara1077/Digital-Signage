@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Panel</title>
+    <link rel="stylesheet" type="text/css" href="admin-style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-storage.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-auth.js"></script>
+    <script src="firebaseConfig.js"></script>
+    <script src="admin-script.js"></script>
+    <link rel="icon" href="dolce-logo.png" type="image/x-icon">
+    <style>
+            .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #fff;
+            background-color: #007bff; 
+            text-decoration: none;
+            border-radius: 5px; 
+            transition: background-color 0.3s ease; 
+        }
+
+        .btn:hover {
+            background-color: #0056b3; 
+        }
+
+        .btn:active {
+            background-color: #004085; 
+        }
+
+    </style>
+    <script>
+        auth.onAuthStateChanged(user => {
+        const currentPath = window.location.pathname;
+
+        if (user && currentPath !== '/admin.html' && !sessionStorage.getItem('redirected')) {
+            sessionStorage.setItem('redirected', 'true');
+            window.location.href = 'admin.html';
+        } else if (!user && currentPath !== '/login.html' && !sessionStorage.getItem('redirected')) {
+            sessionStorage.setItem('redirected', 'true');
+            window.location.href = 'login.html';
+        } else {
+            sessionStorage.removeItem('redirected');
+        }
+        });
+    </script>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <img src="logo.png" alt="Dolce Vita Gelateria Logo" class="logo">
+        </div>
+    </header>
+    
+    <main>
+        <button id="view-main-button">View Menu Page</button>
+        <a href="https://dolcecaffesignage.web.app/admin.html" class="btn">Caffe Menu</a>
+        <br> </br>
+        <a href="https://coffeelist-2cc55.web.app/admin.html" class="btn">Mobile Order</a>
+        <section>
+            <h2>Update Stock Status</h2>
+            <form id="updateStockStatusForm">
+                <label for="stockItemName">Item Name:</label>
+                <select id="stockItemName" name="stockItemName" class="item-name-dropdown" required></select>
+                <label for="stockStatus">Stock Status:</label>
+                <select id="stockStatus" name="stockStatus" required>
+                    <option value="inStock">In Stock</option>
+                    <option value="outOfStock">Out of Stock</option>
+                </select>
+                <button type="submit">Update Stock Status</button>
+            </form>
+        </section>
+        <section id="temporaryAvailabilitySection">
+            <h2>Manage Temporary Availability</h2>
+            <form id="toggleTemporaryAvailabilityForm">
+                <label for="tempAvailabilityItemName">Select Item to Toggle Availability:</label>
+                <select id="tempAvailabilityItemName" class="item-name-dropdown"></select>
+                <label>
+                    <input type="checkbox" id="tempAvailabilityStatus">
+                    Mark as Temporarily Unavailable
+                </label>
+                <button type="submit">Update Availability</button>
+            </form>
+        </section>        
+        <section>
+            <h2>Replace Menu Item</h2>
+            <form id="replaceMenuItemForm">
+                <label for="currentItemName">Current Item Name:</label>
+                <select id="currentItemName" name="currentItemName" class="item-name-dropdown" required></select>
+                <label for="newPendingItemName">New Pending Item Name:</label>
+                <select id="newPendingItemName" name="newPendingItemName" class="pending-item-name-dropdown" required></select>
+                <label for="newItemDescription">New Item Description:</label>
+                <textarea id="newItemDescription" name="newItemDescription" required readonly></textarea>
+                <label for="existingItemImage">Use Existing Image:</label>
+                <select id="existingItemImageReplace" name="existingItemImage"></select>
+                <label for="newItemImageFile">Or Upload New Image:</label>
+                <input type="file" id="newItemImageFile" name="newItemImageFile" accept="image/*">
+                <button type="submit">Replace Menu Item</button>
+            </form>
+        </section>
+        <section>
+            <h2>Update Business Hours (24 Hour Time)</h2>
+            <form id="updateBusinessHoursForm">
+                <label for="openTime">Opening Time 24HR (HHMM):</label>
+                <input type="number" id="openTime" name="openTime" min="0" max="2359" required>
+        
+                <label for="closeTime">Closing Time 24HR (HHMM):</label>
+                <input type="number" id="closeTime" name="closeTime" min="0" max="2359" required>
+        
+                <button type="submit">Update Business Hours</button>
+            </form>
+        </section>
+        <section>
+            <h2>Add Video</h2>
+            <form id="addVideoForm">
+                <label for="videoFile">Video File:</label>
+                <input type="file" id="videoFile" name="videoFile" accept="video/*" required>
+                <button type="submit">Upload Video</button>
+            </form>
+        </section>
+        <section>
+            <h2>Add Menu Item</h2>
+            <form id="addMenuItemForm">
+                <label for="itemName">Item Name:</label>
+                <input type="text" id="itemName" name="itemName" required>
+                <label for="itemDescription">Item Description:</label>
+                <textarea id="itemDescription" name="itemDescription" required></textarea>
+                <label for="itemImageFile">Item Image:</label>
+                <input type="file" id="itemImageFile" name="itemImageFile" accept="image/*" required>
+                <button type="submit">Add Menu Item</button>
+            </form>
+        </section>
+        <section>
+            <h2>Manage Videos</h2>
+            <form id="videoActionsForm">
+                <label for="videoToManage">Select Video to Remove or Swap:</label>
+                <select id="videoToManage" name="videoToManage" required>
+                    <!-- Populated dynamically with current video names -->
+                </select>
+        
+                <label for="existingVideoInStorage">Select Existing Video from Storage to Swap:</label>
+                <select id="existingVideoInStorage" name="existingVideoInStorage">
+                    <!-- Populated dynamically with videos from storage -->
+                </select>
+        
+                <label for="newVideoFile">Or Upload a New Video to Swap:</label>
+                <input type="file" id="newVideoFile" name="newVideoFile" accept="video/*">
+        
+                <button type="submit" id="removeVideoButton">Remove Video</button>
+                <button type="submit" id="swapVideoButton">Swap Video</button>
+            </form>
+        </section>
+        
+        <section>
+            <h2>Direct Add Menu Item (DO NOT USE)</h2>
+            <form id="directAddMenuItemForm">
+                <label for="directItemName">Item Name:</label>
+                <input type="text" id="directItemName" name="itemName" required>
+                <label for="directItemDescription">Item Description:</label>
+                <textarea id="directItemDescription" name="itemDescription" required></textarea>
+                <label for="directItemImageFile">Item Image:</label>
+                <input type="file" id="directItemImageFile" name="itemImageFile" accept="image/*" required>
+                <button type="submit">Add Menu Item Directly</button>
+            </form>
+        </section>        
+        <section>
+            <div class="current-menu-grid"></div>
+        </section>
+    </main>
+    <script>
+        document.getElementById('view-main-button').addEventListener('click', function() {
+            window.location.href = 'index.html'; 
+        });
+    </script>
+    <script>
+        const form = document.getElementById("updateBusinessHoursForm");
+    
+        function fetchCurrentBusinessHours() {
+            db.collection("business_hours").doc("hours").get()
+                .then((doc) => {
+                    if (doc.exists) {
+                        const data = doc.data();
+                        document.getElementById("openTime").value = data.openTime;
+                        document.getElementById("closeTime").value = data.closeTime;
+                    }
+                })
+                .catch((error) => console.error("Error fetching business hours:", error));
+        }
+    
+        form.addEventListener("submit", (event) => {
+            event.preventDefault();
+            const openTime = parseInt(document.getElementById("openTime").value);
+            const closeTime = parseInt(document.getElementById("closeTime").value);
+    
+            db.collection("business_hours").doc("hours").set({ openTime, closeTime })
+                .then(() => alert("Business hours updated successfully!"))
+                .catch((error) => console.error("Error updating business hours:", error));
+        });
+    
+        fetchCurrentBusinessHours();
+    </script>
+</body>
+</html>

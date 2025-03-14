@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sorry, We Are Closed</title>
+    <style>
+         body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: black; /* Main background color */
+            color: white;
+            font-family: 'Roboto', sans-serif;
+            text-align: center;
+        }
+        #early-message-container {
+            padding: 20px;
+            background-color: #222; /* Darker container color */
+            border-radius: 15px;
+            max-width: 800px;
+            width: 100%;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
+        }
+        .logo img {
+            max-width: 200px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            color: #f9f7f7;
+        }
+        #countdown-timer {
+            font-size: 8em;
+            color: #f9f9f8; 
+            font-weight: bold;
+            animation: pulsate 1s infinite alternate;
+            margin-top: 30px;
+            text-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
+        }
+
+        @keyframes pulsate {
+            from {
+                transform: scale(1);
+                opacity: 1;
+            }
+            to {
+                transform: scale(1.1);
+                opacity: 0.8;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="early-message-container">
+        <div class="logo">
+            <img src="public/dolce-logo.png" alt="Dolce Vita Gelateria Logo">
+        </div>
+        <h1 id="status-message">Sorry we are closed! Menu will automatically start at 9:45 PM</h1>
+        <div id="countdown-timer" style="display: none;"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const statusMessage = document.getElementById('status-message');
+            const countdownTimer = document.getElementById('countdown-timer');
+
+            function updateCountdown() {
+                const now = new Date();
+                const startTime = new Date();
+                startTime.setHours(21, 42, 0, 0); // Start time set to 9:42 PM
+
+                const endTime = new Date();
+                endTime.setHours(22, 2, 0, 0); // End time set to 10:02 PM
+
+                if (now >= startTime && now < endTime) {
+                    const timeDifference = endTime - now;
+                    const minutes = Math.floor((timeDifference % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((timeDifference % (1000 * 60)) / 1000);
+                    countdownTimer.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                    countdownTimer.style.display = 'block';
+                    statusMessage.textContent = "We're excited to serve you! Almost ready to open!";
+                } else if (now >= endTime) {
+                    window.location.href = 'menu.html'; // Redirect to menu page at 10:02 PM
+                }
+            }
+
+            // Update the message periodically
+            setInterval(updateCountdown, 1000);
+            updateCountdown();
+        });
+    </script>
+</body>
+</html>
