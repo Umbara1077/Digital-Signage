@@ -35,32 +35,39 @@
     </style>
 <script>
     document.addEventListener("DOMContentLoaded", () => {
-        // Ensure Firebase Auth is fully initialized before running checks
+        if (sessionStorage.getItem('authChecked')) {
+            console.log("🚀 Auth already checked, skipping redundant checks.");
+            return;
+        }
+
         firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL)
             .then(() => {
                 firebase.auth().onAuthStateChanged(async user => {
                     const currentPath = window.location.pathname;
 
+                    // 🚀 Set flag to prevent looping
+                    sessionStorage.setItem('authChecked', 'true');
+
                     if (user) {
                         console.log("✅ Authenticated as:", user.uid);
 
                         try {
-                            // Force token refresh to ensure permissions are updated
-                            await user.getIdToken(true);
+                            await user.getIdToken(true); // Refresh token
                         } catch (error) {
                             console.error("🚨 Token refresh error:", error);
                         }
 
-                        if (currentPath !== '/admin.html' && !sessionStorage.getItem('redirected')) {
-                            sessionStorage.setItem('redirected', 'true');
+                        // 🚀 Redirect only if not already on admin page
+                        if (currentPath !== '/admin.html') {
                             window.location.href = 'admin.html';
-                        } else {
-                            sessionStorage.removeItem('redirected');
                         }
                     } else {
                         console.warn("❌ Not authenticated. Redirecting...");
-                        sessionStorage.setItem('redirected', 'true');
-                        window.location.href = 'login.html';
+
+                        // 🚀 Redirect only if not already on login page
+                        if (currentPath !== '/login.html') {
+                            window.location.href = 'login.html';
+                        }
                     }
                 });
             })
