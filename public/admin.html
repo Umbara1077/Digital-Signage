@@ -33,21 +33,43 @@
         }
 
     </style>
-    <script>
-        auth.onAuthStateChanged(user => {
-        const currentPath = window.location.pathname;
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        // Ensure Firebase Auth is fully initialized before running checks
+        firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+            .then(() => {
+                firebase.auth().onAuthStateChanged(async user => {
+                    const currentPath = window.location.pathname;
 
-        if (user && currentPath !== '/admin.html' && !sessionStorage.getItem('redirected')) {
-            sessionStorage.setItem('redirected', 'true');
-            window.location.href = 'admin.html';
-        } else if (!user && currentPath !== '/login.html' && !sessionStorage.getItem('redirected')) {
-            sessionStorage.setItem('redirected', 'true');
-            window.location.href = 'login.html';
-        } else {
-            sessionStorage.removeItem('redirected');
-        }
-        });
-    </script>
+                    if (user) {
+                        console.log("✅ Authenticated as:", user.uid);
+
+                        try {
+                            // Force token refresh to ensure permissions are updated
+                            await user.getIdToken(true);
+                        } catch (error) {
+                            console.error("🚨 Token refresh error:", error);
+                        }
+
+                        if (currentPath !== '/admin.html' && !sessionStorage.getItem('redirected')) {
+                            sessionStorage.setItem('redirected', 'true');
+                            window.location.href = 'admin.html';
+                        } else {
+                            sessionStorage.removeItem('redirected');
+                        }
+                    } else {
+                        console.warn("❌ Not authenticated. Redirecting...");
+                        sessionStorage.setItem('redirected', 'true');
+                        window.location.href = 'login.html';
+                    }
+                });
+            })
+            .catch(error => {
+                console.error("🚨 Error setting persistence:", error);
+            });
+    });
+</script>
+
 </head>
 <body>
     <header>

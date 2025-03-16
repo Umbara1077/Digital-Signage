@@ -1,0 +1,20 @@
+{
+  "name": "digital-signage",
+  "version": "1.0.0",
+  "description": "The Digital Signage System is a web-based display system designed for Dolce Vita Gelateria. This system dynamically manages menu items, promotional videos, and business hours using Firebase Firestore, Authentication, and Storage. It includes an admin panel for updating menu items, managing stock, and handling business hours.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Umbara1077/Digital-Signage.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Umbara1077/Digital-Signage/issues"
+  },
+  "homepage": "https://github.com/Umbara1077/Digital-Signage#readme"
+}
