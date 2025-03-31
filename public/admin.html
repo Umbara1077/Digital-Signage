@@ -36,7 +36,7 @@
 <script>
     document.addEventListener("DOMContentLoaded", () => {
         if (sessionStorage.getItem('authChecked')) {
-            console.log("🚀 Auth already checked, skipping redundant checks.");
+            console.log("Auth already checked, skipping redundant checks.");
             return;
         }
 
@@ -45,7 +45,6 @@
                 firebase.auth().onAuthStateChanged(async user => {
                     const currentPath = window.location.pathname;
 
-                    // 🚀 Set flag to prevent looping
                     sessionStorage.setItem('authChecked', 'true');
 
                     if (user) {
@@ -57,14 +56,12 @@
                             console.error("🚨 Token refresh error:", error);
                         }
 
-                        // 🚀 Redirect only if not already on admin page
                         if (currentPath !== '/admin.html') {
                             window.location.href = 'admin.html';
                         }
                     } else {
                         console.warn("❌ Not authenticated. Redirecting...");
 
-                        // 🚀 Redirect only if not already on login page
                         if (currentPath !== '/login.html') {
                             window.location.href = 'login.html';
                         }

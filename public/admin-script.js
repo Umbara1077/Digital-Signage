@@ -132,8 +132,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         const newItemImageFile = document.getElementById('newItemImageFile').files[0];
     
         try {
-            const pendingItemDetails = await getPendingItemDetails(newPendingItemName);
-            if (pendingItemDetails) {
+            // Get the pending item data
+            const pendingItemsSnapshot = await db.collection('pendingItems').where('name', '==', newPendingItemName).get();
+            if (!pendingItemsSnapshot.empty) {
+                const pendingItemDoc = pendingItemsSnapshot.docs[0];
+                const pendingItemDetails = pendingItemDoc.data();
+                
+                // DEBUG: log the pending item details
+                console.log("Pending item details:", pendingItemDetails);
+                console.log("Pending item has gelatoImage?", pendingItemDetails.hasOwnProperty('gelatoImage'));
+                
                 let newImageURL = pendingItemDetails.imageURL;
     
                 if (newItemImageFile) {
@@ -142,25 +150,49 @@ document.addEventListener('DOMContentLoaded', async () => {
                     newImageURL = await snapshot.ref.getDownloadURL();
                 }
     
-                // Access the document by ID
+                // Get the current menu item
                 const currentItemDocRef = db.collection('menuItems').doc(currentItemId);
                 const currentItemDoc = await currentItemDocRef.get();
     
                 if (currentItemDoc.exists) {
                     const currentItemDetails = currentItemDoc.data();
                     
-                    await currentItemDocRef.update({
-                        name: pendingItemDetails.name,
-                        description: pendingItemDetails.description,
-                        imageURL: newImageURL
+                    // DEBUG: log the current menu item details
+                    console.log("Current menu item details:", currentItemDetails);
+                    console.log("Current item has gelatoImage?", currentItemDetails.hasOwnProperty('gelatoImage'));
+                    
+                    // APPROACH 1: Use the raw document data method
+                    await db.runTransaction(async (transaction) => {
+                        // Get the latest version of both documents in the transaction
+                        const pendingItemData = pendingItemDoc.data();
+                        
+                        // Create the update for the menu item - INCLUDE ALL FIELDS
+                        const menuItemUpdate = {...pendingItemData, imageURL: newImageURL};
+                        delete menuItemUpdate.id; // Remove any id field if it exists
+                        
+                        // DEBUG: Check what we're updating with
+                        console.log("Updating menu item with:", menuItemUpdate);
+                        console.log("Update includes gelatoImage?", menuItemUpdate.hasOwnProperty('gelatoImage'));
+                        
+                        // Update the menu item
+                        transaction.update(currentItemDocRef, menuItemUpdate);
+                        
+                        // Create the new pending item from the current menu item
+                        const oldItemData = {...currentItemDetails};
+                        transaction.delete(pendingItemDoc.ref);
+                        transaction.set(db.collection('pendingItems').doc(), oldItemData);
+                        
+                        console.log("Transaction complete - items should be swapped with all fields preserved");
                     });
-    
-                    await db.collection('pendingItems').doc(pendingItemDetails.id).delete();
-                    await db.collection('pendingItems').add({
-                        name: currentItemDetails.name,
-                        description: currentItemDetails.description,
-                        imageURL: currentItemDetails.imageURL
-                    });
+                    
+                    // DEBUG: Verify changes after update
+                    setTimeout(async () => {
+                        const updatedMenuItemDoc = await currentItemDocRef.get();
+                        console.log("AFTER UPDATE - Menu item:", updatedMenuItemDoc.data());
+                        console.log("AFTER UPDATE - Does menu item have gelatoImage?", 
+                                    updatedMenuItemDoc.data().hasOwnProperty('gelatoImage'));
+                    }, 1000);
+                    
                     alert('Menu item replaced successfully');
                     document.getElementById('replaceMenuItemForm').reset();
                     populateDropdowns();
@@ -175,7 +207,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('Error replacing menu item: ', error);
             alert('Error replacing menu item.');
         }
-    });    
+    });
 
     document.getElementById('updateStockStatusForm').addEventListener('submit', async (e) => {
         e.preventDefault();
