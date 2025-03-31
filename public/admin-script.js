@@ -185,7 +185,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         console.log("Transaction complete - items should be swapped with all fields preserved");
                     });
                     
-                    // DEBUG: Verify changes after update
                     setTimeout(async () => {
                         const updatedMenuItemDoc = await currentItemDocRef.get();
                         console.log("AFTER UPDATE - Menu item:", updatedMenuItemDoc.data());
