@@ -1,7 +1,14 @@
-document.addEventListener('DOMContentLoaded', async () => {
-    const storageRef = firebase.storage().ref();
-    const db = firebase.firestore();
-
+document.addEventListener('DOMContentLoaded', () => {
+    firebase.auth().onAuthStateChanged(user => {
+      if (!user) {
+        console.warn('Waiting for Firebase Auth…');
+        return;
+      }
+  
+      // *** AUTH IS READY HERE ***
+      const storageRef = firebase.storage().ref();
+      const db         = firebase.firestore();
+  
     async function populateDropdowns() {
         const menuItemsSnapshot = await db.collection('menuItems').get();
         const pendingItemsSnapshot = await db.collection('pendingItems').get();
@@ -366,4 +373,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initial population of dropdowns and menu display
     populateDropdowns();
     displayCurrentMenuItems();
+    });
 });
