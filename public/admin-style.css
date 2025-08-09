@@ -17,6 +17,20 @@
   --blur: blur(10px);
 }
 
+/* Spin only every 5s */
+@keyframes periodicSpin {
+  0%, 80% { transform: rotate(0deg); }
+  85%     { transform: rotate(360deg); }
+  100%    { transform: rotate(0deg); }
+}
+
+@media (prefers-reduced-motion: no-preference){
+  .logo {
+    animation: periodicSpin 5s infinite ease-in-out;
+    will-change: transform;
+  }
+}
+
 /* Background animation */
 @keyframes bgShift {
   0% { background-position: 0% 50%;}
