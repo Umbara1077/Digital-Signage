@@ -11,69 +11,184 @@
     <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-auth.js"></script>
     <script src="firebaseConfig.js"></script>
     <script src="network-check.js"></script>
+    
     <style>
-        body {
-           margin: 0;
-           padding: 0;
-           display: flex;
-           justify-content: center;
-           align-items: center;
-           height: 100vh;
-           background-color: black;
-           color: white;
-           font-family: 'Roboto', sans-serif;
-           text-align: center;
-       }
-       #early-message-container {
-           padding: 20px;
-           background-color: #222; 
-           border-radius: 15px;
-           max-width: 800px;
-           width: 100%;
-           box-shadow: 
-           -15px 0 30px rgba(2, 253, 2, 0.5),  
-           0 0 50px rgba(255, 255, 255, 0.9),  
-           15px 0 30px rgba(250, 25, 25, 0.608);  
-}
+            body{
+            background: radial-gradient(circle at center, #0a0c12 0%, #000 100%) !important;
+            }
 
-       .logo img {
-           max-width: 200px;
-           margin-bottom: 20px;
-       }
-       h1 {
-           font-size: 2.5em;
-           margin-bottom: 20px;
-           color: #f9f7f7;
-       }
-       #countdown-timer {
-           font-size: 8em;
-           color: #f9f9f8; 
-           font-weight: bold;
-           animation: pulsate 1s infinite alternate;
-           margin-top: 30px;
-           text-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
-       }
+            /* --- Subtle Italian halo that rotates slooowly behind the card --- */
+            @keyframes haloSpin { to { transform: rotate(360deg); } }
+            @keyframes edgeSweep { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
 
-       @keyframes pulsate {
-           from {
-               transform: scale(1);
-               opacity: 1;
-           }
-           to {
-               transform: scale(1.1);
-               opacity: 0.8;
-           }
-       }
-   </style>
-</head>
-<body>
-    <div id="early-message-container">
-        <div class="logo">
-            <img src="dolce-logo.png" alt="Dolce Vita Gelateria Logo">
-        </div>
-        <h1 id="status-message">Sorry we are closed! Menu will automatically start during buisness hours</h1>
-        <div id="countdown-timer" style="display: none;"></div>
-    </div>
+            #early-message-container{
+                padding: 24px !important;
+                background: rgba(12,14,20,0.88) !important;   /* translucent */
+                border: 1px solid rgba(255,255,255,0.08) !important;
+                border-radius: 20px !important;
+                box-shadow:
+                    0 14px 36px rgba(0,0,0,.55),
+                    inset 0 0 0 1px rgba(255,255,255,.03) !important;
+                z-index: 1000 !important;  
+                width: auto !important;    
+                max-width: 800px !important;
+
+                position: fixed !important; 
+                top: 50px;                  
+                left: 50px;                 
+            }
+
+            #early-message-container::before{
+            background: none !important;   /* kill the spinning glow */
+            animation: none !important;
+            filter: none !important;
+            opacity: 0 !important;
+            }
+
+           @keyframes traceBox {
+            0%   { clip-path: polygon(0 0, 0% 0, 0% 0, 0 0); }           /* start top-left */
+            25%  { clip-path: polygon(0 0, 100% 0, 100% 0, 0 0); }       /* sweep top edge */
+            50%  { clip-path: polygon(0 0, 100% 0, 100% 100%, 100% 100%);}/* sweep right edge */
+            75%  { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); } /* sweep bottom edge */
+            100% { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); } /* sweep left edge back to start */
+            }
+
+            #early-message-container::after {
+            content: "";
+            position: absolute;
+            inset: -1px;                 /* sit just outside the box */
+            border-radius: 22px;         /* 20px corner + ring */
+            padding: 2px;                /* ring thickness */
+
+            /* Same Italian gradient you had */
+            background: linear-gradient(90deg, #1db954, #ffffff, #ff4d4f, #1db954);
+
+            /* 🔑 Show ONLY the ring, not the inside */
+            -webkit-mask:
+                linear-gradient(#000 0 0) content-box,
+                linear-gradient(#000 0 0);
+            -webkit-mask-composite: xor;
+                    mask-composite: exclude;
+
+            filter: blur(.4px);
+            opacity: .65;
+            animation: traceBox 5.5s linear infinite;
+            pointer-events: none;
+            }
+
+            /* Logo & text remain clean */
+            .logo img{
+            max-width: 200px;
+            margin-bottom: 18px;
+            filter: drop-shadow(0 6px 14px rgba(0,0,0,.6));
+            }
+            h1{
+            color:#f3f3f3;
+            margin: 6px 0 8px;
+            font-weight:900;
+            letter-spacing:.2px;
+            text-shadow: 0 2px 10px rgba(0,0,0,.5);
+            }
+
+            /* Countdown: keep your pulse, darker glow */
+            #countdown-timer{
+            text-shadow:
+                0 0 12px rgba(255,77,79,.45),
+                0 0 18px rgba(29,185,84,.42);
+            }
+
+            /* Respect reduced motion */
+            @media (prefers-reduced-motion: reduce){
+            #early-message-container::before,
+            #early-message-container::after { animation: none !important; }
+            }
+        </style>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+            const box = document.getElementById('early-message-container');
+            if (!box) return;
+
+            // If you want to respect reduced motion, set this to true and keep the media query check.
+            const IGNORE_REDUCED_MOTION = true;
+            if (!IGNORE_REDUCED_MOTION) {
+                const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                if (reduceMotion) return;
+            }
+
+            // Force fixed positioning + starting coords with !important
+            box.style.setProperty('position', 'fixed', 'important');
+            if (!box.style.left)  box.style.setProperty('left',  '50px', 'important');
+            if (!box.style.top)   box.style.setProperty('top',   '50px', 'important');
+
+            box.style.willChange = 'left, top';
+
+            // Start from current computed position
+            let x = parseFloat(getComputedStyle(box).left) || 50;
+            let y = parseFloat(getComputedStyle(box).top)  || 50;
+
+            // Pixels per ms (tweak)
+            let vx = 0.20;
+            let vy = 0.10;
+
+            let paused = false;
+            let last = performance.now();
+
+            function frame(now) {
+                if (paused) return requestAnimationFrame(frame);
+
+                const dt = now - last;
+                last = now;
+
+                x += vx * dt;
+                y += vy * dt;
+
+                const rect = box.getBoundingClientRect();
+                const margin = 16;
+                const maxX = window.innerWidth  - rect.width  - margin;
+                const maxY = window.innerHeight - rect.height - margin;
+
+                if (x < margin) { x = margin; vx = Math.abs(vx); }
+                if (y < margin) { y = margin; vy = Math.abs(vy); }
+                if (x > maxX)   { x = maxX;   vx = -Math.abs(vx); }
+                if (y > maxY)   { y = maxY;   vy = -Math.abs(vy); }
+
+                // Write with !important so no CSS can override
+                box.style.setProperty('left', x + 'px', 'important');
+                box.style.setProperty('top',  y + 'px', 'important');
+
+                requestAnimationFrame(frame);
+            }
+
+            box.addEventListener('mouseenter', () => { paused = true; });
+            box.addEventListener('mouseleave', () => {
+                paused = false;
+                last = performance.now();
+                requestAnimationFrame(frame);
+            });
+
+            window.addEventListener('resize', () => {
+                const rect = box.getBoundingClientRect();
+                const margin = 16;
+                x = Math.min(Math.max(margin, x), window.innerWidth  - rect.width  - margin);
+                y = Math.min(Math.max(margin, y), window.innerHeight - rect.height - margin);
+                box.style.setProperty('left', x + 'px', 'important');
+                box.style.setProperty('top',  y + 'px', 'important');
+            });
+
+            requestAnimationFrame((t) => { last = t; frame(t); });
+            });
+            </script>
+
+        </head>
+        <body>
+            <div id="early-message-container">
+                <div class="logo">
+                    <img src="dolce-logo.png" alt="Dolce Vita Gelateria Logo">
+                </div>
+                <h1 id="status-message">Sorry we are closed! Menu will automatically start during buisness hours</h1>
+                <div id="countdown-timer" style="display: none;"></div>
+            </div>
 
     <script>
 document.addEventListener('DOMContentLoaded', () => {

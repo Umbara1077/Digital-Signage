@@ -1,54 +1,112 @@
+:root{
+  --ink:#07090f;           /* deep midnight */
+  --ink-2:#0e1320;
+  --panel:#0f1422;
+  --text:#eaf1ff;
+  --muted:#aab6cf;
+  --stroke:#242c3d;
+
+  --green:#1ee071;         /* neon gelato green */
+  --red:#ff4d4f;
+  --white:#ffffff;
+
+  --grad-ita: linear-gradient(90deg,#0faa48 0 33.33%,#e8ecf7 33.33% 66.66%,#d93939 66.66% 100%);
+  --grad-ita-deep: linear-gradient(120deg,#122816,#151e2e 45%,#2a1414 100%);
+  --grad-flow: linear-gradient(135deg,#1ee071,#3aa8ff,#9b59ff,#ff4d4f);
+
+  --glass: linear-gradient(180deg,rgba(255,255,255,.09),rgba(255,255,255,.035));
+  --shadow-lg: 0 22px 60px rgba(0,0,0,.5);
+}
+
+/* Motion helpers */
+@keyframes bgShift { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+@keyframes cardFloat { 0%{transform:translateY(0)} 50%{transform:translateY(-6px)} 100%{transform:translateY(0)} }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+@keyframes pulseNumber { 0%{transform:scale(1);opacity:1} 50%{transform:scale(1.12);opacity:.9} 100%{transform:scale(1);opacity:1} }
+@media (prefers-reduced-motion:reduce){ *{animation:none!important; transition:none!important} }
+
 body {
     font-family: Arial, sans-serif;
     margin: 0;
     padding: 0;
-    background: linear-gradient(to bottom, #ff0000, #ffffff, #008000); 
-    overflow: hidden; /* Prevent scrolling */
-    background-attachment: fixed; 
+
+    /* Dark base with very subtle Italian gradient */
+    background: 
+      linear-gradient(
+        to bottom,
+        rgba(0, 128, 0, 0.18) 0%,       /* very subtle green */
+        rgba(255, 255, 255, 0.05) 50%, /* faint white center */
+        rgba(255, 0, 0, 0.12) 100%     /* very subtle red */
+      ),
+      linear-gradient(to bottom, #111, #1a1a1a, #111); /* dark base */
+
+    background-attachment: fixed;
+    overflow: hidden;
+    color: #f3f3f3;
 }
 
+body::before{
+    content:"";
+    position: fixed; inset:0; pointer-events:none;
+    background: var(--grad-flow);
+    background-size: 300% 300%;
+    mix-blend-mode: overlay;
+    opacity: .10;
+    animation: bgShift 20s ease-in-out infinite;
+}
+
+/* ===== Header ===== */
 header {
-    background: linear-gradient(90deg, green 33.33%, white 33.33%, white 66.66%, red 66.66%);
-    color: #fff;
+    /* keep tricolor, but dark glass beneath */
+    background:
+      linear-gradient(180deg, rgba(10,13,18,.85), rgba(10,13,18,.6)),
+      linear-gradient(90deg, #0faa48 0 33.33%, #e8ecf7 33.33% 66.66%, #d93939 66.66% 100%);
+    color: #f6f8ff;
     padding: 10px 0;
     text-align: center;
     position: fixed;
-    top: 0;
-    width: 100%;
+    top: 0; width: 100%;
     z-index: 1000;
+    backdrop-filter: saturate(140%) blur(6px);
+    box-shadow: 0 12px 28px rgba(0,0,0,.55);
+    border-bottom: 1px solid #1c2231;
 }
 
 header .logo img {
-    max-width: 180px;
+    max-width: 100px;                 /* slightly tighter and darker theme-friendly */
+    display:block;
+    margin:0 auto;
+    filter: drop-shadow(0 6px 14px rgba(0,0,0,.55));
 }
 
+/* ===== Video Layer ===== */
 #video-container {
     display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    position: fixed; inset: 0;
     background-color: #000;
+    z-index: 900;                     /* under header */
 }
-
 #video-container video {
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
 
-#home-page {
-    display: none;
-}
+/* ===== Home Page visibility toggle ===== */
+#home-page { display: none; }
 
+/* ===== Main ===== */
 main {
-    margin-top: 70px; 
-    padding: 20px; 
-    height: calc(100vh - 120px); 
+    margin-top: 80px;                 /* clear header */
+    padding: 20px;
+    height: calc(100vh - 140px);      /* leave room for footer */
     box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
+/* ===== Center Container ===== */
 .center-container {
     display: flex;
     justify-content: center;
@@ -56,120 +114,169 @@ main {
     flex-direction: column;
     height: 100%;
     width: 100%;
+    padding: 10px;
+    animation: fadeIn .6s ease both;
 }
 
+/* ===== Gelato Grid ===== */
 .gelato-grid {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(6, 1fr);   /* original intent on big screens */
     grid-template-rows: repeat(3, 1fr);
-    grid-gap: 10px;
+    grid-gap: 14px;
     width: 100%;
     height: 100%;
-    margin-top: 100px;
+    margin-top: 70px;
+    padding: 10px;
+    box-sizing: border-box;
 }
 
+/* --- Logo spin (spin only, every 5s) --- */
+@keyframes periodicSpin {
+  0%, 80% { transform: rotate(0deg); }
+  85%     { transform: rotate(360deg); }
+  100%    { transform: rotate(0deg); }
+}
+
+/* Apply to the existing header logo image */
+@media (prefers-reduced-motion: no-preference){
+  header .logo img {
+    animation: periodicSpin 5s infinite ease-in-out;
+    will-change: transform;
+  }
+}
+
+/* Responsive steps without breaking JS layout assumptions */
+@media (max-width: 1600px){
+  .gelato-grid{ grid-template-columns: repeat(5, 1fr); }
+}
+@media (max-width: 1400px){
+  .gelato-grid{ grid-template-columns: repeat(4, 1fr); }
+}
+@media (max-width: 1100px){
+  .gelato-grid{ grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 800px){
+  .gelato-grid{ grid-template-columns: repeat(2, 1fr); grid-template-rows: auto; }
+}
+@media (max-width: 520px){
+  .gelato-grid{ grid-template-columns: 1fr }
+}
+
+/* ===== Gelato Card ===== */
 .gelato-card {
-    background-color: #fff;
-    border: 1px solid #ccc;
-    border-radius: 8px;
+    background: var(--glass);
+    border: 1px solid var(--stroke);
+    border-radius: 16px;
     overflow: hidden;
     text-align: center;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end; 
+    box-shadow: var(--shadow-lg);
+    transition: transform .25s ease, box-shadow .25s ease, filter .25s ease;
+    display: flex; flex-direction: column; justify-content: flex-end;
     height: 100%;
     position: relative;
+    backdrop-filter: blur(10px);
 }
-
+.gelato-card::before{
+    /* diagonal tricolor accent on hover area */
+    content:"";
+    position:absolute; inset:0;
+    background:
+      linear-gradient(135deg, rgba(31,224,113,.14), transparent 35%),
+      linear-gradient(315deg, rgba(255,77,79,.12), transparent 35%);
+    opacity:.0;
+    transition: opacity .25s ease;
+    pointer-events:none;
+}
 .gelato-card:hover {
-    transform: scale(1.05);
+    transform: translateY(-6px) scale(1.02);
+    box-shadow: 0 26px 70px rgba(0,0,0,.6);
 }
+.gelato-card:hover::before{ opacity:.8 }
 
 .gelato-card img {
-    width: 100%; 
-    height: auto; 
-    object-fit: cover; 
+    width: 100%;
+    height: auto;
+    object-fit: cover;
     display: block;
     margin: 0 auto;
-    max-width: 300px; 
+    max-width: 320px;
     flex-grow: 1;
+    filter: contrast(1.03) saturate(1.06);
 }
 
 .gelato-card h3 {
-    margin: 0;
-    padding: 10px 0;
-    background-color: #333;
-    color: #fff;
-    font-size: 1.5em; 
-    flex-shrink: 0;
-    position: absolute;
-    bottom: 0; 
-    width: 100%; 
-    text-align: center;
-    box-sizing: border-box;
-    word-wrap: break-word; /* Ensure text wraps properly */
-    white-space: pre-wrap; /* Allow text to wrap to the next line */
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin: 0; /* remove any extra gap */
+  padding: 12px 10px;
+
+  background:
+    linear-gradient(to right,
+      rgba(15,170,72,.30) 0%,
+      rgba(217,57,57,.30) 14%,
+      rgba(10,13,18,0) 28%
+    ),
+    rgba(10,13,18,.92);
+
+  color: #f4f7ff;
+  font-size: 1.5em;
+  line-height: 1.25;
+  text-align: center;
+  border-top: 1px solid rgba(255,255,255,.06);
+  text-shadow: 0 3px 10px rgba(0,0,0,.6);
+  box-sizing: border-box;
 }
 
+/* ===== Footer ===== */
 footer {
-    background-color: #333;
-    color: #fff;
+    background: linear-gradient(180deg, rgba(10,13,18,.92), rgba(10,13,18,.82));
+    color: #e9efff;
     text-align: center;
-    padding: 10px 0;
+    padding: 12px 0;
     position: fixed;
-    bottom: 0;
-    width: 100%;
+    bottom: 0; width: 100%;
+    border-top: 1px solid #1c2231;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 -12px 28px rgba(0,0,0,.5);
 }
 
-/* Center and style the "You're Too Early" message */
-#early-message-container {
+/* ===== Overlays (Early / Countdown) ===== */
+#early-message-container,
+#countdown-container{
     position: absolute;
-    top: 50%;
-    left: 50%;
+    top: 50%; left: 50%;
     transform: translate(-50%, -50%);
     text-align: center;
-    background-color: #f5f5f5; /* Light background color for the container */
-    padding: 20px;
-    border-radius: 10px;
-    color: #000; /* Black text color */
+    background: var(--glass);
+    border: 1px solid var(--stroke);
+    padding: 24px 26px;
+    border-radius: 14px;
+    color: #e9efff;
     font-size: 2rem;
-    font-weight: bold;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-    animation: fadeIn 2s ease-in-out;
+    font-weight: 800;
+    box-shadow: var(--shadow-lg);
+    animation: fadeIn .6s ease both;
+    backdrop-filter: blur(12px);
 }
 
-/* Center and style the countdown container */
-#countdown-container {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    text-align: center;
-    background-color: #f5f5f5; /* Light background color for the container */
-    padding: 20px;
-    border-radius: 10px;
-    color: #000; /* Black text color */
-    font-size: 2rem;
-    font-weight: bold;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-    animation: fadeIn 2s ease-in-out;
-}
-
+/* Countdown number with neon gelato glow */
 #countdown-timer {
     font-size: 6rem;
-    color: #0ff207;
-    animation: countdownAnimation 1.5s infinite;
+    color: var(--green);
+    animation: pulseNumber 1.6s infinite;
+    letter-spacing: .02em;
+    text-shadow:
+      0 0 10px rgba(30,224,113,.55),
+      0 0 28px rgba(30,224,113,.35),
+      0 6px 28px rgba(0,0,0,.55);
 }
 
+/* Keep original animations available for compatibility */
 @keyframes countdownAnimation {
     0% { transform: scale(1); opacity: 1; }
     50% { transform: scale(1.3); opacity: 0.7; }
     100% { transform: scale(1); opacity: 1; }
-}
-
-@keyframes fadeIn {
-    0% { opacity: 0; }
-    100% { opacity: 1; }
 }
