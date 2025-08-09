@@ -123,28 +123,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            // keep your existing storageRef usage
+            // refs for each folder
             const imagesRef = storageRef.child('images');
+            const gelatoImagesRef = storageRef.child('gelatoImage');
 
-            // upload both in parallel
+            // upload both in parallel to their correct folders
             const [itemSnap, gelatoSnap] = await Promise.all([
-            imagesRef.child(itemImageFile.name).put(itemImageFile),
-            imagesRef.child(gelatoImageFile.name).put(gelatoImageFile),
+                imagesRef.child(itemImageFile.name).put(itemImageFile),
+                gelatoImagesRef.child(gelatoImageFile.name).put(gelatoImageFile),
             ]);
 
             // get URLs
             const [imageURL, gelatoImage] = await Promise.all([
-            itemSnap.ref.getDownloadURL(),
-            gelatoSnap.ref.getDownloadURL(),
+                itemSnap.ref.getDownloadURL(),
+                gelatoSnap.ref.getDownloadURL(),
             ]);
 
             await db.collection('pendingItems').add({
-            name: itemName,                      
-            description: itemDescription,         
-            imageURL: imageURL,                   
-            gelatoImage: gelatoImage,             
-            outOfStock: true,                     
-            temporarilyUnavailable: false         
+                name: itemName,                      
+                description: itemDescription,         
+                imageURL: imageURL,                   // main image in images/
+                gelatoImage: gelatoImage,              // gelato image in gelatoImage/
+                outOfStock: true,                     
+                temporarilyUnavailable: false         
             });
 
             alert('Menu item added to pending items successfully');
@@ -155,6 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Error adding menu item: ', error);
             alert('Failed to add menu item. Check console for details.');
         }
+
         });
 
     document.getElementById('replaceMenuItemForm').addEventListener('submit', async (e) => {
