@@ -10,7 +10,7 @@
     <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-auth.js"></script>
     <script src="firebaseConfig.js"></script>
     <script src="admin-script.js"></script>
-    <link rel="icon" href="dolce-logo.png" type="image/x-icon">
+    <link rel="icon" href="DolceLogo-Admin.png" type="image/x-icon">
     <style>
             .btn {
             display: inline-block;
@@ -78,7 +78,7 @@
 <body>
     <header>
         <div class="header-content">
-            <img src="logo.png" alt="Dolce Vita Gelateria Logo" class="logo">
+            <img src="DolceLogo-Admin.png" alt="Dolce Vita Gelateria Logo" class="logo">
         </div>
     </header>
     
@@ -155,6 +155,8 @@
                 <textarea id="itemDescription" name="itemDescription" required></textarea>
                 <label for="itemImageFile">Item Image:</label>
                 <input type="file" id="itemImageFile" name="itemImageFile" accept="image/*" required>
+                <label for="gelatoImageFile">Gelato Image (gelatoImage):</label>
+                <input type="file" id="gelatoImageFile" name="gelatoImageFile" accept="image/*" required>
                 <button type="submit">Add Menu Item</button>
             </form>
         </section>

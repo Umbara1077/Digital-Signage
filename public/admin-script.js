@@ -111,26 +111,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('addMenuItemForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const itemName = document.getElementById('itemName').value;
-        const itemDescription = document.getElementById('itemDescription').value;
-        const itemImageFile = document.getElementById('itemImageFile').files[0];
 
-        const imageRef = storageRef.child('images/' + itemImageFile.name);
+        const itemName = document.getElementById('itemName').value.trim();
+        const itemDescription = document.getElementById('itemDescription').value.trim();
+        const itemImageFile = document.getElementById('itemImageFile').files[0];      // -> imageURL
+        const gelatoImageFile = document.getElementById('gelatoImageFile').files[0];  // -> gelatoImage
+
+        if (!itemImageFile || !gelatoImageFile) {
+            alert('Please select both images.');
+            return;
+        }
+
         try {
-            const snapshot = await imageRef.put(itemImageFile);
-            const imageURL = await snapshot.ref.getDownloadURL();
+            // keep your existing storageRef usage
+            const imagesRef = storageRef.child('images');
+
+            // upload both in parallel
+            const [itemSnap, gelatoSnap] = await Promise.all([
+            imagesRef.child(itemImageFile.name).put(itemImageFile),
+            imagesRef.child(gelatoImageFile.name).put(gelatoImageFile),
+            ]);
+
+            // get URLs
+            const [imageURL, gelatoImage] = await Promise.all([
+            itemSnap.ref.getDownloadURL(),
+            gelatoSnap.ref.getDownloadURL(),
+            ]);
+
             await db.collection('pendingItems').add({
-                name: itemName,
-                description: itemDescription,
-                imageURL: imageURL
+            name: itemName,                      
+            description: itemDescription,         
+            imageURL: imageURL,                   
+            gelatoImage: gelatoImage,             
+            outOfStock: true,                     
+            temporarilyUnavailable: false         
             });
+
             alert('Menu item added to pending items successfully');
             document.getElementById('addMenuItemForm').reset();
-            populateDropdowns();
+            if (typeof populateDropdowns === 'function') populateDropdowns();
+
         } catch (error) {
             console.error('Error adding menu item: ', error);
+            alert('Failed to add menu item. Check console for details.');
         }
-    });
+        });
 
     document.getElementById('replaceMenuItemForm').addEventListener('submit', async (e) => {
         e.preventDefault();
