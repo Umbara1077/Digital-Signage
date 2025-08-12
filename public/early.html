@@ -231,7 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const hours = now.getHours();
         const minutes = now.getMinutes();
 
-        const isBusinessDay = (day === 0 || (day >= 2 && day <= 6));
+        const isBusinessDay = (day === 0 || (day >= 3 && day <= 7)); // Open on Wed-Sun
 
         const { openHour, openMinute, closeHour, closeMinute } = businessHours;
 
