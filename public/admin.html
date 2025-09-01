@@ -130,11 +130,23 @@
         <section>
             <h2>Update Business Hours (24 Hour Time)</h2>
             <form id="updateBusinessHoursForm">
+
                 <label for="openTime">Opening Time 24HR (HHMM):</label>
                 <input type="number" id="openTime" name="openTime" min="0" max="2359" required>
         
                 <label for="closeTime">Closing Time 24HR (HHMM):</label>
                 <input type="number" id="closeTime" name="closeTime" min="0" max="2359" required>
+
+                <fieldset style="margin-top:12px">
+                <legend>Open Days</legend>
+                <label><input type="checkbox" name="openDays" value="0" id="day0"> Sun</label>
+                <label><input type="checkbox" name="openDays" value="1" id="day1"> Mon</label>
+                <label><input type="checkbox" name="openDays" value="2" id="day2"> Tue</label>
+                <label><input type="checkbox" name="openDays" value="3" id="day3"> Wed</label>
+                <label><input type="checkbox" name="openDays" value="4" id="day4"> Thu</label>
+                <label><input type="checkbox" name="openDays" value="5" id="day5"> Fri</label>
+                <label><input type="checkbox" name="openDays" value="6" id="day6"> Sat</label>
+                </fieldset>
         
                 <button type="submit">Update Business Hours</button>
             </form>
@@ -203,32 +215,48 @@
             window.location.href = 'index.html'; 
         });
     </script>
-    <script>
-        const form = document.getElementById("updateBusinessHoursForm");
-    
-        function fetchCurrentBusinessHours() {
-            db.collection("business_hours").doc("hours").get()
-                .then((doc) => {
-                    if (doc.exists) {
-                        const data = doc.data();
-                        document.getElementById("openTime").value = data.openTime;
-                        document.getElementById("closeTime").value = data.closeTime;
+<script>
+    const form = document.getElementById("updateBusinessHoursForm");
+
+    function fetchCurrentBusinessHours() {
+        db.collection("business_hours").doc("hours").get()
+            .then((doc) => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    document.getElementById("openTime").value = data.openTime;
+                    document.getElementById("closeTime").value = data.closeTime;
+
+                    // NEW: set day checkboxes from Firestore openDays (0=Sun … 6=Sat)
+                    const openDays = Array.isArray(data.openDays)
+                      ? data.openDays.map(n => parseInt(n, 10))
+                      : [];
+                    for (let d = 0; d <= 6; d++) {
+                        const el = document.getElementById(`day${d}`);
+                        if (el) el.checked = openDays.includes(d);
                     }
-                })
-                .catch((error) => console.error("Error fetching business hours:", error));
-        }
-    
-        form.addEventListener("submit", (event) => {
-            event.preventDefault();
-            const openTime = parseInt(document.getElementById("openTime").value);
-            const closeTime = parseInt(document.getElementById("closeTime").value);
-    
-            db.collection("business_hours").doc("hours").set({ openTime, closeTime })
-                .then(() => alert("Business hours updated successfully!"))
-                .catch((error) => console.error("Error updating business hours:", error));
-        });
-    
-        fetchCurrentBusinessHours();
-    </script>
+                }
+            })
+            .catch((error) => console.error("Error fetching business hours:", error));
+    }
+
+    form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const openTime = parseInt(document.getElementById("openTime").value);
+        const closeTime = parseInt(document.getElementById("closeTime").value);
+
+        // NEW: collect checked days as integers
+        const openDays = Array.from(document.querySelectorAll('input[name="openDays"]:checked'))
+            .map(el => parseInt(el.value, 10));
+
+        db.collection("business_hours").doc("hours").set(
+            { openTime, closeTime, openDays },   // include openDays
+            { merge: true }
+        )
+        .then(() => alert("Business hours updated successfully!"))
+        .catch((error) => console.error("Error updating business hours:", error));
+    });
+
+    fetchCurrentBusinessHours();
+</script>
 </body>
 </html>

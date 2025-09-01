@@ -40,69 +40,77 @@
     </div>
     
     <script>
-document.addEventListener('DOMContentLoaded', () => {
-    const db = firebase.firestore();
+    document.addEventListener('DOMContentLoaded', () => {
+        const db = firebase.firestore();
 
-    function fetchBusinessHours(callback) {
-        db.collection("business_hours").doc("hours").get().then((doc) => {
-            if (doc.exists) {
-                const data = doc.data();
-                console.log("📢 Fetched Business Hours:", data);
+        function fetchBusinessHours(callback) {
+            db.collection("business_hours").doc("hours").get().then((doc) => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    console.log("📢 Fetched Business Hours:", data);
 
-                if (!data.openTime || !data.closeTime) {
-                    console.error("❌ Missing openTime or closeTime in Firestore!");
-                    return;
+                    if (!data.openTime || !data.closeTime) {
+                        console.error("❌ Missing openTime or closeTime in Firestore!");
+                        return;
+                    }
+
+                    // Ensure openTime and closeTime are numbers
+                    const openTime = parseInt(data.openTime, 10);
+                    const closeTime = parseInt(data.closeTime, 10);
+
+                    // Convert HHMM format to hour and minute values
+                    const openHour = Math.floor(openTime / 100);
+                    const openMinute = openTime % 100;
+                    const closeHour = Math.floor(closeTime / 100);
+                    const closeMinute = closeTime % 100;
+
+                    console.log(`✅ Open Time: ${openHour}:${openMinute}`);
+                    console.log(`✅ Close Time: ${closeHour}:${closeMinute}`);
+
+                    // 🔹 NEW: read openDays array from Firestore (0=Sun ... 6=Sat)
+                    const openDays = Array.isArray(data.openDays)
+                    ? data.openDays.map(n => parseInt(n, 10))
+                    : [];
+
+                    callback({ openHour, openMinute, closeHour, closeMinute, openDays });
+                } else {
+                    console.error("❌ Business hours document not found!");
                 }
-
-                // Ensure openTime and closeTime are numbers
-                const openTime = parseInt(data.openTime, 10);
-                const closeTime = parseInt(data.closeTime, 10);
-
-                // Convert HHMM format to hour and minute values
-                const openHour = Math.floor(openTime / 100);
-                const openMinute = openTime % 100;
-                const closeHour = Math.floor(closeTime / 100);
-                const closeMinute = closeTime % 100;
-
-                console.log(`✅ Open Time: ${openHour}:${openMinute}`);
-                console.log(`✅ Close Time: ${closeHour}:${closeMinute}`);
-
-                callback({ openHour, openMinute, closeHour, closeMinute });
-            } else {
-                console.error("❌ Business hours document not found!");
-            }
-        }).catch((error) => console.error("❌ Firestore fetch error:", error));
-    }
-
-    function checkTime(businessHours) {
-        const now = new Date();
-        const day = now.getDay();
-        const hours = now.getHours();
-        const minutes = now.getMinutes();
-
-        //const isBusinessDay = (day === 0 || (day >= 2 && day <= 6)); // Tues - Sun
-        const isBusinessDay = (day === 0 || (day >= 3 && day <= 7)); // Open on Wed-Sun
-
-        const { openHour, openMinute, closeHour, closeMinute } = businessHours;
-
-        // Check if current time is within open hours
-        const isOpenHours = isBusinessDay &&
-                            (hours > openHour || (hours === openHour && minutes >= openMinute)) &&
-                            (hours < closeHour || (hours === closeHour && minutes < closeMinute));
-
-        console.log(`🕒 NOW: ${hours}:${minutes} | OPEN: ${openHour}:${openMinute} - ${closeHour}:${closeMinute} | isOpenHours: ${isOpenHours}`);
-        console.log(`✅ Is Today a Business Day? ${isBusinessDay}`);
-        
-        if (!isOpenHours) {
-            console.log("🔴 Store is CLOSED - Redirecting to early.html");
-            setTimeout(() => { window.location.href = "early.html"; }, 500);
+            }).catch((error) => console.error("❌ Firestore fetch error:", error));
         }
-    }
 
-    fetchBusinessHours(checkTime);
-    setInterval(() => fetchBusinessHours(checkTime), 60000);
-});
-    </script>   
+        function checkTime(businessHours) {
+            const now = new Date();
+            const day = now.getDay();
+            const hours = now.getHours();
+            const minutes = now.getMinutes();
+
+            //const isBusinessDay = (day === 0 || (day >= 2 && day <= 6)); // Tues - Sun
+            // const isBusinessDay = (day === 0 || (day >= 3 && day <= 7)); // Open on Wed-Sun
+            // 🔹 NEW: drive open/closed days from Firestore
+            const isBusinessDay = Array.isArray(businessHours.openDays) && businessHours.openDays.includes(day);
+
+            const { openHour, openMinute, closeHour, closeMinute } = businessHours;
+
+            // Check if current time is within open hours
+            const isOpenHours = isBusinessDay &&
+                                (hours > openHour || (hours === openHour && minutes >= openMinute)) &&
+                                (hours < closeHour || (hours === closeHour && minutes < closeMinute));
+
+            console.log(`🕒 NOW: ${hours}:${minutes} | OPEN: ${openHour}:${openMinute} - ${closeHour}:${closeMinute} | isOpenHours: ${isOpenHours}`);
+            console.log(`✅ Is Today a Business Day? ${isBusinessDay}`);
+            
+            if (!isOpenHours) {
+                console.log("🔴 Store is CLOSED - Redirecting to early.html");
+                setTimeout(() => { window.location.href = "early.html"; }, 500);
+            }
+        }
+
+        fetchBusinessHours(checkTime);
+        setInterval(() => fetchBusinessHours(checkTime), 60000);
+    });
+    </script>
+
 <!--
     <script>
         document.addEventListener('DOMContentLoaded', () => {

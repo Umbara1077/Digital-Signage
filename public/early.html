@@ -190,7 +190,7 @@
                 <div id="countdown-timer" style="display: none;"></div>
             </div>
 
-    <script>
+<script>
 document.addEventListener('DOMContentLoaded', () => {
     const db = firebase.firestore();
 
@@ -218,7 +218,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log(`✅ Open Time: ${openHour}:${openMinute}`);
                 console.log(`✅ Close Time: ${closeHour}:${closeMinute}`);
 
-                callback({ openHour, openMinute, closeHour, closeMinute });
+                // NEW: read openDays (0=Sun … 6=Sat) from Firestore
+                const openDays = Array.isArray(data.openDays)
+                  ? data.openDays.map(n => parseInt(n, 10))
+                  : [];
+
+                callback({ openHour, openMinute, closeHour, closeMinute, openDays });
             } else {
                 console.error("❌ Business hours document not found!");
             }
@@ -231,7 +236,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const hours = now.getHours();
         const minutes = now.getMinutes();
 
-        const isBusinessDay = (day === 0 || (day >= 3 && day <= 7)); // Open on Wed-Sun
+        // const isBusinessDay = (day === 0 || (day >= 3 && day <= 7)); // Open on Wed-Sun
+        // NEW: drive open/closed days from Firestore
+        const isBusinessDay = Array.isArray(businessHours.openDays) && businessHours.openDays.includes(day);
 
         const { openHour, openMinute, closeHour, closeMinute } = businessHours;
 
@@ -252,7 +259,8 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchBusinessHours(checkTime);
     setInterval(() => fetchBusinessHours(checkTime), 60000);
 });
-    </script>    
+</script>
+
 
     <!---
     <script>
