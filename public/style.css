@@ -1,29 +1,87 @@
-:root{
-  --ink:#07090f;           /* deep midnight */
-  --ink-2:#0e1320;
-  --panel:#0f1422;
-  --text:#eaf1ff;
-  --muted:#aab6cf;
-  --stroke:#242c3d;
+:root {
+    --ink: #07090f;
+    /* deep midnight */
+    --ink-2: #0e1320;
+    --panel: #0f1422;
+    --text: #eaf1ff;
+    --muted: #aab6cf;
+    --stroke: #242c3d;
 
-  --green:#1ee071;         /* neon gelato green */
-  --red:#ff4d4f;
-  --white:#ffffff;
+    --green: #1ee071;
+    /* neon gelato green */
+    --red: #ff4d4f;
+    --white: #ffffff;
 
-  --grad-ita: linear-gradient(90deg,#0faa48 0 33.33%,#e8ecf7 33.33% 66.66%,#d93939 66.66% 100%);
-  --grad-ita-deep: linear-gradient(120deg,#122816,#151e2e 45%,#2a1414 100%);
-  --grad-flow: linear-gradient(135deg,#1ee071,#3aa8ff,#9b59ff,#ff4d4f);
+    --grad-ita: linear-gradient(90deg, #0faa48 0 33.33%, #e8ecf7 33.33% 66.66%, #d93939 66.66% 100%);
+    --grad-ita-deep: linear-gradient(120deg, #122816, #151e2e 45%, #2a1414 100%);
+    --grad-flow: linear-gradient(135deg, #1ee071, #3aa8ff, #9b59ff, #ff4d4f);
 
-  --glass: linear-gradient(180deg,rgba(255,255,255,.09),rgba(255,255,255,.035));
-  --shadow-lg: 0 22px 60px rgba(0,0,0,.5);
+    --glass: linear-gradient(180deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .035));
+    --shadow-lg: 0 22px 60px rgba(0, 0, 0, .5);
 }
 
 /* Motion helpers */
-@keyframes bgShift { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
-@keyframes cardFloat { 0%{transform:translateY(0)} 50%{transform:translateY(-6px)} 100%{transform:translateY(0)} }
-@keyframes fadeIn { from{opacity:0} to{opacity:1} }
-@keyframes pulseNumber { 0%{transform:scale(1);opacity:1} 50%{transform:scale(1.12);opacity:.9} 100%{transform:scale(1);opacity:1} }
-@media (prefers-reduced-motion:reduce){ *{animation:none!important; transition:none!important} }
+@keyframes bgShift {
+    0% {
+        background-position: 0% 50%
+    }
+
+    50% {
+        background-position: 100% 50%
+    }
+
+    100% {
+        background-position: 0% 50%
+    }
+}
+
+@keyframes cardFloat {
+    0% {
+        transform: translateY(0)
+    }
+
+    50% {
+        transform: translateY(-6px)
+    }
+
+    100% {
+        transform: translateY(0)
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0
+    }
+
+    to {
+        opacity: 1
+    }
+}
+
+@keyframes pulseNumber {
+    0% {
+        transform: scale(1);
+        opacity: 1
+    }
+
+    50% {
+        transform: scale(1.12);
+        opacity: .9
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1
+    }
+}
+
+@media (prefers-reduced-motion:reduce) {
+    * {
+        animation: none !important;
+        transition: none !important
+    }
+}
 
 body {
     font-family: Arial, sans-serif;
@@ -31,23 +89,28 @@ body {
     padding: 0;
 
     /* Dark base with very subtle Italian gradient */
-    background: 
-      linear-gradient(
-        to bottom,
-        rgba(0, 128, 0, 0.35) 0%,       /* stronger green */
-        rgba(255, 255, 255, 0.12) 50%, /* brighter white center */
-        rgba(255, 0, 0, 0.28) 100%     /* stronger red */
-      ),
-      linear-gradient(to bottom, #111, #1a1a1a, #111); /* dark base */
+    background:
+        linear-gradient(to bottom,
+            rgba(0, 128, 0, 0.35) 0%,
+            /* stronger green */
+            rgba(255, 255, 255, 0.12) 50%,
+            /* brighter white center */
+            rgba(255, 0, 0, 0.28) 100%
+            /* stronger red */
+        ),
+        linear-gradient(to bottom, #111, #1a1a1a, #111);
+    /* dark base */
 
     background-attachment: fixed;
     overflow: hidden;
     color: #f3f3f3;
 }
 
-body::before{
-    content:"";
-    position: fixed; inset:0; pointer-events:none;
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
     background: var(--grad-flow);
     background-size: 300% 300%;
     mix-blend-mode: overlay;
@@ -56,39 +119,44 @@ body::before{
 }
 
 header {
-    background: linear-gradient(
-        90deg,
-        #d93939 0 33.33%,
-        #ffffff 33.33% 66.66%,
-        #0faa48 66.66% 100%
-    );
-    height: 100px; /* Taller for more visibility */
+    background: linear-gradient(90deg,
+            #d93939 0 33.33%,
+            #ffffff 33.33% 66.66%,
+            #0faa48 66.66% 100%);
+    height: 100px;
+    /* Taller for more visibility */
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 2.5em;
     font-weight: bold;
     color: #000;
-    text-shadow: 2px 2px 6px rgba(0,0,0,0.5); /* Makes text pop */
-    box-shadow: 0 4px 15px rgba(0,0,0,0.4); /* Gives depth */
-    border-bottom: 4px solid rgba(0,0,0,0.5);
-     margin-bottom: -110px;
+    text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.5);
+    /* Makes text pop */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    /* Gives depth */
+    border-bottom: 4px solid rgba(0, 0, 0, 0.5);
+    margin-bottom: -110px;
 }
 
 header .logo img {
-    max-width: 100px;                 /* slightly tighter and darker theme-friendly */
-    display:block;
-    margin:0 auto;
-    filter: drop-shadow(0 6px 14px rgba(0,0,0,.55));
+    max-width: 100px;
+    /* slightly tighter and darker theme-friendly */
+    display: block;
+    margin: 0 auto;
+    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .55));
 }
 
 /* ===== Video Layer ===== */
 #video-container {
     display: none;
-    position: fixed; inset: 0;
+    position: fixed;
+    inset: 0;
     background-color: #000;
-    z-index: 900;                     /* under header */
+    z-index: 900;
+    /* under header */
 }
+
 #video-container video {
     width: 100%;
     height: 100%;
@@ -96,13 +164,17 @@ header .logo img {
 }
 
 /* ===== Home Page visibility toggle ===== */
-#home-page { display: none; }
+#home-page {
+    display: none;
+}
 
 /* ===== Main ===== */
 main {
-    margin-top: 80px;                 /* clear header */
+    margin-top: 80px;
+    /* clear header */
     padding: 20px;
-    height: calc(100vh - 140px);      /* leave room for footer */
+    height: calc(100vh - 140px);
+    /* leave room for footer */
     box-sizing: border-box;
     display: flex;
     align-items: center;
@@ -124,7 +196,8 @@ main {
 /* ===== Gelato Grid ===== */
 .gelato-grid {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);   /* original intent on big screens */
+    grid-template-columns: repeat(6, 1fr);
+    /* original intent on big screens */
     grid-template-rows: repeat(3, 1fr);
     grid-gap: 14px;
     width: 100%;
@@ -136,34 +209,59 @@ main {
 
 /* --- Logo spin (spin only, every 5s) --- */
 @keyframes periodicSpin {
-  0%, 80% { transform: rotate(0deg); }
-  85%     { transform: rotate(360deg); }
-  100%    { transform: rotate(0deg); }
+
+    0%,
+    80% {
+        transform: rotate(0deg);
+    }
+
+    85% {
+        transform: rotate(360deg);
+    }
+
+    100% {
+        transform: rotate(0deg);
+    }
 }
 
 /* Apply to the existing header logo image */
-@media (prefers-reduced-motion: no-preference){
-  header .logo img {
-    animation: periodicSpin 5s infinite ease-in-out;
-    will-change: transform;
-  }
+@media (prefers-reduced-motion: no-preference) {
+    header .logo img {
+        animation: periodicSpin 5s infinite ease-in-out;
+        will-change: transform;
+    }
 }
 
 /* Responsive steps without breaking JS layout assumptions */
-@media (max-width: 1600px){
-  .gelato-grid{ grid-template-columns: repeat(5, 1fr); }
+@media (max-width: 1600px) {
+    .gelato-grid {
+        grid-template-columns: repeat(5, 1fr);
+    }
 }
-@media (max-width: 1400px){
-  .gelato-grid{ grid-template-columns: repeat(4, 1fr); }
+
+@media (max-width: 1400px) {
+    .gelato-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
 }
-@media (max-width: 1100px){
-  .gelato-grid{ grid-template-columns: repeat(3, 1fr); }
+
+@media (max-width: 1100px) {
+    .gelato-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
 }
-@media (max-width: 800px){
-  .gelato-grid{ grid-template-columns: repeat(2, 1fr); grid-template-rows: auto; }
+
+@media (max-width: 800px) {
+    .gelato-grid {
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-rows: auto;
+    }
 }
-@media (max-width: 520px){
-  .gelato-grid{ grid-template-columns: 1fr }
+
+@media (max-width: 520px) {
+    .gelato-grid {
+        grid-template-columns: 1fr
+    }
 }
 
 /* ===== Gelato Card ===== */
@@ -175,27 +273,35 @@ main {
     text-align: center;
     box-shadow: var(--shadow-lg);
     transition: transform .25s ease, box-shadow .25s ease, filter .25s ease;
-    display: flex; flex-direction: column; justify-content: flex-end;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
     height: 100%;
     position: relative;
     backdrop-filter: blur(10px);
 }
-.gelato-card::before{
+
+.gelato-card::before {
     /* diagonal tricolor accent on hover area */
-    content:"";
-    position:absolute; inset:0;
+    content: "";
+    position: absolute;
+    inset: 0;
     background:
-      linear-gradient(135deg, rgba(31,224,113,.14), transparent 35%),
-      linear-gradient(315deg, rgba(255,77,79,.12), transparent 35%);
-    opacity:.0;
+        linear-gradient(135deg, rgba(31, 224, 113, .14), transparent 35%),
+        linear-gradient(315deg, rgba(255, 77, 79, .12), transparent 35%);
+    opacity: .0;
     transition: opacity .25s ease;
-    pointer-events:none;
+    pointer-events: none;
 }
+
 .gelato-card:hover {
     transform: translateY(-6px) scale(1.02);
-    box-shadow: 0 26px 70px rgba(0,0,0,.6);
+    box-shadow: 0 26px 70px rgba(0, 0, 0, .6);
 }
-.gelato-card:hover::before{ opacity:.8 }
+
+.gelato-card:hover::before {
+    opacity: .8
+}
 
 .gelato-card img {
     width: 100%;
@@ -209,48 +315,50 @@ main {
 }
 
 .gelato-card h3 {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  margin: 0; /* remove any extra gap */
-  padding: 12px 10px;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: 0;
+    /* remove any extra gap */
+    padding: 12px 10px;
 
-  background:
-    linear-gradient(to right,
-      rgba(15,170,72,.30) 0%,
-      rgba(217,57,57,.30) 14%,
-      rgba(10,13,18,0) 28%
-    ),
-    rgba(10,13,18,.92);
+    background:
+        linear-gradient(to right,
+            rgba(15, 170, 72, .30) 0%,
+            rgba(217, 57, 57, .30) 14%,
+            rgba(10, 13, 18, 0) 28%),
+        rgba(10, 13, 18, .92);
 
-  color: #f4f7ff;
-  font-size: 1.5em;
-  line-height: 1.25;
-  text-align: center;
-  border-top: 1px solid rgba(255,255,255,.06);
-  text-shadow: 0 3px 10px rgba(0,0,0,.6);
-  box-sizing: border-box;
+    color: #f4f7ff;
+    font-size: 1.5em;
+    line-height: 1.25;
+    text-align: center;
+    border-top: 1px solid rgba(255, 255, 255, .06);
+    text-shadow: 0 3px 10px rgba(0, 0, 0, .6);
+    box-sizing: border-box;
 }
 
 /* ===== Footer ===== */
 footer {
-    background: linear-gradient(180deg, rgba(10,13,18,.92), rgba(10,13,18,.82));
+    background: linear-gradient(180deg, rgba(10, 13, 18, .92), rgba(10, 13, 18, .82));
     color: #e9efff;
     text-align: center;
     padding: 12px 0;
     position: fixed;
-    bottom: 0; width: 100%;
+    bottom: 0;
+    width: 100%;
     border-top: 1px solid #1c2231;
     backdrop-filter: blur(6px);
-    box-shadow: 0 -12px 28px rgba(0,0,0,.5);
+    box-shadow: 0 -12px 28px rgba(0, 0, 0, .5);
 }
 
 /* ===== Overlays (Early / Countdown) ===== */
 #early-message-container,
-#countdown-container{
+#countdown-container {
     position: absolute;
-    top: 50%; left: 50%;
+    top: 50%;
+    left: 50%;
     transform: translate(-50%, -50%);
     text-align: center;
     background: var(--glass);
@@ -272,16 +380,27 @@ footer {
     animation: pulseNumber 1.6s infinite;
     letter-spacing: .02em;
     text-shadow:
-      0 0 10px rgba(30,224,113,.55),
-      0 0 28px rgba(30,224,113,.35),
-      0 6px 28px rgba(0,0,0,.55);
+        0 0 10px rgba(30, 224, 113, .55),
+        0 0 28px rgba(30, 224, 113, .35),
+        0 6px 28px rgba(0, 0, 0, .55);
 }
 
 /* Keep original animations available for compatibility */
 @keyframes countdownAnimation {
-    0% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.3); opacity: 0.7; }
-    100% { transform: scale(1); opacity: 1; }
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.3);
+        opacity: 0.7;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
 .gelato-grid {
@@ -331,4 +450,53 @@ footer {
     word-wrap: break-word;
     white-space: pre-wrap;
     background: rgba(0, 0, 0, 0.5);
+}
+
+/* ===== Snow and Italian Flag Animation ===== */
+#snow-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 9999;
+    overflow: hidden;
+}
+
+.snowflake {
+    position: absolute;
+    top: -10px;
+    background: white;
+    border-radius: 50%;
+    opacity: 0.8;
+    pointer-events: none;
+}
+
+.italian-flag {
+    position: absolute;
+    top: -20px;
+    width: 20px;
+    height: 14px;
+    background: linear-gradient(90deg, #009246 33.33%, #ffffff 33.33% 66.66%, #ce2b37 66.66%);
+    opacity: 0.9;
+    pointer-events: none;
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+}
+
+/* ===== Snowfall Keyframes ===== */
+@keyframes snowfall {
+    0% {
+        transform: translateY(-20px) translateX(0) rotate(0deg);
+        opacity: 0;
+    }
+
+    10% {
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateY(105vh) translateX(20px) rotate(360deg);
+        opacity: 0.8;
+    }
 }

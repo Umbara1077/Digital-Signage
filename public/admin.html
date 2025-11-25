@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Admin Panel</title>
     <link rel="stylesheet" type="text/css" href="admin-style.css">
@@ -12,80 +13,87 @@
     <script src="admin-script.js"></script>
     <link rel="icon" href="DolceLogo-Admin.png" type="image/x-icon">
     <style>
-            .btn {
+        .btn {
             display: inline-block;
             padding: 10px 20px;
             font-size: 16px;
             font-weight: bold;
             color: #fff;
-            background-color: #007bff; 
+            background-color: #007bff;
             text-decoration: none;
-            border-radius: 5px; 
-            transition: background-color 0.3s ease; 
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
         }
 
         .btn:hover {
-            background-color: #0056b3; 
+            background-color: #0056b3;
         }
 
         .btn:active {
-            background-color: #004085; 
+            background-color: #004085;
         }
-
-        
     </style>
-<script>
-    document.addEventListener("DOMContentLoaded", () => {
-        if (sessionStorage.getItem('authChecked')) {
-            console.log("Auth already checked, skipping redundant checks.");
-            return;
-        }
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            if (sessionStorage.getItem('authChecked')) {
+                console.log("Auth already checked, skipping redundant checks.");
+                return;
+            }
 
-        firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL)
-            .then(() => {
-                firebase.auth().onAuthStateChanged(async user => {
-                    const currentPath = window.location.pathname;
+            firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+                .then(() => {
+                    firebase.auth().onAuthStateChanged(async user => {
+                        const currentPath = window.location.pathname;
 
-                    sessionStorage.setItem('authChecked', 'true');
+                        sessionStorage.setItem('authChecked', 'true');
 
-                    if (user) {
-                        console.log("✅ Authenticated as:", user.uid);
+                        if (user) {
+                            console.log("✅ Authenticated as:", user.uid);
 
-                        try {
-                            await user.getIdToken(true); // Refresh token
-                        } catch (error) {
-                            console.error("🚨 Token refresh error:", error);
+                            try {
+                                await user.getIdToken(true); // Refresh token
+                            } catch (error) {
+                                console.error("🚨 Token refresh error:", error);
+                            }
+
+                            if (currentPath !== '/admin.html') {
+                                window.location.href = 'admin.html';
+                            }
+                        } else {
+                            console.warn("❌ Not authenticated. Redirecting...");
+
+                            if (currentPath !== '/login.html') {
+                                window.location.href = 'login.html';
+                            }
                         }
-
-                        if (currentPath !== '/admin.html') {
-                            window.location.href = 'admin.html';
-                        }
-                    } else {
-                        console.warn("❌ Not authenticated. Redirecting...");
-
-                        if (currentPath !== '/login.html') {
-                            window.location.href = 'login.html';
-                        }
-                    }
+                    });
+                })
+                .catch(error => {
+                    console.error("🚨 Error setting persistence:", error);
                 });
-            })
-            .catch(error => {
-                console.error("🚨 Error setting persistence:", error);
-            });
-    });
-</script>
+        });
+    </script>
 
 </head>
+
 <body>
     <header>
         <div class="header-content">
             <img src="DolceLogo-Admin.png" alt="Dolce Vita Gelateria Logo" class="logo">
         </div>
     </header>
-    
+
     <main>
         <button id="view-main-button">View Menu Page</button>
         <a href="https://dolcecaffesignage.web.app/admin.html" class="btn">Caffe Menu</a>
+
+        <section>
+            <h2>Snow & Flag Effect</h2>
+            <label>
+                <input type="checkbox" id="snowToggle">
+                Enable Snow & Italian Flag Effects
+            </label>
+        </section>
         <section>
             <h2>Update Stock Status</h2>
             <form id="updateStockStatusForm">
@@ -110,14 +118,15 @@
                 </label>
                 <button type="submit">Update Availability</button>
             </form>
-        </section>        
+        </section>
         <section>
             <h2>Replace Menu Item</h2>
             <form id="replaceMenuItemForm">
                 <label for="currentItemName">Current Item Name:</label>
                 <select id="currentItemName" name="currentItemName" class="item-name-dropdown" required></select>
                 <label for="newPendingItemName">New Pending Item Name:</label>
-                <select id="newPendingItemName" name="newPendingItemName" class="pending-item-name-dropdown" required></select>
+                <select id="newPendingItemName" name="newPendingItemName" class="pending-item-name-dropdown"
+                    required></select>
                 <label for="newItemDescription">New Item Description:</label>
                 <textarea id="newItemDescription" name="newItemDescription" required readonly></textarea>
                 <label for="existingItemImage">Use Existing Image:</label>
@@ -133,21 +142,21 @@
 
                 <label for="openTime">Opening Time 24HR (HHMM):</label>
                 <input type="number" id="openTime" name="openTime" min="0" max="2359" required>
-        
+
                 <label for="closeTime">Closing Time 24HR (HHMM):</label>
                 <input type="number" id="closeTime" name="closeTime" min="0" max="2359" required>
 
                 <fieldset style="margin-top:12px">
-                <legend>Open Days</legend>
-                <label><input type="checkbox" name="openDays" value="0" id="day0"> Sun</label>
-                <label><input type="checkbox" name="openDays" value="1" id="day1"> Mon</label>
-                <label><input type="checkbox" name="openDays" value="2" id="day2"> Tue</label>
-                <label><input type="checkbox" name="openDays" value="3" id="day3"> Wed</label>
-                <label><input type="checkbox" name="openDays" value="4" id="day4"> Thu</label>
-                <label><input type="checkbox" name="openDays" value="5" id="day5"> Fri</label>
-                <label><input type="checkbox" name="openDays" value="6" id="day6"> Sat</label>
+                    <legend>Open Days</legend>
+                    <label><input type="checkbox" name="openDays" value="0" id="day0"> Sun</label>
+                    <label><input type="checkbox" name="openDays" value="1" id="day1"> Mon</label>
+                    <label><input type="checkbox" name="openDays" value="2" id="day2"> Tue</label>
+                    <label><input type="checkbox" name="openDays" value="3" id="day3"> Wed</label>
+                    <label><input type="checkbox" name="openDays" value="4" id="day4"> Thu</label>
+                    <label><input type="checkbox" name="openDays" value="5" id="day5"> Fri</label>
+                    <label><input type="checkbox" name="openDays" value="6" id="day6"> Sat</label>
                 </fieldset>
-        
+
                 <button type="submit">Update Business Hours</button>
             </form>
         </section>
@@ -180,20 +189,20 @@
                 <select id="videoToManage" name="videoToManage" required>
                     <!-- Populated dynamically with current video names -->
                 </select>
-        
+
                 <label for="existingVideoInStorage">Select Existing Video from Storage to Swap:</label>
                 <select id="existingVideoInStorage" name="existingVideoInStorage">
                     <!-- Populated dynamically with videos from storage -->
                 </select>
-        
+
                 <label for="newVideoFile">Or Upload a New Video to Swap:</label>
                 <input type="file" id="newVideoFile" name="newVideoFile" accept="video/*">
-        
+
                 <button type="submit" id="removeVideoButton">Remove Video</button>
                 <button type="submit" id="swapVideoButton">Swap Video</button>
             </form>
         </section>
-        
+
         <section>
             <h2>Direct Add Menu Item (DO NOT USE)</h2>
             <form id="directAddMenuItemForm">
@@ -205,58 +214,59 @@
                 <input type="file" id="directItemImageFile" name="itemImageFile" accept="image/*" required>
                 <button type="submit">Add Menu Item Directly</button>
             </form>
-        </section>        
+        </section>
         <section>
             <div class="current-menu-grid"></div>
         </section>
     </main>
     <script>
-        document.getElementById('view-main-button').addEventListener('click', function() {
-            window.location.href = 'index.html'; 
+        document.getElementById('view-main-button').addEventListener('click', function () {
+            window.location.href = 'index.html';
         });
     </script>
-<script>
-    const form = document.getElementById("updateBusinessHoursForm");
+    <script>
+        const form = document.getElementById("updateBusinessHoursForm");
 
-    function fetchCurrentBusinessHours() {
-        db.collection("business_hours").doc("hours").get()
-            .then((doc) => {
-                if (doc.exists) {
-                    const data = doc.data();
-                    document.getElementById("openTime").value = data.openTime;
-                    document.getElementById("closeTime").value = data.closeTime;
+        function fetchCurrentBusinessHours() {
+            db.collection("business_hours").doc("hours").get()
+                .then((doc) => {
+                    if (doc.exists) {
+                        const data = doc.data();
+                        document.getElementById("openTime").value = data.openTime;
+                        document.getElementById("closeTime").value = data.closeTime;
 
-                    // NEW: set day checkboxes from Firestore openDays (0=Sun … 6=Sat)
-                    const openDays = Array.isArray(data.openDays)
-                      ? data.openDays.map(n => parseInt(n, 10))
-                      : [];
-                    for (let d = 0; d <= 6; d++) {
-                        const el = document.getElementById(`day${d}`);
-                        if (el) el.checked = openDays.includes(d);
+                        // NEW: set day checkboxes from Firestore openDays (0=Sun … 6=Sat)
+                        const openDays = Array.isArray(data.openDays)
+                            ? data.openDays.map(n => parseInt(n, 10))
+                            : [];
+                        for (let d = 0; d <= 6; d++) {
+                            const el = document.getElementById(`day${d}`);
+                            if (el) el.checked = openDays.includes(d);
+                        }
                     }
-                }
-            })
-            .catch((error) => console.error("Error fetching business hours:", error));
-    }
+                })
+                .catch((error) => console.error("Error fetching business hours:", error));
+        }
 
-    form.addEventListener("submit", (event) => {
-        event.preventDefault();
-        const openTime = parseInt(document.getElementById("openTime").value);
-        const closeTime = parseInt(document.getElementById("closeTime").value);
+        form.addEventListener("submit", (event) => {
+            event.preventDefault();
+            const openTime = parseInt(document.getElementById("openTime").value);
+            const closeTime = parseInt(document.getElementById("closeTime").value);
 
-        // NEW: collect checked days as integers
-        const openDays = Array.from(document.querySelectorAll('input[name="openDays"]:checked'))
-            .map(el => parseInt(el.value, 10));
+            // NEW: collect checked days as integers
+            const openDays = Array.from(document.querySelectorAll('input[name="openDays"]:checked'))
+                .map(el => parseInt(el.value, 10));
 
-        db.collection("business_hours").doc("hours").set(
-            { openTime, closeTime, openDays },   // include openDays
-            { merge: true }
-        )
-        .then(() => alert("Business hours updated successfully!"))
-        .catch((error) => console.error("Error updating business hours:", error));
-    });
+            db.collection("business_hours").doc("hours").set(
+                { openTime, closeTime, openDays },   // include openDays
+                { merge: true }
+            )
+                .then(() => alert("Business hours updated successfully!"))
+                .catch((error) => console.error("Error updating business hours:", error));
+        });
 
-    fetchCurrentBusinessHours();
-</script>
+        fetchCurrentBusinessHours();
+    </script>
 </body>
+
 </html>

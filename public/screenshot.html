@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Digital Signage</title>
     <link rel="stylesheet" type="text/css" href="style.css">
@@ -14,8 +15,9 @@
     <script src="firebaseConfig.js"></script>
     <script src="script.js"></script>
     <script src="network-check.js"></script>
-    <link rel="icon"href="dolce-logo.png" type="image/x-icon">
+    <link rel="icon" href="dolce-logo.png" type="image/x-icon">
 </head>
+
 <body>
 
     <div id="video-container">
@@ -24,63 +26,133 @@
             Your browser does not support the video tag.
         </video>
     </div>
-    
+
     <div id="home-page">
         <header>
             <div class="logo">
                 <img src="DolceLogo-Admin-removebg-preview.png" alt="Dolce Vita Gelateria">
             </div>
         </header>
-        
+
         <main>
             <div class="center-container">
                 <div class="gelato-grid">
-                   
+
                 </div>
             </div>
         </main>
     </div>
     <script>
-    function captureScreenshot(requestId) {
-        // Capture screenshot after a 20-second delay
-        setTimeout(() => {
-            html2canvas(document.body).then(function(canvas) {
-                canvas.toBlob(function(blob) {
-                    const screenshotRef = storage.ref(`screenshots/menu_screenshot_${Date.now()}.png`);
+        function captureScreenshot(requestId) {
+            // Capture screenshot after a 20-second delay
+            setTimeout(() => {
+                html2canvas(document.body).then(function (canvas) {
+                    canvas.toBlob(function (blob) {
+                        const screenshotRef = storage.ref(`screenshots/menu_screenshot_${Date.now()}.png`);
 
-                    screenshotRef.put(blob).then(function(snapshot) {
-                        console.log('Screenshot uploaded successfully');
+                        screenshotRef.put(blob).then(function (snapshot) {
+                            console.log('Screenshot uploaded successfully');
 
-                        screenshotRef.getDownloadURL().then(function(url) {
-                            db.collection('screenshotRequests').doc(requestId).update({
-                                status: 'completed',
-                                screenshotUrl: url
-                            }).then(() => {
-                                console.log('Screenshot URL saved to Firestore');
-                            }).catch((error) => {
-                                console.error('Error updating Firestore document:', error);
+                            screenshotRef.getDownloadURL().then(function (url) {
+                                db.collection('screenshotRequests').doc(requestId).update({
+                                    status: 'completed',
+                                    screenshotUrl: url
+                                }).then(() => {
+                                    console.log('Screenshot URL saved to Firestore');
+                                }).catch((error) => {
+                                    console.error('Error updating Firestore document:', error);
+                                });
+                            }).catch(function (error) {
+                                console.error('Error getting screenshot URL:', error);
                             });
-                        }).catch(function(error) {
-                            console.error('Error getting screenshot URL:', error);
+                        }).catch(function (error) {
+                            console.error('Error uploading screenshot:', error);
                         });
-                    }).catch(function(error) {
-                        console.error('Error uploading screenshot:', error);
-                    });
-                }, 'image/png');
-            }).catch(function(error) {
-                console.error('Error capturing screenshot:', error);
-            });
-        }, 20000); // 20-second delay to skip the first video
-    }
+                    }, 'image/png');
+                }).catch(function (error) {
+                    console.error('Error capturing screenshot:', error);
+                });
+            }, 20000); // 20-second delay to skip the first video
+        }
 
-    // Listen for pending screenshot requests
-    db.collection('screenshotRequests').where('status', '==', 'pending').onSnapshot(function(snapshot) {
-        snapshot.forEach(function(doc) {
-            const requestId = doc.id;
-            console.log('Pending screenshot request detected:', requestId);
-            captureScreenshot(requestId); // Start the capture process after a delay
+        // Listen for pending screenshot requests
+        db.collection('screenshotRequests').where('status', '==', 'pending').onSnapshot(function (snapshot) {
+            snapshot.forEach(function (doc) {
+                const requestId = doc.id;
+                console.log('Pending screenshot request detected:', requestId);
+                captureScreenshot(requestId); // Start the capture process after a delay
+            });
         });
-    });
-</script>
+    </script>
+    <script>
+        // Snow & Flag Animation (live-toggle via Firestore)
+        document.addEventListener('DOMContentLoaded', () => {
+            let snowContainer = null;
+            const particleCount = 150; // density
+
+            function createParticle(isFlag) {
+                const particle = document.createElement('div');
+                particle.classList.add(isFlag ? 'italian-flag' : 'snowflake');
+
+                const startLeft = Math.random() * 100;       // %
+                const duration = Math.random() * 5 + 3;     // 3–8s
+                const delay = Math.random() * 5;         // 0–5s
+                const size = Math.random() * 4 + 3;     // 3–7px for snow
+
+                particle.style.left = `${startLeft}%`;
+                particle.style.animation = `snowfall ${duration}s linear infinite`;
+                particle.style.animationDelay = `-${delay}s`;
+
+                if (!isFlag) {
+                    particle.style.width = `${size}px`;
+                    particle.style.height = `${size}px`;
+                }
+
+                snowContainer.appendChild(particle);
+            }
+
+            function enableSnow() {
+                if (!snowContainer) {
+                    snowContainer = document.createElement('div');
+                    snowContainer.id = 'snow-container';
+                    document.body.appendChild(snowContainer);
+                }
+
+                // Clear old particles and rebuild
+                snowContainer.innerHTML = '';
+
+                for (let i = 0; i < particleCount; i++) {
+                    // 1 in 6 particles is a flag
+                    createParticle(i % 6 === 0);
+                }
+            }
+
+            function disableSnow() {
+                if (snowContainer) {
+                    snowContainer.remove();
+                    snowContainer = null;
+                }
+            }
+
+            // Firestore live setting
+            // `db` is already created in script.js (firebase.firestore())
+            const snowDocRef = db.collection('signageSettings').doc('snowEffect');
+
+            // Real-time listener: flips snow on/off with NO refresh
+            snowDocRef.onSnapshot(doc => {
+                const data = doc.exists ? doc.data() : {};
+                const enabled = (data.enabled !== false); // default true if not set
+
+                if (enabled) {
+                    enableSnow();
+                } else {
+                    disableSnow();
+                }
+            }, err => {
+                console.error('Error listening to snowEffect setting:', err);
+            });
+        });
+    </script>
 </body>
+
 </html>
