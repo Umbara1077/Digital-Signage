@@ -212,34 +212,26 @@ document.addEventListener('DOMContentLoaded', () => {
                         newImageURL = await snapshot.ref.getDownloadURL();
                     }
 
-                    // Get the current menu item
                     const currentItemDocRef = db.collection('menuItems').doc(currentItemId);
                     const currentItemDoc = await currentItemDocRef.get();
 
                     if (currentItemDoc.exists) {
                         const currentItemDetails = currentItemDoc.data();
 
-                        // DEBUG: log the current menu item details
                         console.log("Current menu item details:", currentItemDetails);
                         console.log("Current item has gelatoImage?", currentItemDetails.hasOwnProperty('gelatoImage'));
 
-                        // APPROACH 1: Use the raw document data method
                         await db.runTransaction(async (transaction) => {
-                            // Get the latest version of both documents in the transaction
                             const pendingItemData = pendingItemDoc.data();
 
-                            // Create the update for the menu item - INCLUDE ALL FIELDS
                             const menuItemUpdate = { ...pendingItemData, imageURL: newImageURL };
-                            delete menuItemUpdate.id; // Remove any id field if it exists
+                            delete menuItemUpdate.id;
 
-                            // DEBUG: Check what we're updating with
                             console.log("Updating menu item with:", menuItemUpdate);
                             console.log("Update includes gelatoImage?", menuItemUpdate.hasOwnProperty('gelatoImage'));
 
-                            // Update the menu item
                             transaction.update(currentItemDocRef, menuItemUpdate);
 
-                            // Create the new pending item from the current menu item
                             const oldItemData = { ...currentItemDetails };
                             transaction.delete(pendingItemDoc.ref);
                             transaction.set(db.collection('pendingItems').doc(), oldItemData);
@@ -331,36 +323,35 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        let currentVideos = []; // Store videos currently in rotation
+        let currentVideos = [];
 
         function getCleanVideoName(videoURL) {
-            const fullName = videoURL.split('/').pop().split('?')[0]; // Extract name from URL
-            return decodeURIComponent(fullName); // Decode URL-encoded characters
+            const fullName = videoURL.split('/').pop().split('?')[0];
+            return decodeURIComponent(fullName);
         }
 
-        // Function to display current video names in the dropdown
         function updateCurrentVideos(snapshot) {
             const videoSelect = document.getElementById('videoToManage');
             videoSelect.innerHTML = '';
-            currentVideos = []; // Reset current videos array
+            currentVideos = [];
 
             snapshot.forEach(doc => {
                 const videoURL = doc.data().url;
-                const videoName = getCleanVideoName(videoURL); // Extract clean name
+                const videoName = getCleanVideoName(videoURL);
                 const option = document.createElement('option');
                 option.value = doc.id;
-                option.textContent = videoName; // Only show the cleaned-up name
+                option.textContent = videoName;
                 videoSelect.appendChild(option);
-                currentVideos.push(videoName); // Store the video name to filter out later
+                currentVideos.push(videoName);
             });
         }
 
-        // Real-time listener for current videos from Firestore
+
         db.collection('videos').onSnapshot(snapshot => {
             updateCurrentVideos(snapshot);
         });
 
-        // Function to display all available videos in storage that are NOT in current rotation
+
         async function displayAvailableVideos() {
             const storageVideoSelect = document.getElementById('existingVideoInStorage');
             storageVideoSelect.innerHTML = '<option value="">Select a video from storage</option>';
@@ -369,7 +360,6 @@ document.addEventListener('DOMContentLoaded', () => {
             videoFiles.items.forEach(async (videoRef) => {
                 const videoName = getCleanVideoName(videoRef.name);
 
-                // Only show videos that are not in the currentVideos array
                 if (!currentVideos.includes(videoName)) {
                     const videoURL = await videoRef.getDownloadURL();
                     const option = document.createElement('option');

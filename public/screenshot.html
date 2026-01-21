@@ -134,8 +134,6 @@
                 }
             }
 
-            // Firestore live setting
-            // `db` is already created in script.js (firebase.firestore())
             const snowDocRef = db.collection('signageSettings').doc('snowEffect');
 
             // Real-time listener: flips snow on/off with NO refresh

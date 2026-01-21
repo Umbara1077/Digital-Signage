@@ -113,6 +113,67 @@
         });
     </script>
 
+    <script>
+        // Snow & Flag Animation (live-toggle via Firestore)
+        document.addEventListener('DOMContentLoaded', () => {
+            let snowContainer = null;
+            const particleCount = 150; // density
+
+            function createParticle(isFlag) {
+                const particle = document.createElement('div');
+                particle.classList.add(isFlag ? 'italian-flag' : 'snowflake');
+
+                const startLeft = Math.random() * 100;      
+                const duration = Math.random() * 5 + 3;     
+                const delay = Math.random() * 5;            
+                const size = Math.random() * 4 + 3;         
+
+                particle.style.left = `${startLeft}%`;
+                particle.style.animation = `snowfall ${duration}s linear infinite`;
+                particle.style.animationDelay = `-${delay}s`;
+
+                if (!isFlag) {
+                    particle.style.width = `${size}px`;
+                    particle.style.height = `${size}px`;
+                }
+
+                snowContainer.appendChild(particle);
+            }
+
+            function enableSnow() {
+                if (!snowContainer) {
+                    snowContainer = document.createElement('div');
+                    snowContainer.id = 'snow-container';
+                    document.body.appendChild(snowContainer);
+                }
+
+                snowContainer.innerHTML = '';
+
+                for (let i = 0; i < particleCount; i++) {
+                    createParticle(i % 6 === 0); // 1 out of 6 = flag
+                }
+            }
+
+            function disableSnow() {
+                if (snowContainer) {
+                    snowContainer.remove();
+                    snowContainer = null;
+                }
+            }
+
+            // Firestore live toggle
+            const snowDocRef = db.collection('signageSettings').doc('snowEffect');
+
+            snowDocRef.onSnapshot(doc => {
+                const data = doc.exists ? doc.data() : {};
+                const enabled = (data.enabled !== false);
+
+                if (enabled) enableSnow();
+                else disableSnow();
+            });
+        });
+    </script>
+
     <!--
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -187,7 +248,7 @@
                 createParticle(i % 6 === 0);
             }
         });
-    </script>
+    </script> -->
 </body>
 
 </html>
