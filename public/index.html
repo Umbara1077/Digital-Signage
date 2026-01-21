@@ -123,10 +123,10 @@
                 const particle = document.createElement('div');
                 particle.classList.add(isFlag ? 'italian-flag' : 'snowflake');
 
-                const startLeft = Math.random() * 100;      
-                const duration = Math.random() * 5 + 3;     
-                const delay = Math.random() * 5;            
-                const size = Math.random() * 4 + 3;         
+                const startLeft = Math.random() * 100;
+                const duration = Math.random() * 5 + 3;
+                const delay = Math.random() * 5;
+                const size = Math.random() * 4 + 3;
 
                 particle.style.left = `${startLeft}%`;
                 particle.style.animation = `snowfall ${duration}s linear infinite`;
@@ -170,6 +170,84 @@
 
                 if (enabled) enableSnow();
                 else disableSnow();
+            });
+
+            // === NEW: Heart & Flag Animation Logic (Separate System) ===
+            let heartContainer = null;
+
+            function createHeartParticle(isFlag) {
+                const particle = document.createElement('div');
+                particle.classList.add(isFlag ? 'italian-flag' : 'heart');
+
+                const startLeft = Math.random() * 100;
+                const duration = Math.random() * 5 + 3;
+                const delay = Math.random() * 5;
+                const size = Math.random() * 4 + 3; // relevant for sizing if needed
+
+                particle.style.left = `${startLeft}%`;
+                particle.style.animation = `snowfall ${duration}s linear infinite`;
+                particle.style.animationDelay = `-${delay}s`;
+
+                // If it's a heart or flag, we might want to ensure they are visible
+                // The .heart class already has fixed width/height in CSS, but we can randomize slightly if desired.
+                // For now, keeping "same exact style" means relying on the CSS classes mostly.
+
+                if (!isFlag) {
+                    // Start scaling for variety if desired, or keep uniform. 
+                    // The CSS for .heart already defines a 10px size. 
+                    // Let's rely on CSS to match "same exact style" request, 
+                    // but the snow logic sets width/height. 
+                    // Let's set it to ensure consistency if the user wants variance.
+                    // However, CSS transform scale might be better for hearts to separate size from shape.
+                    // But to be safe and simple:
+                    // particle.style.transform += ` scale(${Math.random() * 0.5 + 0.8})`; 
+                    // Since the CSS has rotation, we append scale.
+                    // Actually, let's just stick to the CSS size for hearts to be safe/clean.
+                }
+
+                heartContainer.appendChild(particle);
+            }
+
+            function enableHearts() {
+                if (!heartContainer) {
+                    heartContainer = document.createElement('div');
+                    heartContainer.id = 'heart-container';
+                    heartContainer.style.position = 'fixed'; // Ensure it has same container props
+                    heartContainer.style.top = '0';
+                    heartContainer.style.left = '0';
+                    heartContainer.style.width = '100%';
+                    heartContainer.style.height = '100%';
+                    heartContainer.style.pointerEvents = 'none';
+                    heartContainer.style.zIndex = '9999';
+                    heartContainer.style.overflow = 'hidden';
+                    document.body.appendChild(heartContainer);
+                }
+
+                heartContainer.innerHTML = '';
+
+                for (let i = 0; i < particleCount; i++) {
+                    createHeartParticle(i % 6 === 0); // 1 out of 6 = flag
+                }
+            }
+
+            function disableHearts() {
+                if (heartContainer) {
+                    heartContainer.remove();
+                    heartContainer = null;
+                }
+            }
+
+            const heartDocRef = db.collection('signageSettings').doc('heartEffect');
+
+            heartDocRef.onSnapshot(doc => {
+                const data = doc.exists ? doc.data() : {};
+                const enabled = (data.enabled === true); // Default to false if not present, or match snow logic?
+                // Snow defaults to true if missing (in admin), but false makes sense for a NEW feature to not auto-on.
+                // However, admin script defaults snow to true if missing.
+                // Let's follow the data.
+
+                if (enabled) enableHearts();
+                else disableHearts();
             });
         });
     </script>

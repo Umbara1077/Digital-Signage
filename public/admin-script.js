@@ -37,6 +37,32 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        // === HEART TOGGLE
+        const heartToggle = document.getElementById('heartToggle');
+
+        if (heartToggle) {
+            const heartDocRef = db.collection('signageSettings').doc('heartEffect');
+
+            // Load current value from Firestore
+            heartDocRef.get().then(doc => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    heartToggle.checked = (data.enabled === true);
+                } else {
+                    heartToggle.checked = false; // Default off for new feature
+                }
+            }).catch(err => {
+                console.error('Error loading heart toggle setting:', err);
+            });
+
+            // Update Firestore when user clicks the toggle
+            heartToggle.addEventListener('change', e => {
+                heartDocRef
+                    .set({ enabled: e.target.checked }, { merge: true })
+                    .catch(err => console.error('Error updating heart toggle:', err));
+            });
+        }
+
         async function populateDropdowns() {
             const menuItemsSnapshot = await db.collection('menuItems').get();
             const pendingItemsSnapshot = await db.collection('pendingItems').get();
