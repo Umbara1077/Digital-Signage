@@ -111,6 +111,23 @@
                 </select>
                 <button type="submit">Update Stock Status</button>
             </form>
+            <div id="menuManageBlock">
+                <div class="manage-mode-toggle">
+                    <button type="button" id="showRemoveMode" class="manage-mode-btn active">Remove from Menu</button>
+                    <button type="button" id="showAddBackMode" class="manage-mode-btn">Add to Menu</button>
+                </div>
+                <form id="removeFromMenuForm">
+                    <label for="removeItemName">Select Item to Remove:</label>
+                    <select id="removeItemName" class="item-name-dropdown" required></select>
+                    <button type="submit" class="remove-btn">Remove from Menu</button>
+                </form>
+                <form id="addFromPendingForm" style="display:none;">
+                    <label for="addBackItemName">Select Pending Item:</label>
+                    <input type="text" id="addBackSearchBox" placeholder="Search pending flavors..." autocomplete="off">
+                    <select id="addBackItemName" class="pending-item-name-dropdown" required></select>
+                    <button type="submit" class="addback-btn">Add to Menu</button>
+                </form>
+            </div>
         </section>
         <section id="temporaryAvailabilitySection">
             <h2>Manage Temporary Availability</h2>
@@ -130,6 +147,7 @@
                 <label for="currentItemName">Current Item Name:</label>
                 <select id="currentItemName" name="currentItemName" class="item-name-dropdown" required></select>
                 <label for="newPendingItemName">New Pending Item Name:</label>
+                <input type="text" id="pendingSearchBox" placeholder="Search pending flavors..." autocomplete="off">
                 <select id="newPendingItemName" name="newPendingItemName" class="pending-item-name-dropdown"
                     required></select>
                 <label for="newItemDescription">New Item Description:</label>
@@ -219,6 +237,14 @@
                 <input type="file" id="directItemImageFile" name="itemImageFile" accept="image/*" required>
                 <button type="submit">Add Menu Item Directly</button>
             </form>
+        </section>
+        <section>
+            <h2>Arrange Menu Order</h2>
+            <p style="color:var(--muted);margin:0 0 10px;font-size:.9rem;">Drag and drop to reorder. Click Save when
+                done.</p>
+            <div class="arrange-grid" id="arrangeGrid"></div>
+            <button type="button" id="saveOrderBtn" class="manage-mode-btn"
+                style="margin:16px auto;display:block;padding:12px 30px;font-size:1rem;">Save Order</button>
         </section>
         <section>
             <div class="current-menu-grid"></div>

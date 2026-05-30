@@ -88,9 +88,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 dropdown.innerHTML = itemNames.map(item => `<option value="${item.id}">${item.name}</option>`).join('');
             });
 
+            // Store full pending list for search filtering
+            window._allPendingItems = pendingItemNames.slice().sort((a, b) => a.localeCompare(b));
+
             const pendingDropdowns = document.querySelectorAll('.pending-item-name-dropdown');
             pendingDropdowns.forEach(dropdown => {
-                dropdown.innerHTML = pendingItemNames.map(name => `<option value="${name}">${name}</option>`).join('');
+                dropdown.innerHTML = window._allPendingItems.map(name => `<option value="${name}">${name}</option>`).join('');
             });
 
             const existingImageDropdowns = document.querySelectorAll('#existingItemImageReplace');
@@ -105,15 +108,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         async function displayCurrentMenuItems() {
             const menuGrid = document.querySelector('.current-menu-grid');
+            const arrangeGrid = document.getElementById('arrangeGrid');
             const menuItemsSnapshot = await db.collection('menuItems').get();
             menuGrid.innerHTML = '';
 
+            // Build sorted list for arrange grid
+            const allItems = [];
+
             menuItemsSnapshot.forEach(doc => {
                 const data = doc.data();
+                allItems.push({ id: doc.id, ...data });
+
                 const menuItem = document.createElement('div');
                 menuItem.className = 'menu-item-card';
 
-                // Determine item status text based on availability fields
                 let statusText = 'In Stock';
                 if (data.outOfStock) statusText = 'Out of Stock';
                 if (data.temporarilyUnavailable) statusText = 'Temporarily Unavailable';
@@ -127,7 +135,187 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 menuGrid.appendChild(menuItem);
             });
+
+            // Sort by order field (items without order go to end)
+            allItems.sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+
+            // Build arrange grid
+            if (arrangeGrid) {
+                arrangeGrid.innerHTML = '';
+                allItems.forEach((item, idx) => {
+                    const card = document.createElement('div');
+                    card.className = 'arrange-card';
+                    card.draggable = true;
+                    card.dataset.id = item.id;
+                    card.dataset.index = idx;
+                    card.innerHTML = `
+                        <span class="arrange-num">${idx + 1}</span>
+                        <img src="${item.imageURL}" alt="${item.name}">
+                        <span class="arrange-name">${item.name}</span>
+                    `;
+                    arrangeGrid.appendChild(card);
+                });
+
+                // Setup drag and drop
+                setupDragAndDrop(arrangeGrid);
+            }
         }
+
+        function setupDragAndDrop(grid) {
+            let draggedEl = null;
+
+            grid.addEventListener('dragstart', (e) => {
+                const card = e.target.closest('.arrange-card');
+                if (!card) return;
+                draggedEl = card;
+                card.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            });
+
+            grid.addEventListener('dragend', (e) => {
+                const card = e.target.closest('.arrange-card');
+                if (card) card.classList.remove('dragging');
+                draggedEl = null;
+                // Re-number
+                grid.querySelectorAll('.arrange-card').forEach((c, i) => {
+                    c.querySelector('.arrange-num').textContent = i + 1;
+                    c.dataset.index = i;
+                });
+            });
+
+            grid.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                const afterEl = getDragAfterElement(grid, e.clientY, e.clientX);
+                if (afterEl == null) {
+                    grid.appendChild(draggedEl);
+                } else {
+                    grid.insertBefore(draggedEl, afterEl);
+                }
+            });
+        }
+
+        function getDragAfterElement(grid, y, x) {
+            const cards = [...grid.querySelectorAll('.arrange-card:not(.dragging)')];
+            let closest = { offset: Number.POSITIVE_INFINITY, element: null };
+
+            cards.forEach(card => {
+                const box = card.getBoundingClientRect();
+                const offsetY = y - box.top - box.height / 2;
+                const offsetX = x - box.left - box.width / 2;
+                const offset = Math.sqrt(offsetY * offsetY + offsetX * offsetX);
+
+                if (offset < closest.offset) {
+                    closest = { offset, element: card };
+                }
+            });
+
+            // Only return the element if we're before it
+            if (closest.element) {
+                const box = closest.element.getBoundingClientRect();
+                const centerY = box.top + box.height / 2;
+                const centerX = box.left + box.width / 2;
+                if (y < centerY || (y === centerY && x < centerX)) {
+                    return closest.element;
+                } else {
+                    return closest.element.nextElementSibling;
+                }
+            }
+            return null;
+        }
+
+        // === PENDING SEARCH FILTER ===
+        const pendingSearchBox = document.getElementById('pendingSearchBox');
+        if (pendingSearchBox) {
+            pendingSearchBox.addEventListener('input', () => {
+                const query = pendingSearchBox.value.toLowerCase().trim();
+                const dropdown = document.getElementById('newPendingItemName');
+                const allItems = window._allPendingItems || [];
+                const filtered = query === '' ? allItems : allItems.filter(name => name.toLowerCase().includes(query));
+                dropdown.innerHTML = filtered.map(name => `<option value="${name}">${name}</option>`).join('');
+                // Auto-trigger description load for the first match
+                if (filtered.length > 0) {
+                    dropdown.value = filtered[0];
+                    dropdown.dispatchEvent(new Event('change'));
+                }
+            });
+        }
+
+        // === REMOVE FROM MENU ===
+        document.getElementById('removeFromMenuForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const itemId = document.getElementById('removeItemName').value;
+            const itemDoc = await db.collection('menuItems').doc(itemId).get();
+
+            if (!itemDoc.exists) {
+                alert('Item not found.');
+                return;
+            }
+
+            const itemData = itemDoc.data();
+            const confirmRemove = confirm(`Are you sure you want to remove "${itemData.name}" from the menu? It will be moved to pending items.`);
+            if (!confirmRemove) return;
+
+            try {
+                // Move to pendingItems, then delete from menuItems
+                await db.collection('pendingItems').add(itemData);
+                await db.collection('menuItems').doc(itemId).delete();
+                alert(`"${itemData.name}" has been removed from the menu and moved to pending items.`);
+                populateDropdowns();
+                displayCurrentMenuItems();
+            } catch (error) {
+                console.error('Error removing menu item:', error);
+                alert('Error removing menu item.');
+            }
+        });
+
+
+        // === TOGGLE REMOVE / ADD BACK ===
+        document.getElementById('showRemoveMode').addEventListener('click', () => {
+            document.getElementById('showRemoveMode').classList.add('active');
+            document.getElementById('showAddBackMode').classList.remove('active');
+            document.getElementById('removeFromMenuForm').style.display = '';
+            document.getElementById('addFromPendingForm').style.display = 'none';
+        });
+        document.getElementById('showAddBackMode').addEventListener('click', () => {
+            document.getElementById('showAddBackMode').classList.add('active');
+            document.getElementById('showRemoveMode').classList.remove('active');
+            document.getElementById('addFromPendingForm').style.display = '';
+            document.getElementById('removeFromMenuForm').style.display = 'none';
+        });
+
+        // === ADD BACK FROM PENDING ===
+        document.getElementById('addBackSearchBox').addEventListener('input', () => {
+            const query = document.getElementById('addBackSearchBox').value.toLowerCase().trim();
+            const dropdown = document.getElementById('addBackItemName');
+            const allItems = window._allPendingItems || [];
+            const filtered = query === '' ? allItems : allItems.filter(name => name.toLowerCase().includes(query));
+            dropdown.innerHTML = filtered.map(name => `<option value="${name}">${name}</option>`).join('');
+        });
+
+        document.getElementById('addFromPendingForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const pendingName = document.getElementById('addBackItemName').value;
+            if (!pendingName) { alert('Please select a pending item.'); return; }
+
+            try {
+                const pendingSnapshot = await db.collection('pendingItems').where('name', '==', pendingName).get();
+                if (pendingSnapshot.empty) { alert('Pending item not found.'); return; }
+
+                const pendingDoc = pendingSnapshot.docs[0];
+                const pendingData = pendingDoc.data();
+                if (!confirm(`Add "${pendingData.name}" back to the menu?`)) return;
+
+                await db.collection('menuItems').add(pendingData);
+                await db.collection('pendingItems').doc(pendingDoc.id).delete();
+                alert(`"${pendingData.name}" has been added back to the menu.`);
+                populateDropdowns();
+                displayCurrentMenuItems();
+            } catch (error) {
+                console.error('Error adding item back to menu:', error);
+                alert('Error adding item back to menu.');
+            }
+        });
 
         async function getPendingItemDetails(name) {
             const pendingItemsSnapshot = await db.collection('pendingItems').where('name', '==', name).get();
@@ -274,8 +462,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         alert('Menu item replaced successfully');
                         document.getElementById('replaceMenuItemForm').reset();
+                        // Initial population of dropdowns and menu display
                         populateDropdowns();
                         displayCurrentMenuItems();
+
+                        // Real-time listener for pending items changes
+                        db.collection('pendingItems').onSnapshot(() => {
+                            populateDropdowns();
+                        });
+
+                        // Real-time listener for menu items changes
+                        db.collection('menuItems').onSnapshot(() => {
+                            populateDropdowns();
+                            displayCurrentMenuItems();
+                        });
                     } else {
                         alert('Menu item not found');
                     }
@@ -444,5 +644,32 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initial population of dropdowns and menu display
         populateDropdowns();
         displayCurrentMenuItems();
+
+        // === SAVE ARRANGE ORDER ===
+        document.getElementById('saveOrderBtn').addEventListener('click', async () => {
+            const cards = document.querySelectorAll('#arrangeGrid .arrange-card');
+            const btn = document.getElementById('saveOrderBtn');
+            btn.textContent = 'Saving...';
+            btn.disabled = true;
+
+            try {
+                const batch = db.batch();
+                cards.forEach((card, index) => {
+                    const docRef = db.collection('menuItems').doc(card.dataset.id);
+                    batch.update(docRef, { order: index });
+                });
+                await batch.commit();
+                btn.textContent = 'Saved!';
+                setTimeout(() => {
+                    btn.textContent = 'Save Order';
+                    btn.disabled = false;
+                }, 1500);
+            } catch (error) {
+                console.error('Error saving order:', error);
+                alert('Error saving order.');
+                btn.textContent = 'Save Order';
+                btn.disabled = false;
+            }
+        });
     });
 });

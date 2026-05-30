@@ -47,10 +47,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             menuItems.push({
                 name: data.name,
                 imageURL: data.imageURL,
-                outOfStock: data.outOfStock || false, // Default to false if not present
-                temporarilyUnavailable: data.temporarilyUnavailable || false // Default to false if not present
+                outOfStock: data.outOfStock || false,
+                temporarilyUnavailable: data.temporarilyUnavailable || false,
+                order: data.order ?? 999
             });
         });
+        menuItems.sort((a, b) => a.order - b.order);
         updateMenuGrid(menuItems);
     });
 
