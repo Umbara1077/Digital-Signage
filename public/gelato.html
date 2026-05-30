@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Gelato Inventory</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="admin-style.css">
+    <link rel="stylesheet" type="text/css" href="gelato-style.css">
+    <link rel="icon" href="DolceLogo-Admin.png" type="image/x-icon">
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-auth.js"></script>
+    <script src="firebaseConfig.js"></script>
+    <script defer src="gelato.js"></script>
+
+    <!-- Auth gate: identical behaviour to admin.html -->
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+                .then(() => {
+                    firebase.auth().onAuthStateChanged(async user => {
+                        if (user) {
+                            try { await user.getIdToken(true); } catch (e) { console.error(e); }
+                        } else {
+                            console.warn("Not authenticated. Redirecting...");
+                            if (window.location.pathname !== '/login.html') {
+                                window.location.href = 'login.html';
+                            }
+                        }
+                    });
+                })
+                .catch(error => console.error("Error setting persistence:", error));
+        });
+    </script>
+</head>
+
+<body>
+    <header>
+        <div class="header-content">
+            <img src="DolceLogo-Admin.png" alt="Dolce Vita Gelateria Logo" class="logo">
+        </div>
+    </header>
+
+    <main>
+        <div class="g-topbar">
+            <button id="back-to-admin" class="btn">&larr; Back to Admin</button>
+            <button id="sync-flavors" class="btn">Sync Flavors from Menu</button>
+            <button id="seed-test" class="btn">Load Test Stock</button>
+            <div class="g-viewmode" role="group" aria-label="View mode">
+                <button id="mode-visual" class="g-mode-btn active" type="button">Visual</button>
+                <button id="mode-stats" class="g-mode-btn" type="button">Stat Mode</button>
+            </div>
+        </div>
+
+        <p id="g-status" class="g-status" aria-live="polite"></p>
+
+        <!-- ===================== STAT MODE PANEL ===================== -->
+        <section class="g-section stats-only" id="stats-panel" hidden>
+            <h2>Inventory Statistics</h2>
+            <div class="g-kpis" id="stat-kpis"></div>
+            <div class="g-stat-grid">
+                <div class="g-stat-block">
+                    <h3>Case fill by pan</h3>
+                    <div class="g-stats" id="stat-case"></div>
+                </div>
+                <div class="g-stat-block">
+                    <h3>Short-Term Freezer (pans)</h3>
+                    <div class="g-stats" id="stat-short"></div>
+                </div>
+                <div class="g-stat-block">
+                    <h3>Long-Term Freezer (pans)</h3>
+                    <div class="g-stats" id="stat-long"></div>
+                </div>
+            </div>
+            <div class="g-stat-block">
+                <h3>All flavors</h3>
+                <div class="g-stat-table-wrap"><table class="g-stat-table" id="stat-table"></table></div>
+            </div>
+        </section>
+
+        <!-- ===================== THE CASE ===================== -->
+        <section class="g-section visual-only">
+            <h2>The Case <span class="g-cap" id="case-cap"></span></h2>
+            <div class="g-case" id="case-visual"></div>
+        </section>
+
+        <!-- ===================== SWAP QUEUE ===================== -->
+        <section class="g-section">
+            <h2>Swap Recommendations &amp; Queue</h2>
+            <div class="g-queue-wrap">
+                <div class="g-recos" id="swap-recos"></div>
+                <div class="g-queue" id="swap-queue"></div>
+            </div>
+        </section>
+
+        <!-- ===================== FREEZERS ===================== -->
+        <section class="g-section visual-only">
+            <h2>Short-Term Freezer <span class="g-cap" id="short-cap"></span></h2>
+            <div class="g-freezer" id="short-visual"></div>
+        </section>
+
+        <section class="g-section visual-only">
+            <h2>Long-Term Freezer <span class="g-cap" id="long-cap"></span></h2>
+            <div class="g-freezer" id="long-visual"></div>
+        </section>
+
+        <!-- ===================== TRANSFER ===================== -->
+        <section class="g-section">
+            <h2>Transfer / Use</h2>
+            <form id="transferForm" class="g-transfer">
+                <label for="t-flavor">Flavor</label>
+                <select id="t-flavor" required></select>
+
+                <label for="t-from">From</label>
+                <select id="t-from" required>
+                    <option value="longTerm">Long-Term Freezer</option>
+                    <option value="shortTerm">Short-Term Freezer</option>
+                    <option value="active">Case (Active)</option>
+                </select>
+
+                <label for="t-to">To</label>
+                <select id="t-to" required>
+                    <option value="use">Use / Serve (consume)</option>
+                    <option value="active">Case (Active)</option>
+                    <option value="shortTerm">Short-Term Freezer</option>
+                    <option value="longTerm">Long-Term Freezer</option>
+                </select>
+
+                <label for="t-amount">Amount (pans)</label>
+                <input type="number" id="t-amount" min="0.1" step="0.1" value="1" required>
+
+                <div class="g-transfer-actions">
+                    <button type="submit">Transfer</button>
+                </div>
+                <p class="g-transfer-hint" id="t-hint"></p>
+            </form>
+        </section>
+    </main>
+
+    <script>
+        document.getElementById('back-to-admin').addEventListener('click', () => {
+            window.location.href = 'admin.html';
+        });
+    </script>
+</body>
+
+</html>

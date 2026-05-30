@@ -1,0 +1,714 @@
+/* ===========================================================================
+ * Gelato Inventory page styles.
+ * Relies on the design tokens (--card, --border, --green, etc.) declared in
+ * admin-style.css, which is linked before this file.
+ * ========================================================================= */
+
+/* admin-style.css declares `section { display:flex }`, which beats the UA
+ * `[hidden]{display:none}` rule -- so the hidden attribute is ignored on our
+ * <section>s. Force it so the Visual/Stat toggle hides sections both ways. */
+[hidden] {
+    display: none !important;
+}
+
+.g-topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.g-viewmode {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, .04);
+}
+
+.g-mode-btn {
+    border: none;
+    background: transparent;
+    color: #cdd6e6;
+    padding: 10px 18px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .2s ease, color .2s ease;
+}
+
+.g-mode-btn.active {
+    background: var(--grad-flow);
+    background-size: 200% 200%;
+    color: #fff;
+}
+
+.g-status {
+    min-height: 1.2em;
+    margin: 0;
+    font-weight: 700;
+    color: var(--green);
+    text-align: center;
+}
+
+.g-section {
+    width: min(100%, 1100px);
+    margin: 0 auto;
+}
+
+.g-section>h2 {
+    width: 100%;
+}
+
+.g-cap {
+    font-size: .82rem;
+    font-weight: 700;
+    color: var(--muted);
+    margin-left: 8px;
+}
+
+/* ====================== THE CASE ====================== */
+.g-case {
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    gap: 12px;
+    width: 100%;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .02)),
+        repeating-linear-gradient(90deg, #ffffff08 0 2px, transparent 2px 80px);
+    box-shadow: var(--shadow-lg), inset 0 0 40px #00000055;
+    backdrop-filter: var(--blur);
+}
+
+.g-pan {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+    padding: 8px 7px 9px;
+    border: 1px solid #2a2f3a;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #141821, #0d1016);
+}
+
+.g-pan.empty {
+    border-style: dashed;
+    opacity: .85;
+}
+
+.g-pan.low {
+    border-color: var(--red);
+    box-shadow: 0 0 0 1px var(--red) inset, 0 0 16px #ff4d4f44;
+    animation: gPulse 1.7s ease-in-out infinite;
+}
+
+@keyframes gPulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 1px var(--red) inset, 0 0 8px #ff4d4f33;
+    }
+
+    50% {
+        box-shadow: 0 0 0 1px var(--red) inset, 0 0 20px #ff4d4f99;
+    }
+}
+
+.g-pan-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.g-pan-num {
+    font-size: .64rem;
+    letter-spacing: .08em;
+    color: var(--muted);
+    font-weight: 800;
+}
+
+.g-pan-flag {
+    font-size: .6rem;
+    font-weight: 900;
+    letter-spacing: .08em;
+    color: #fff;
+    background: var(--red);
+    padding: 1px 6px;
+    border-radius: 999px;
+}
+
+/* the stainless pan + the gelato inside it */
+.g-tub {
+    position: relative;
+    width: 100%;
+    height: 74px;
+    border-radius: 8px 8px 16px 16px / 8px 8px 22px 22px;
+    overflow: hidden;
+    background:
+        linear-gradient(180deg, #20242d 0%, #2b313c 12%, #161a22 13%, #11141b 100%);
+    border: 1px solid #3a4150;
+    box-shadow: inset 0 6px 10px #00000088, inset 0 -4px 8px #ffffff10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.g-tub.empty span {
+    color: var(--muted);
+    font-size: .72rem;
+    font-style: italic;
+}
+
+/* metal rim highlight near the top of the pan */
+.g-tub-rim {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 12%;
+    background: linear-gradient(180deg, #5b6577, #2c323d);
+    box-shadow: 0 1px 2px #00000080;
+    z-index: 3;
+}
+
+/* the gelato body, fills from the bottom up */
+.g-gelato {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(180deg, #3be07f, #1db954 70%, #149043);
+    box-shadow: inset 0 6px 12px #ffffff33, inset 0 -8px 14px #00000044;
+    transition: height .4s cubic-bezier(.2, .9, .25, 1);
+    z-index: 1;
+}
+
+.g-pan.low .g-gelato {
+    background: linear-gradient(180deg, #ff8a8c, #ff4d4f 70%, #c92d30);
+}
+
+/* rounded gelato surface (the scooped top) */
+.g-gelato-top {
+    position: absolute;
+    left: -10%;
+    right: -10%;
+    top: -8px;
+    height: 16px;
+    border-radius: 50%;
+    background: inherit;
+    filter: brightness(1.18);
+}
+
+/* round flavor swatch sitting on top like a scoop */
+.g-scoop {
+    position: relative;
+    z-index: 2;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    background-color: #2a3142;
+    border: 2px solid #ffffffcc;
+    box-shadow: 0 3px 10px #000000aa;
+}
+
+.g-pan-name {
+    font-size: .78rem;
+    font-weight: 800;
+    text-align: center;
+    line-height: 1.1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* thin level meter under the name */
+.g-pan-meter {
+    height: 6px;
+    border-radius: 999px;
+    background: #0c0f15;
+    border: 1px solid #283042;
+    overflow: hidden;
+}
+
+.g-pan-meter span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #38d27a, #1db954);
+    transition: width .4s ease;
+}
+
+.g-pan.low .g-pan-meter span {
+    background: linear-gradient(90deg, #ff8a8c, #ff4d4f);
+}
+
+.g-pan-amt {
+    font-size: .7rem;
+    color: var(--muted);
+    text-align: center;
+}
+
+.g-pan-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.g-pan-actions button,
+.g-assign-btn {
+    flex: 1;
+    font-size: .66rem;
+    padding: 5px 4px;
+    border-radius: 8px;
+    border: 1px solid #2f3a4f;
+    background: #1b2130;
+    color: #dbe3f2;
+    cursor: pointer;
+    transition: background .15s ease;
+}
+
+.g-pan-actions button:hover,
+.g-assign-btn:hover {
+    background: #243049;
+}
+
+/* ====================== FREEZERS ====================== */
+.g-freezer {
+    width: 100%;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: linear-gradient(180deg, rgba(120, 180, 255, .06), rgba(255, 255, 255, .02));
+    box-shadow: var(--shadow-lg);
+    backdrop-filter: var(--blur);
+}
+
+.g-cap-bar {
+    position: relative;
+    height: 26px;
+    border-radius: 999px;
+    background: #0f1218;
+    border: 1px solid #283042;
+    overflow: hidden;
+    margin-bottom: 14px;
+}
+
+.g-cap-bar-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: linear-gradient(90deg, #38a3ff, #1db954);
+    transition: width .35s ease;
+}
+
+.g-cap-bar span {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .78rem;
+    font-weight: 800;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .6);
+}
+
+.g-tubs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+}
+
+.g-frz-tub {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid #232a38;
+    border-radius: 12px;
+    background: #0f1218;
+}
+
+.g-frz-swatch {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    background-size: cover;
+    background-position: center;
+    background-color: #2a3142;
+    border: 2px solid #ffffff99;
+}
+
+.g-frz-info {
+    min-width: 0;
+}
+
+.g-frz-name {
+    font-weight: 700;
+    font-size: .82rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.g-tub-icons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin: 3px 0;
+}
+
+.g-tub-icon {
+    width: 12px;
+    height: 16px;
+    border-radius: 2px 2px 3px 3px;
+    background: #2a3142;
+    border: 1px solid #3a4660;
+    position: relative;
+    overflow: hidden;
+}
+
+.g-tub-icon.full {
+    background: linear-gradient(180deg, #6cc6ff, #38a3ff);
+    border-color: #38a3ff;
+}
+
+.g-tub-icon:not(.full)::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(var(--frac, 0) * 100%);
+    background: linear-gradient(180deg, #6cc6ff, #38a3ff);
+}
+
+.g-frz-amt {
+    font-size: .72rem;
+    color: var(--muted);
+}
+
+.g-empty-note {
+    color: var(--muted);
+    font-style: italic;
+    margin: 6px 2px;
+}
+
+/* ====================== STAT MODE ====================== */
+.g-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+    width: 100%;
+}
+
+.g-kpi {
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .02));
+    box-shadow: var(--shadow-lg);
+}
+
+.g-kpi-val {
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: #eaf1ff;
+}
+
+.g-kpi-val.red {
+    color: var(--red);
+}
+
+.g-kpi-val.green {
+    color: var(--green);
+}
+
+.g-kpi-label {
+    font-size: .76rem;
+    color: var(--muted);
+    margin: 2px 0 8px;
+}
+
+.g-kpi-bar {
+    height: 6px;
+    border-radius: 999px;
+    background: #0c0f15;
+    border: 1px solid #283042;
+    overflow: hidden;
+}
+
+.g-kpi-bar span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #38a3ff, #1db954);
+    transition: width .4s ease;
+}
+
+.g-kpi-bar span.red {
+    background: var(--red);
+}
+
+.g-kpi-bar span.green {
+    background: var(--green);
+}
+
+/* charts sit side-by-side to use the tablet/computer width */
+.g-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+    margin-bottom: 18px;
+    width: 100%;
+}
+
+.g-stat-block {
+    margin-bottom: 18px;
+    width: 100%;
+}
+
+.g-stat-grid .g-stat-block {
+    margin-bottom: 0;
+    min-width: 0;
+}
+
+.g-stat-block>h3 {
+    font-size: .95rem;
+    margin: 0 0 8px;
+    color: #dfe7f5;
+}
+
+.g-stats {
+    width: 100%;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, .02));
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.g-bar-row {
+    display: grid;
+    grid-template-columns: minmax(0, 120px) 1fr 44px;
+    align-items: center;
+    gap: 10px;
+}
+
+.g-bar-label {
+    font-size: .8rem;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+}
+
+.g-bar-track {
+    height: 18px;
+    border-radius: 999px;
+    background: #0c0f15;
+    border: 1px solid #283042;
+    overflow: hidden;
+}
+
+.g-bar {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #38d27a, #1db954);
+    transition: width .4s ease;
+}
+
+.g-bar.low {
+    background: linear-gradient(90deg, #ff8a8c, #ff4d4f);
+}
+
+.g-bar-val {
+    font-size: .78rem;
+    font-weight: 800;
+    color: #dbe3f2;
+}
+
+.g-stat-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+}
+
+.g-stat-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .82rem;
+}
+
+.g-stat-table th,
+.g-stat-table td {
+    padding: 9px 12px;
+    text-align: center;
+    border-bottom: 1px solid #232a38;
+}
+
+.g-stat-table th {
+    background: #11151d;
+    color: #cfd9ea;
+    font-weight: 800;
+    position: sticky;
+    top: 0;
+}
+
+.g-stat-table td.l,
+.g-stat-table th:first-child {
+    text-align: left;
+}
+
+.g-stat-table tbody tr:hover {
+    background: #ffffff08;
+}
+
+.g-stat-table tr.low td {
+    color: var(--red);
+}
+
+/* ====================== RECOMMENDATIONS + QUEUE ====================== */
+.g-queue-wrap {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    width: 100%;
+}
+
+@media (max-width: 760px) {
+    .g-queue-wrap {
+        grid-template-columns: 1fr;
+    }
+}
+
+.g-recos,
+.g-queue {
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, .02));
+    box-shadow: var(--shadow-lg);
+}
+
+.g-recos h3,
+.g-queue h3 {
+    margin: 0 0 10px;
+    font-size: 1rem;
+}
+
+.g-reco {
+    padding: 10px;
+    border: 1px solid #2a2f3a;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    background: #0f1218;
+}
+
+.g-reco-head {
+    font-size: .85rem;
+    margin-bottom: 6px;
+}
+
+.g-reco-amt {
+    color: var(--red);
+    font-weight: 800;
+    margin-left: 6px;
+}
+
+.g-reco-pick {
+    display: flex;
+    gap: 6px;
+}
+
+.g-reco-select {
+    flex: 1;
+    min-width: 0;
+    padding: 8px;
+    background: #0f1218;
+    color: #e7eeff;
+    border: 1px solid #283042;
+    border-radius: 10px;
+}
+
+.g-reco-add,
+.g-q-exec,
+.g-q-del {
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid #2f3a4f;
+    background: #1b2130;
+    color: #dbe3f2;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .15s ease;
+}
+
+.g-reco-add:hover,
+.g-q-exec:hover {
+    background: #1f3a2c;
+    border-color: var(--green);
+}
+
+.g-q-del:hover {
+    background: #3a1f22;
+    border-color: var(--red);
+}
+
+.g-reco-queued {
+    font-size: .82rem;
+    color: var(--green);
+    font-weight: 700;
+}
+
+.g-qitem {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid #2a2f3a;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    background: #0f1218;
+    font-size: .85rem;
+}
+
+.g-qitem-actions {
+    display: flex;
+    gap: 6px;
+}
+
+/* ====================== TRANSFER FORM ====================== */
+.g-transfer {
+    grid-template-columns: 120px 1fr !important;
+    animation: none !important;
+}
+
+.g-transfer-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: center;
+}
+
+.g-transfer-actions button {
+    padding: 12px 28px;
+    font-size: 1rem;
+}
+
+.g-transfer-hint {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: var(--muted);
+    font-size: .82rem;
+    text-align: center;
+}
