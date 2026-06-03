@@ -709,6 +709,22 @@
     color: var(--red);
 }
 
+/* storage stock tiers in the All-flavors table */
+.g-stat-table td.tone-green {
+    color: #1db954;
+    font-weight: 800;
+}
+
+.g-stat-table td.tone-yellow {
+    color: #f0a92b;
+    font-weight: 800;
+}
+
+.g-stat-table td.tone-red {
+    color: #ff4d4f;
+    font-weight: 800;
+}
+
 /* ====================== RECOMMENDATIONS + QUEUE ====================== */
 .g-queue-wrap {
     display: grid;
@@ -900,8 +916,9 @@
 }
 
 .g-q-state.ready {
-    color: #062;
-    background: #56e08a;
+    color: #ffffff;
+    background: #1db954;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .35);
 }
 
 .g-q-state.wait {

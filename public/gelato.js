@@ -349,13 +349,15 @@
         const head = `<thead><tr>
             <th>Flavor</th><th>Pan</th><th>Case</th><th>Short</th><th>Long</th><th>Total</th>
         </tr></thead>`;
+        // colour storage cells with the same green/yellow/red tiers as the freezers
+        const toneCell = v => v > EPS ? `<td class="tone-${freezerTone(v)}">${v}</td>` : `<td>—</td>`;
         const body = rows.map(r => `
             <tr class="${r.pan && r.active <= SWAP_THRESHOLD + EPS ? 'low' : ''}">
                 <td class="l">${esc(r.name)}</td>
                 <td>${r.pan || '—'}</td>
                 <td>${r.active || '—'}</td>
-                <td>${r.short || '—'}</td>
-                <td>${r.long || '—'}</td>
+                ${toneCell(r.short)}
+                ${toneCell(r.long)}
                 <td><strong>${r.total || '—'}</strong></td>
             </tr>`).join('');
         document.getElementById('stat-table').innerHTML = head + `<tbody>${body}</tbody>`;
