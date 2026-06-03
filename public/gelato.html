@@ -45,7 +45,6 @@
         <div class="g-topbar">
             <button id="back-to-admin" class="btn">&larr; Back to Admin</button>
             <button id="sync-flavors" class="btn">Sync Flavors from Menu</button>
-            <button id="seed-test" class="btn">Load Test Stock</button>
             <div class="g-viewmode" role="group" aria-label="View mode">
                 <button id="mode-visual" class="g-mode-btn active" type="button">Visual</button>
                 <button id="mode-stats" class="g-mode-btn" type="button">Stat Mode</button>
@@ -81,6 +80,10 @@
         <!-- ===================== THE CASE ===================== -->
         <section class="g-section visual-only">
             <h2>The Case <span class="g-cap" id="case-cap"></span></h2>
+            <div class="g-case-actions">
+                <button id="add-to-case" type="button" class="btn">+ Add Flavor to Case</button>
+                <button id="close-case" type="button" class="btn g-btn-night">🌙 Close Case for the Night</button>
+            </div>
             <div class="g-case" id="case-visual"></div>
         </section>
 
@@ -89,7 +92,18 @@
             <h2>Swap Recommendations &amp; Queue</h2>
             <div class="g-queue-wrap">
                 <div class="g-recos" id="swap-recos"></div>
-                <div class="g-queue" id="swap-queue"></div>
+                <div class="g-queue">
+                    <h3>Swap Queue</h3>
+                    <p class="g-hint-line">Stage a replacement for any pan now — it waits here and turns
+                        <strong class="rdy">READY</strong> when that pan hits the red (&le; 0.3).</p>
+                    <form id="stageForm" class="g-stage">
+                        <select id="stage-pan" required></select>
+                        <span class="g-stage-arrow">&larr; replace with</span>
+                        <select id="stage-flavor" required></select>
+                        <button type="submit">Stage swap</button>
+                    </form>
+                    <div id="swap-queue-list"></div>
+                </div>
             </div>
         </section>
 
@@ -102,6 +116,29 @@
         <section class="g-section visual-only">
             <h2>Long-Term Freezer <span class="g-cap" id="long-cap"></span></h2>
             <div class="g-freezer" id="long-visual"></div>
+        </section>
+
+        <!-- ===================== ADD STOCK ===================== -->
+        <section class="g-section">
+            <h2>Add Stock (Production Intake)</h2>
+            <form id="addStockForm" class="g-transfer">
+                <label for="as-flavor">Flavor</label>
+                <select id="as-flavor" required></select>
+
+                <label for="as-loc">Into</label>
+                <select id="as-loc" required>
+                    <option value="shortTerm">Short-Term Freezer</option>
+                    <option value="longTerm">Long-Term Freezer</option>
+                </select>
+
+                <label for="as-amt">Pans</label>
+                <input type="number" id="as-amt" list="amt-presets" min="0.1" step="0.1" value="1" required>
+
+                <div class="g-transfer-actions">
+                    <button type="submit">Add Stock</button>
+                </div>
+                <p class="g-transfer-hint" id="as-hint"></p>
+            </form>
         </section>
 
         <!-- ===================== TRANSFER ===================== -->
@@ -136,6 +173,26 @@
             </form>
         </section>
     </main>
+
+    <!-- shared list of quick amount presets for number inputs -->
+    <datalist id="amt-presets">
+        <option value="0.1"></option>
+        <option value="0.2"></option>
+        <option value="0.25"></option>
+        <option value="0.5"></option>
+        <option value="0.75"></option>
+        <option value="1"></option>
+        <option value="2"></option>
+    </datalist>
+
+    <!-- Assign-flavor modal (GUI) -->
+    <div id="g-modal" class="g-modal" hidden>
+        <div class="g-modal-card">
+            <button type="button" class="g-modal-x" id="g-modal-x" aria-label="Close">&times;</button>
+            <h3 id="g-modal-title">Add a flavor to the case</h3>
+            <div id="g-modal-body"></div>
+        </div>
+    </div>
 
     <script>
         document.getElementById('back-to-admin').addEventListener('click', () => {
