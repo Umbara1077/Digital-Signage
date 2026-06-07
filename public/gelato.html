@@ -45,6 +45,7 @@
         <div class="g-topbar">
             <button id="back-to-admin" class="btn">&larr; Back to Admin</button>
             <button id="sync-flavors" class="btn">Sync Flavors from Menu</button>
+            <button id="reset-inventory" class="btn g-btn-danger">&#x26A0; Reset Inventory</button>
             <div class="g-viewmode" role="group" aria-label="View mode">
                 <button id="mode-visual" class="g-mode-btn active" type="button">Visual</button>
                 <button id="mode-stats" class="g-mode-btn" type="button">Stat Mode</button>
@@ -83,6 +84,10 @@
             <div class="g-case-actions">
                 <button id="add-to-case" type="button" class="btn">+ Add Flavor to Case</button>
                 <button id="close-case" type="button" class="btn g-btn-night">🌙 Close Case for the Night</button>
+                <div class="g-viewmode g-case-size-toggle" role="group" aria-label="Case size">
+                    <button id="size-18" class="g-mode-btn active" type="button">18 Pans</button>
+                    <button id="size-12" class="g-mode-btn" type="button">12 Pans</button>
+                </div>
             </div>
             <div class="g-case" id="case-visual"></div>
         </section>

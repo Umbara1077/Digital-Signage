@@ -18,7 +18,7 @@
     'use strict';
 
     // ----- Constants -------------------------------------------------------
-    const CASE_SLOTS = 18;     // pans in the case
+    let CASE_SLOTS = Number(localStorage.getItem('gelatoCaseSize')) || 18;
     const SHORT_CAP = 21;      // pans the short-term freezer holds
     const LONG_CAP = 54;       // pans the long-term freezer holds
     const SWAP_THRESHOLD = 0.3; // recommend a swap at/below this case fill
@@ -78,6 +78,39 @@
         }, err => console.error('queue snapshot error', err));
     }
 
+    /* Zero out all stock/case data for every gelatoInventory doc and clear the
+     * swap queue. Flavor identity fields (name, images) are never touched. */
+    async function resetInventory() {
+        const count = inventory.length;
+        if (!count) { status('No inventory docs found.'); return; }
+        if (!confirm(
+            `Reset inventory?\n\nThis will zero ALL stock (active, shortTerm, longTerm) and clear the case for ${count} flavor(s).\n\nFlavor names and images are NOT affected. This cannot be undone.`
+        )) return;
+
+        try {
+            status('Resetting inventory…');
+            const batches = [];
+            let batch = db.batch();
+            let ops = 0;
+            inventory.forEach(f => {
+                batch.update(doc(f.id), {
+                    active: 0, casePan: null,
+                    shortTerm: 0, longTerm: 0,
+                    updatedAt: stamp()
+                });
+                ops++;
+                if (ops === 499) { batches.push(batch); batch = db.batch(); ops = 0; }
+            });
+            if (ops) batches.push(batch);
+            await Promise.all(batches.map(b => b.commit()));
+            await queueDocRef().set({ queue: [] });
+            status('Inventory reset. All stock zeroed, case cleared.', true);
+        } catch (e) {
+            console.error('resetInventory failed', e);
+            status('Reset failed — see console.');
+        }
+    }
+
     /* Create an inventory doc for every menu flavor that doesn't have one yet.
      * Additive only -- it never deletes. */
     async function seedMissingFromMenu() {
@@ -114,8 +147,13 @@
             await seedMissingFromMenu();
             status('Synced.', true);
         });
+        document.getElementById('reset-inventory').addEventListener('click', resetInventory);
         document.getElementById('mode-visual').addEventListener('click', () => setMode(false));
         document.getElementById('mode-stats').addEventListener('click', () => setMode(true));
+
+        document.getElementById('size-18').addEventListener('click', () => setCaseSize(18));
+        document.getElementById('size-12').addEventListener('click', () => setCaseSize(12));
+        applyCaseSize();
 
         document.getElementById('add-to-case').addEventListener('click', () => {
             const pan = firstFreePan();
@@ -139,6 +177,20 @@
         document.getElementById('g-modal').addEventListener('click', e => {
             if (e.target.id === 'g-modal') closeModal();
         });
+    }
+
+    function setCaseSize(n) {
+        CASE_SLOTS = n;
+        localStorage.setItem('gelatoCaseSize', n);
+        applyCaseSize();
+        renderAll();
+    }
+
+    function applyCaseSize() {
+        document.getElementById('size-18').classList.toggle('active', CASE_SLOTS === 18);
+        document.getElementById('size-12').classList.toggle('active', CASE_SLOTS === 12);
+        const wrap = document.getElementById('case-visual');
+        wrap.classList.toggle('g-case-12', CASE_SLOTS === 12);
     }
 
     function setMode(stats) {
@@ -480,7 +532,9 @@
             : (incoming.longTerm || 0) > EPS ? 'longTerm' : null;
         if (!source) { status(`${incoming.name} has no pans in either freezer.`); return; }
 
-        const take = Math.min(1, r2(incoming[source]));
+        const stock = r2(incoming[source]);
+        const frac = r2(stock % 1);
+        const take = frac > EPS ? frac : Math.min(1, stock);
         const outgoing = flavors.find(f => f.casePan === q.pan);
 
         const batch = db.batch();
@@ -572,7 +626,7 @@
                 ${choices.map(f => `<option value="${f.id}">${esc(f.name)} — S:${r2(f.shortTerm)} L:${r2(f.longTerm)}</option>`).join('')}
             </select>
             <label class="g-modal-label">Fill amount (pans, max 1.0)</label>
-            <input type="number" id="assign-amt" class="g-modal-input" list="amt-presets" value="1" min="0.1" max="1" step="0.1">
+            <input type="number" id="assign-amt" class="g-modal-input" list="amt-presets" value="${defaultAssignAmt(choices[0])}" min="0.1" max="1" step="0.1">
             <p class="g-modal-hint" id="assign-hint"></p>
             <div class="g-modal-actions">
                 <button type="button" class="g-modal-cancel" id="assign-cancel">Cancel</button>
@@ -584,7 +638,9 @@
         const hint = document.getElementById('assign-hint');
         const updateHint = () => {
             const f = byId(sel.value);
-            hint.textContent = f ? `${f.name}: ${storageStock(f)} pan(s) in storage. Pulls from short-term first.` : '';
+            if (!f) { hint.textContent = ''; return; }
+            hint.textContent = `${f.name}: ${storageStock(f)} pan(s) in storage. Pulls from short-term first.`;
+            amt.value = defaultAssignAmt(f);
         };
         sel.addEventListener('change', updateHint);
         updateHint();
@@ -730,6 +786,16 @@
     }
 
     // ----- helpers ---------------------------------------------------------
+
+    /* Default amount when pulling a flavor into the case: use the fractional
+     * pan first (e.g. 0.3 of 1.3) so partial pans get cleared before whole ones. */
+    function defaultAssignAmt(f) {
+        if (!f) return 1;
+        const total = r2((f.shortTerm || 0) + (f.longTerm || 0));
+        const frac = r2(total % 1);
+        return frac > EPS ? frac : Math.min(1, total);
+    }
+
     const stamp = () => firebase.firestore.FieldValue.serverTimestamp();
     function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
