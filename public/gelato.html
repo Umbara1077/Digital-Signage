@@ -127,6 +127,12 @@
         <section class="g-section">
             <h2>Add Stock (Production Intake)</h2>
             <form id="addStockForm" class="g-transfer">
+                <label for="as-source">Source</label>
+                <select id="as-source" required>
+                    <option value="active">Active (on menu)</option>
+                    <option value="pending">Pending (off menu)</option>
+                </select>
+
                 <label for="as-flavor">Flavor</label>
                 <select id="as-flavor" required></select>
 

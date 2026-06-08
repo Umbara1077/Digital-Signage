@@ -39,7 +39,8 @@
     let db = null;
     let inventory = [];        // raw gelatoInventory docs
     let menuIds = null;        // Set of menuItems ids (null until first load)
-    let flavors = [];          // inventory filtered to current menu, sorted
+    let pendingList = [];      // pendingItems docs (off-menu backup flavors)
+    let flavors = [];          // visible flavors (on menu OR has stock), sorted
     let queue = [];            // [{ pan, flavorId, name }]
     let statMode = false;
     const queueDocRef = () => db.collection('gelatoSettings').doc('queue');
@@ -47,6 +48,7 @@
     const r2 = n => Math.round((Number(n) || 0) * 100) / 100;     // pan amounts -> 2dp
     const byId = id => inventory.find(f => f.id === id);
     const onMenu = f => !menuIds || menuIds.has(f.id);
+    const hasStock = f => (f.active || 0) > EPS || (f.shortTerm || 0) > EPS || (f.longTerm || 0) > EPS;
     const doc = id => db.collection('gelatoInventory').doc(id);
 
     // ----- Boot ------------------------------------------------------------
@@ -71,6 +73,13 @@
             inventory = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             renderAll();
         }, err => console.error('inventory snapshot error', err));
+
+        db.collection('pendingItems').onSnapshot(snap => {
+            pendingList = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+                .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            renderStockFlavors();
+            refreshStockHint();
+        }, err => console.error('pendingItems snapshot error', err));
 
         queueDocRef().onSnapshot(d => {
             queue = (d.exists && Array.isArray(d.data().queue)) ? d.data().queue : [];
@@ -170,6 +179,10 @@
         document.getElementById('addStockForm').addEventListener('submit', onAddStock);
         document.getElementById('as-loc').addEventListener('change', refreshStockHint);
         document.getElementById('as-flavor').addEventListener('change', refreshStockHint);
+        document.getElementById('as-source').addEventListener('change', () => {
+            renderStockFlavors();
+            refreshStockHint();
+        });
 
         document.getElementById('stageForm').addEventListener('submit', onStage);
 
@@ -217,7 +230,8 @@
 
     // ----- Rendering -------------------------------------------------------
     function renderAll() {
-        flavors = inventory.filter(onMenu)
+        // show menu flavors always, plus any off-menu flavor that has stock
+        flavors = inventory.filter(f => onMenu(f) || hasStock(f))
             .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         renderCaps();
         renderTransferFlavors();
@@ -679,34 +693,81 @@
     function closeModal() { document.getElementById('g-modal').hidden = true; }
 
     // ----- Add stock (production intake) ----------------------------------
+    const stockSource = () => document.getElementById('as-source').value;
+
     function renderStockFlavors() {
         const sel = document.getElementById('as-flavor');
         const prev = sel.value;
-        sel.innerHTML = flavors.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('');
-        if (prev && flavors.some(f => f.id === prev)) sel.value = prev;
+        let opts;
+        if (stockSource() === 'pending') {
+            opts = pendingList.length
+                ? pendingList.map(p => `<option value="${p.id}">${esc(p.name)}</option>`)
+                : [`<option value="">No pending flavors</option>`];
+        } else {
+            const active = flavors.filter(onMenu);
+            opts = active.length
+                ? active.map(f => `<option value="${f.id}">${esc(f.name)}</option>`)
+                : [`<option value="">No active flavors</option>`];
+        }
+        sel.innerHTML = opts.join('');
+        if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
     }
 
     function refreshStockHint() {
-        const f = byId(document.getElementById('as-flavor').value);
         const loc = document.getElementById('as-loc').value;
-        const hint = document.getElementById('as-hint');
-        if (!f) { hint.textContent = ''; return; }
         const cap = loc === 'shortTerm' ? SHORT_CAP : LONG_CAP;
-        hint.textContent = `${f.name}: ${r2(f[loc])} in ${LOCATION_LABELS[loc]}. Room for ${r2(cap - sumLoc(loc))} more pans.`;
+        const hint = document.getElementById('as-hint');
+        const val = document.getElementById('as-flavor').value;
+
+        let name, cur = 0;
+        if (stockSource() === 'pending') {
+            const p = pendingList.find(x => x.id === val);
+            if (!p) { hint.textContent = ''; return; }
+            name = p.name;
+            const ex = byId(p.id);
+            cur = ex ? (ex[loc] || 0) : 0;
+        } else {
+            const f = byId(val);
+            if (!f) { hint.textContent = ''; return; }
+            name = f.name;
+            cur = f[loc] || 0;
+        }
+        hint.textContent = `${name}: ${r2(cur)} in ${LOCATION_LABELS[loc]}. Room for ${r2(cap - sumLoc(loc))} more pans.`;
     }
 
     async function onAddStock(e) {
         e.preventDefault();
-        const f = byId(document.getElementById('as-flavor').value);
         const loc = document.getElementById('as-loc').value;
         const amount = r2(document.getElementById('as-amt').value);
-        if (!f) return;
+        const val = document.getElementById('as-flavor').value;
+        if (!val) { status('Pick a flavor.'); return; }
         if (!(amount > 0)) { status('Enter a quantity greater than 0.'); return; }
         const cap = loc === 'shortTerm' ? SHORT_CAP : LONG_CAP;
         const room = r2(cap - sumLoc(loc));
         if (amount > room + EPS) { status(`${LOCATION_LABELS[loc]} only has room for ${room} more pans.`); return; }
-        await doc(f.id).update({ [loc]: r2((f[loc] || 0) + amount), updatedAt: stamp() });
-        status(`Added ${amount} pan(s) of ${f.name} to ${LOCATION_LABELS[loc]}.`, true);
+
+        if (stockSource() === 'pending') {
+            const p = pendingList.find(x => x.id === val);
+            if (!p) { status('Pending flavor not found.'); return; }
+            // inventory doc keyed by the pendingItems id; create it if it doesn't exist yet
+            const base = byId(val) || {};
+            await doc(val).set({
+                name: base.name || p.name || '(unnamed)',
+                gelatoImage: base.gelatoImage || p.gelatoImage || p.imageURL || '',
+                imageURL: base.imageURL || p.imageURL || '',
+                active: base.active || 0,
+                casePan: base.casePan || null,
+                shortTerm: loc === 'shortTerm' ? r2((base.shortTerm || 0) + amount) : (base.shortTerm || 0),
+                longTerm: loc === 'longTerm' ? r2((base.longTerm || 0) + amount) : (base.longTerm || 0),
+                updatedAt: stamp()
+            }, { merge: true });
+            status(`Added ${amount} pan(s) of ${p.name} (pending) to ${LOCATION_LABELS[loc]}.`, true);
+        } else {
+            const f = byId(val);
+            if (!f) { status('Flavor not found.'); return; }
+            await doc(f.id).update({ [loc]: r2((f[loc] || 0) + amount), updatedAt: stamp() });
+            status(`Added ${amount} pan(s) of ${f.name} to ${LOCATION_LABELS[loc]}.`, true);
+        }
     }
 
     // ----- Transfer form ---------------------------------------------------
