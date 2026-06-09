@@ -1079,3 +1079,106 @@
     font-size: .82rem;
     text-align: center;
 }
+
+/* ====================== PRICING / VALUE ====================== */
+.g-price-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+    width: 100%;
+}
+
+.g-price-card {
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .02));
+    box-shadow: var(--shadow-lg);
+}
+
+.g-price-card.is-total {
+    border-color: #1db954;
+    background: linear-gradient(180deg, #143a27, #0f211a);
+    box-shadow: 0 0 16px #1db95433;
+}
+
+.g-price-label {
+    font-size: .78rem;
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.g-price-val {
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: #eafff2;
+    margin: 4px 0 2px;
+}
+
+.g-price-card.is-total .g-price-val {
+    color: #56e08a;
+}
+
+.g-price-sub {
+    font-size: .74rem;
+    color: var(--muted);
+}
+
+/* ====================== MOVE HISTORY ====================== */
+.g-log {
+    width: 100%;
+    max-height: 360px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, .02));
+    box-shadow: var(--shadow-lg);
+}
+
+.g-log-row {
+    display: grid;
+    grid-template-columns: 92px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 14px;
+    border-bottom: 1px solid #1d2230;
+    font-size: .82rem;
+}
+
+.g-log-row:last-child {
+    border-bottom: none;
+}
+
+.g-log-type {
+    text-align: center;
+    font-size: .66rem;
+    font-weight: 900;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    padding: 3px 6px;
+    border-radius: 999px;
+    background: #2a3142;
+    color: #cdd6e6;
+}
+
+.g-log-type.t-transfer { background: #1f3350; color: #8fc4ff; }
+.g-log-type.t-intake   { background: #14361f; color: #56e08a; }
+.g-log-type.t-use      { background: #3a2c12; color: #ffcf6b; }
+.g-log-type.t-empty    { background: #3a1f22; color: #ff8a8c; }
+.g-log-type.t-swap     { background: #15351f; color: #56e08a; }
+.g-log-type.t-assign   { background: #1f3350; color: #8fc4ff; }
+.g-log-type.t-close,
+.g-log-type.t-snapshot,
+.g-log-type.t-reload   { background: #2a2348; color: #c0a8ff; }
+.g-log-type.t-auto-stage { background: #143a27; color: #56e08a; }
+
+.g-log-text {
+    color: #dbe3f2;
+    min-width: 0;
+}
+
+.g-log-time {
+    color: var(--muted);
+    font-size: .74rem;
+    white-space: nowrap;
+}

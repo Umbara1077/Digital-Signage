@@ -28,6 +28,16 @@
     const USE_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9]
         .map(n => `<option value="0.${n}">0.${n}</option>`).join('');
 
+    // ----- Cost model (from "War Plan" sheet) ------------------------------
+    // $4,792.47 of gelato over 140,955 g on hand  ->  $0.034 / gram.
+    // Full pans weigh ~7000-8000 g; 7500 g average -> ~$255 per full pan.
+    const PRICE_PER_GRAM = 0.034;
+    const GRAMS_PER_PAN = 7500;
+    const COST_PER_PAN = PRICE_PER_GRAM * GRAMS_PER_PAN;   // ≈ $255 / pan
+    const money = n => '$' + (Math.round((n || 0) * 100) / 100)
+        .toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const grams = pans => Math.round((pans || 0) * GRAMS_PER_PAN);
+
     const LOCATION_LABELS = {
         active: 'Case',
         shortTerm: 'Short-Term',
@@ -42,8 +52,11 @@
     let pendingList = [];      // pendingItems docs (off-menu backup flavors)
     let flavors = [];          // visible flavors (on menu OR has stock), sorted
     let queue = [];            // [{ pan, flavorId, name }]
+    let moves = [];            // recent move-history entries
+    let autoStageLock = false; // guards auto-stage writes between queue snapshots
     let statMode = false;
     const queueDocRef = () => db.collection('gelatoSettings').doc('queue');
+    const snapshotDocRef = () => db.collection('gelatoSettings').doc('caseSnapshot');
 
     const r2 = n => Math.round((Number(n) || 0) * 100) / 100;     // pan amounts -> 2dp
     const byId = id => inventory.find(f => f.id === id);
@@ -83,8 +96,20 @@
 
         queueDocRef().onSnapshot(d => {
             queue = (d.exists && Array.isArray(d.data().queue)) ? d.data().queue : [];
+            autoStageLock = false;
             renderAll();
         }, err => console.error('queue snapshot error', err));
+
+        db.collection('gelatoMoves').orderBy('at', 'desc').limit(60).onSnapshot(snap => {
+            moves = snap.docs.map(d => d.data());
+            renderLog();
+        }, err => console.error('moves snapshot error', err));
+    }
+
+    /* Append a human-readable entry to the move-history log in the DB. */
+    function logMove(type, text) {
+        db.collection('gelatoMoves').add({ type, text, at: stamp() })
+            .catch(err => console.error('logMove failed', err));
     }
 
     /* Zero out all stock/case data for every gelatoInventory doc and clear the
@@ -170,6 +195,8 @@
             openAssignModal(pan);
         });
         document.getElementById('close-case').addEventListener('click', closeCase);
+        document.getElementById('save-snapshot').addEventListener('click', saveSnapshot);
+        document.getElementById('reload-case').addEventListener('click', reloadCase);
 
         document.getElementById('transferForm').addEventListener('submit', onTransfer);
         document.getElementById('t-from').addEventListener('change', refreshTransferHint);
@@ -246,8 +273,49 @@
         renderRecos();
         renderStageForm();
         renderQueueList();
+        renderPricing();
         refreshTransferHint();
         refreshStockHint();
+        autoStageLowPans();
+    }
+
+    // ----- Pricing / value overview ---------------------------------------
+    const activePans = () => r2(casePans().reduce((s, f) => s + (f.active || 0), 0));
+
+    function renderPricing() {
+        const a = activePans(), s = sumLoc('shortTerm'), l = sumLoc('longTerm');
+        const storage = r2(s + l), total = r2(a + storage);
+        const cards = [
+            ['Case (active)', a, 'active'],
+            ['Short-Term', s, 'short'],
+            ['Long-Term', l, 'long'],
+            ['On-hand storage', storage, 'storage'],
+            ['Grand total', total, 'total']
+        ];
+        document.getElementById('price-cards').innerHTML = cards.map(([label, pans, key]) => `
+            <div class="g-price-card ${key === 'total' ? 'is-total' : ''}">
+                <div class="g-price-label">${label}</div>
+                <div class="g-price-val">${money(pans * COST_PER_PAN)}</div>
+                <div class="g-price-sub">${r2(pans)} pans · ${grams(pans).toLocaleString()} g</div>
+            </div>`).join('');
+    }
+
+    /* When a case pan is in the red and the SAME flavor still has freezer
+     * stock, automatically stage a refill swap for it (one write, no loop). */
+    function autoStageLowPans() {
+        const additions = [];
+        casePans().forEach(f => {
+            const low = (f.active || 0) <= SWAP_THRESHOLD + EPS;
+            if (low && storageStock(f) > EPS && !queue.some(q => q.pan === f.casePan)) {
+                additions.push({ pan: f.casePan, flavorId: f.id, name: f.name });
+            }
+        });
+        if (!additions.length || autoStageLock) return;
+        autoStageLock = true;
+        const next = queue.concat(additions);
+        queueDocRef().set({ queue: next }, { merge: true })
+            .then(() => additions.forEach(a => logMove('auto-stage', `Auto-staged ${a.name} refill → Pan ${a.pan}`)))
+            .catch(err => { autoStageLock = false; console.error('autoStage failed', err); });
     }
 
     function renderCaps() {
@@ -413,7 +481,7 @@
         })).sort((a, b) => b.total - a.total);
 
         const head = `<thead><tr>
-            <th>Flavor</th><th>Pan</th><th>Case</th><th>Short</th><th>Long</th><th>Total</th>
+            <th>Flavor</th><th>Pan</th><th>Case</th><th>Short</th><th>Long</th><th>Total</th><th>Value</th>
         </tr></thead>`;
         // colour storage cells with the same green/yellow/red tiers as the freezers
         const toneCell = v => v > EPS ? `<td class="tone-${freezerTone(v)}">${v}</td>` : `<td>—</td>`;
@@ -425,6 +493,7 @@
                 ${toneCell(r.short)}
                 ${toneCell(r.long)}
                 <td><strong>${r.total || '—'}</strong></td>
+                <td>${r.total > EPS ? money(r.total * COST_PER_PAN) : '—'}</td>
             </tr>`).join('');
         document.getElementById('stat-table').innerHTML = head + `<tbody>${body}</tbody>`;
     }
@@ -564,6 +633,7 @@
         const next = queue.slice();
         next.splice(i, 1);
         await queueDocRef().set({ queue: next }, { merge: true });
+        logMove('swap', `Swapped ${incoming.name} into Pan ${q.pan} (${take} from ${LOCATION_LABELS[source]})`);
         status(`Swapped ${incoming.name} into Pan ${q.pan}.`, true);
     }
 
@@ -579,6 +649,7 @@
         const update = { active: next, updatedAt: stamp() };
         if (next <= EPS) update.casePan = null;
         await doc(id).update(update);
+        logMove('use', `Used ${amount} ${f.name} (Pan ${f.casePan}) — ${r2(next)} left`);
         status(`Used ${amount} of ${f.name}. ${next <= EPS ? 'Pan emptied.' : r2(next) + ' left.'}`, true);
     }
 
@@ -587,6 +658,7 @@
         if (!f) return;
         if (!confirm(`Empty Pan ${f.casePan} (${f.name})? The remaining ${r2(f.active)} pan will be marked used.`)) return;
         await doc(id).update({ active: 0, casePan: null, updatedAt: stamp() });
+        logMove('empty', `Emptied Pan ${f.casePan} (${f.name}, ${r2(f.active)} discarded)`);
     }
 
     /* Move every case pan's remaining gelato back into storage (short-term
@@ -617,8 +689,92 @@
             });
         });
         await batch.commit();
+        logMove('close', `Closed case for the night — ${inCase.length} pan(s) moved to storage`);
         if (stuck.length) status(`Closed, but storage was full — left in case: ${stuck.join(', ')}.`);
         else status('Case closed for the night — everything moved to storage. 🌙', true);
+    }
+
+    // ----- Case snapshot save / reload ------------------------------------
+    /* Save the current case layout (which flavor + how full in each pan). */
+    async function saveSnapshot() {
+        const pans = casePans().sort((a, b) => a.casePan - b.casePan)
+            .map(f => ({ pan: f.casePan, flavorId: f.id, name: f.name, active: r2(f.active) }));
+        if (!pans.length) { status('The case is empty — nothing to snapshot.'); return; }
+        await snapshotDocRef().set({ pans, savedAt: stamp(), count: pans.length });
+        logMove('snapshot', `Saved case snapshot (${pans.length} pan(s))`);
+        status(`Saved a snapshot of ${pans.length} pan(s). 📸`, true);
+    }
+
+    /* Reload the case to the last saved snapshot, pulling each flavor back out
+     * of storage. Any flavors currently in the case are returned to storage
+     * first so nothing is lost. */
+    async function reloadCase() {
+        const snap = await snapshotDocRef().get();
+        if (!snap.exists || !Array.isArray(snap.data().pans) || !snap.data().pans.length) {
+            status('No saved snapshot to reload yet. Use “Save Snapshot” first.'); return;
+        }
+        const plan = snap.data().pans;
+        if (!confirm(`Reload the case to the saved snapshot (${plan.length} pan(s))? Current case pans go back to storage first.`)) return;
+
+        // working copy of every flavor's stock + case state
+        const st = {};
+        inventory.forEach(f => st[f.id] = {
+            shortTerm: f.shortTerm || 0, longTerm: f.longTerm || 0, active: 0, casePan: null
+        });
+        // return whatever's in the case now to storage (short first, then long)
+        casePans().forEach(f => {
+            let amt = r2(f.active || 0);
+            const toShort = Math.min(amt, Math.max(0, SHORT_CAP - sumOf(st, 'shortTerm')));
+            st[f.id].shortTerm = r2(st[f.id].shortTerm + toShort); amt = r2(amt - toShort);
+            st[f.id].longTerm = r2(st[f.id].longTerm + amt);
+        });
+        // place snapshot flavors back into their pans, pulling from storage
+        const missing = [];
+        plan.forEach(p => {
+            const s = st[p.flavorId];
+            if (!s) { missing.push(p.name); return; }
+            const want = r2(p.active);
+            const fromShort = Math.min(s.shortTerm, want); s.shortTerm = r2(s.shortTerm - fromShort);
+            let rem = r2(want - fromShort);
+            const fromLong = Math.min(s.longTerm, rem); s.longTerm = r2(s.longTerm - fromLong);
+            rem = r2(rem - fromLong);
+            s.active = r2(want - rem);   // capped at available stock
+            s.casePan = p.pan;
+        });
+        // write only the docs that changed
+        const batch = db.batch();
+        inventory.forEach(f => {
+            const s = st[f.id];
+            const changed = r2(f.shortTerm || 0) !== s.shortTerm || r2(f.longTerm || 0) !== s.longTerm ||
+                r2(f.active || 0) !== s.active || (f.casePan || null) !== s.casePan;
+            if (changed) batch.update(doc(f.id), {
+                shortTerm: s.shortTerm, longTerm: s.longTerm, active: s.active,
+                casePan: s.casePan, updatedAt: stamp()
+            });
+        });
+        await batch.commit();
+        logMove('reload', `Reloaded case from snapshot (${plan.length} pan(s))`);
+        if (missing.length) status(`Reloaded. These flavors no longer exist: ${missing.join(', ')}.`);
+        else status('Case reloaded from the saved snapshot. ✅', true);
+    }
+
+    const sumOf = (state, key) => r2(Object.values(state).reduce((s, v) => s + (v[key] || 0), 0));
+
+    // ----- Move history ----------------------------------------------------
+    function renderLog() {
+        const wrap = document.getElementById('move-log');
+        if (!wrap) return;
+        if (!moves.length) { wrap.innerHTML = `<p class="g-empty-note">No moves recorded yet.</p>`; return; }
+        wrap.innerHTML = moves.map(m => {
+            const when = m.at && m.at.toDate ? m.at.toDate() : null;
+            const t = when ? when.toLocaleString('en-US',
+                { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '…';
+            return `<div class="g-log-row">
+                <span class="g-log-type t-${esc(m.type || 'move')}">${esc(m.type || 'move')}</span>
+                <span class="g-log-text">${esc(m.text || '')}</span>
+                <span class="g-log-time">${t}</span>
+            </div>`;
+        }).join('');
     }
 
     // ----- Assign modal (GUI) ---------------------------------------------
@@ -686,6 +842,7 @@
             updatedAt: stamp()
         });
         closeModal();
+        logMove('assign', `Added ${f.name} to Pan ${pan} at ${amount} (from storage)`);
         status(`${f.name} added to Pan ${pan} at ${amount}.`, true);
     }
 
@@ -761,11 +918,13 @@
                 longTerm: loc === 'longTerm' ? r2((base.longTerm || 0) + amount) : (base.longTerm || 0),
                 updatedAt: stamp()
             }, { merge: true });
+            logMove('intake', `Added ${amount} ${p.name} (pending) → ${LOCATION_LABELS[loc]}`);
             status(`Added ${amount} pan(s) of ${p.name} (pending) to ${LOCATION_LABELS[loc]}.`, true);
         } else {
             const f = byId(val);
             if (!f) { status('Flavor not found.'); return; }
             await doc(f.id).update({ [loc]: r2((f[loc] || 0) + amount), updatedAt: stamp() });
+            logMove('intake', `Added ${amount} ${f.name} → ${LOCATION_LABELS[loc]}`);
             status(`Added ${amount} pan(s) of ${f.name} to ${LOCATION_LABELS[loc]}.`, true);
         }
     }
@@ -833,6 +992,7 @@
 
         try {
             await doc(f.id).update(update);
+            logMove('transfer', `${amount} ${f.name}: ${LOCATION_LABELS[from]} → ${LOCATION_LABELS[to]}`);
             status(`Moved ${amount} pan(s) of ${f.name}: ${LOCATION_LABELS[from]} → ${LOCATION_LABELS[to]}.`, true);
         } catch (err) {
             console.error('transfer failed', err);

@@ -54,6 +54,12 @@
 
         <p id="g-status" class="g-status" aria-live="polite"></p>
 
+        <!-- ===================== PRICING / VALUE ===================== -->
+        <section class="g-section" id="pricing-section">
+            <h2>Inventory Value <span class="g-cap">est. @ $0.034/g · ~$255/pan</span></h2>
+            <div class="g-price-cards" id="price-cards"></div>
+        </section>
+
         <!-- ===================== STAT MODE PANEL ===================== -->
         <section class="g-section stats-only" id="stats-panel" hidden>
             <h2>Inventory Statistics</h2>
@@ -83,6 +89,8 @@
             <h2>The Case <span class="g-cap" id="case-cap"></span></h2>
             <div class="g-case-actions">
                 <button id="add-to-case" type="button" class="btn">+ Add Flavor to Case</button>
+                <button id="save-snapshot" type="button" class="btn">📸 Save Snapshot</button>
+                <button id="reload-case" type="button" class="btn">↺ Reload Case</button>
                 <button id="close-case" type="button" class="btn g-btn-night">🌙 Close Case for the Night</button>
                 <div class="g-viewmode g-case-size-toggle" role="group" aria-label="Case size">
                     <button id="size-18" class="g-mode-btn active" type="button">18 Pans</button>
@@ -182,6 +190,12 @@
                 </div>
                 <p class="g-transfer-hint" id="t-hint"></p>
             </form>
+        </section>
+
+        <!-- ===================== MOVE HISTORY ===================== -->
+        <section class="g-section">
+            <h2>Move History</h2>
+            <div class="g-log" id="move-log"></div>
         </section>
     </main>
 
