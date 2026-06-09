@@ -81,18 +81,18 @@
         db.collection('menuItems').onSnapshot(snap => {
             menuIds = new Set(snap.docs.map(d => d.id));
             menuFlavors = snap.docs
-                .map(d => ({ id: d.id, ...d.data() }))
+                .map(d => ({ ...d.data(), id: d.id }))
                 .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
             renderAll();
         }, err => console.error('menuItems snapshot error', err));
 
         db.collection('gelatoInventory').onSnapshot(snap => {
-            inventory = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            inventory = snap.docs.map(d => ({ ...d.data(), id: d.id }));
             renderAll();
         }, err => console.error('inventory snapshot error', err));
 
         db.collection('pendingItems').onSnapshot(snap => {
-            pendingList = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+            pendingList = snap.docs.map(d => ({ ...d.data(), id: d.id }))
                 .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
             renderStockFlavors();
             refreshStockHint();
@@ -105,7 +105,7 @@
         }, err => console.error('queue snapshot error', err));
 
         db.collection('gelatoMoves').orderBy('at', 'desc').limit(60).onSnapshot(snap => {
-            moves = snap.docs.map(d => d.data());
+            moves = snap.docs.map(d => ({ ...d.data(), id: d.id }));
             renderLog();
         }, err => console.error('moves snapshot error', err));
     }
@@ -871,11 +871,25 @@
         let opts;
         if (stockSource() === 'pending') {
             opts = pendingList.length
-                ? pendingList.map(p => `<option value="${p.id}">${esc(p.name)}</option>`)
+                ? pendingList.map(p => {
+                    const inv = byId(p.id) || {};
+                    return `<option value="${p.id}"
+                        data-name="${esc(p.name)}"
+                        data-short="${r2(inv.shortTerm || 0)}"
+                        data-long="${r2(inv.longTerm || 0)}"
+                    >${esc(p.name)}</option>`;
+                })
                 : [`<option value="">No pending flavors</option>`];
         } else {
             opts = menuFlavors.length
-                ? menuFlavors.map(f => `<option value="${f.id}">${esc(f.name)}</option>`)
+                ? menuFlavors.map(f => {
+                    const inv = byId(f.id) || {};
+                    return `<option value="${f.id}"
+                        data-name="${esc(f.name)}"
+                        data-short="${r2(inv.shortTerm || 0)}"
+                        data-long="${r2(inv.longTerm || 0)}"
+                    >${esc(f.name)}</option>`;
+                })
                 : [`<option value="">No active flavors on menu</option>`];
         }
         sel.innerHTML = opts.join('');
@@ -886,21 +900,13 @@
         const loc = document.getElementById('as-loc').value;
         const cap = loc === 'shortTerm' ? SHORT_CAP : LONG_CAP;
         const hint = document.getElementById('as-hint');
-        const val = document.getElementById('as-flavor').value;
-
-        let name, cur = 0;
-        if (stockSource() === 'pending') {
-            const p = pendingList.find(x => x.id === val);
-            if (!p) { hint.textContent = ''; return; }
-            name = p.name;
-            const ex = byId(p.id);
-            cur = ex ? (ex[loc] || 0) : 0;
-        } else {
-            const f = byId(val) || menuFlavors.find(x => x.id === val);
-            if (!f) { hint.textContent = ''; return; }
-            name = f.name;
-            cur = (byId(val) || {})[loc] || 0;
-        }
+        const sel = document.getElementById('as-flavor');
+        const opt = sel.options[sel.selectedIndex];
+        if (!opt || !opt.value) { hint.textContent = ''; return; }
+        const name = opt.getAttribute('data-name') || opt.text;
+        const cur = loc === 'shortTerm'
+            ? parseFloat(opt.getAttribute('data-short') || 0)
+            : parseFloat(opt.getAttribute('data-long') || 0);
         hint.textContent = `${name}: ${r2(cur)} in ${LOCATION_LABELS[loc]}. Room for ${r2(cap - sumLoc(loc))} more pans.`;
     }
 
@@ -965,19 +971,33 @@
         const allOpts = [...menuFlavors, ...offMenu]
             .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         sel.innerHTML = allOpts.length
-            ? allOpts.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('')
+            ? allOpts.map(f => {
+                const inv = byId(f.id) || {};
+                return `<option value="${f.id}"
+                    data-name="${esc(f.name)}"
+                    data-active="${r2(inv.active || 0)}"
+                    data-short="${r2(inv.shortTerm || 0)}"
+                    data-long="${r2(inv.longTerm || 0)}"
+                >${esc(f.name)}</option>`;
+            }).join('')
             : `<option value="">No flavors available</option>`;
         if (prev && allOpts.some(f => f.id === prev)) sel.value = prev;
     }
 
     function refreshTransferHint() {
-        const f = byId(document.getElementById('t-flavor').value);
+        const sel = document.getElementById('t-flavor');
+        const opt = sel.options[sel.selectedIndex];
         const from = document.getElementById('t-from').value;
         const to = document.getElementById('t-to').value;
         const hint = document.getElementById('t-hint');
-        if (!f) { hint.textContent = ''; return; }
-        const have = from === 'active' ? (f.active || 0) : (f[from] || 0);
-        let msg = `${f.name}: holds ${r2(have)} in ${LOCATION_LABELS[from]}.`;
+        if (!opt || !opt.value) { hint.textContent = ''; return; }
+        const name = opt.getAttribute('data-name') || opt.text;
+        const have = from === 'active'
+            ? parseFloat(opt.getAttribute('data-active') || 0)
+            : from === 'shortTerm'
+                ? parseFloat(opt.getAttribute('data-short') || 0)
+                : parseFloat(opt.getAttribute('data-long') || 0);
+        let msg = `${name}: holds ${r2(have)} in ${LOCATION_LABELS[from]}.`;
         if (to === 'active') msg += ` Case pans cap at 1.0 each.`;
         if (to === 'shortTerm') msg += ` Short-term free: ${r2(SHORT_CAP - sumLoc('shortTerm'))} pans.`;
         if (to === 'longTerm') msg += ` Long-term free: ${r2(LONG_CAP - sumLoc('longTerm'))} pans.`;
