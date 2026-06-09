@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "dolcevitasinage",
     "public": "public",
     "ignore": [
       "firebase.json",

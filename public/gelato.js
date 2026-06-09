@@ -49,6 +49,7 @@
     let db = null;
     let inventory = [];        // raw gelatoInventory docs
     let menuIds = null;        // Set of menuItems ids (null until first load)
+    let menuFlavors = [];      // all menuItems docs, sorted by name (source of truth for active list)
     let pendingList = [];      // pendingItems docs (off-menu backup flavors)
     let flavors = [];          // visible flavors (on menu OR has stock), sorted
     let queue = [];            // [{ pan, flavorId, name }]
@@ -79,6 +80,9 @@
 
         db.collection('menuItems').onSnapshot(snap => {
             menuIds = new Set(snap.docs.map(d => d.id));
+            menuFlavors = snap.docs
+                .map(d => ({ id: d.id, ...d.data() }))
+                .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
             renderAll();
         }, err => console.error('menuItems snapshot error', err));
 
@@ -870,10 +874,9 @@
                 ? pendingList.map(p => `<option value="${p.id}">${esc(p.name)}</option>`)
                 : [`<option value="">No pending flavors</option>`];
         } else {
-            const active = flavors.filter(onMenu);
-            opts = active.length
-                ? active.map(f => `<option value="${f.id}">${esc(f.name)}</option>`)
-                : [`<option value="">No active flavors</option>`];
+            opts = menuFlavors.length
+                ? menuFlavors.map(f => `<option value="${f.id}">${esc(f.name)}</option>`)
+                : [`<option value="">No active flavors on menu</option>`];
         }
         sel.innerHTML = opts.join('');
         if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
@@ -893,10 +896,10 @@
             const ex = byId(p.id);
             cur = ex ? (ex[loc] || 0) : 0;
         } else {
-            const f = byId(val);
+            const f = byId(val) || menuFlavors.find(x => x.id === val);
             if (!f) { hint.textContent = ''; return; }
             name = f.name;
-            cur = f[loc] || 0;
+            cur = (byId(val) || {})[loc] || 0;
         }
         hint.textContent = `${name}: ${r2(cur)} in ${LOCATION_LABELS[loc]}. Room for ${r2(cap - sumLoc(loc))} more pans.`;
     }
@@ -931,10 +934,25 @@
             status(`Added ${amount} pan(s) of ${p.name} (pending) to ${LOCATION_LABELS[loc]}.`, true);
         } else {
             const f = byId(val);
-            if (!f) { status('Flavor not found.'); return; }
-            await doc(f.id).update({ [loc]: r2((f[loc] || 0) + amount), updatedAt: stamp() });
-            logMove('intake', `Added ${amount} ${f.name} → ${LOCATION_LABELS[loc]}`);
-            status(`Added ${amount} pan(s) of ${f.name} to ${LOCATION_LABELS[loc]}.`, true);
+            const m = menuFlavors.find(x => x.id === val);
+            if (!f && !m) { status('Flavor not found.'); return; }
+            const name = (f || m).name;
+            if (f) {
+                await doc(val).update({ [loc]: r2((f[loc] || 0) + amount), updatedAt: stamp() });
+            } else {
+                // inventory doc doesn't exist yet — create it on the fly
+                await doc(val).set({
+                    name: m.name || '(unnamed)',
+                    gelatoImage: m.gelatoImage || m.imageURL || '',
+                    imageURL: m.imageURL || '',
+                    active: 0, casePan: null,
+                    shortTerm: loc === 'shortTerm' ? amount : 0,
+                    longTerm: loc === 'longTerm' ? amount : 0,
+                    updatedAt: stamp()
+                }, { merge: true });
+            }
+            logMove('intake', `Added ${amount} ${name} → ${LOCATION_LABELS[loc]}`);
+            status(`Added ${amount} pan(s) of ${name} to ${LOCATION_LABELS[loc]}.`, true);
         }
     }
 
@@ -942,8 +960,14 @@
     function renderTransferFlavors() {
         const sel = document.getElementById('t-flavor');
         const prev = sel.value;
-        sel.innerHTML = flavors.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('');
-        if (prev && flavors.some(f => f.id === prev)) sel.value = prev;
+        // merge: all menu flavors + any off-menu flavors that still have stock
+        const offMenu = flavors.filter(f => !menuIds || !menuIds.has(f.id));
+        const allOpts = [...menuFlavors, ...offMenu]
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        sel.innerHTML = allOpts.length
+            ? allOpts.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('')
+            : `<option value="">No flavors available</option>`;
+        if (prev && allOpts.some(f => f.id === prev)) sel.value = prev;
     }
 
     function refreshTransferHint() {
