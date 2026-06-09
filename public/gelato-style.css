@@ -1171,6 +1171,7 @@
 .g-log-type.t-snapshot,
 .g-log-type.t-reload   { background: #2a2348; color: #c0a8ff; }
 .g-log-type.t-auto-stage { background: #143a27; color: #56e08a; }
+.g-log-type.t-reset { background: #3a1f22; color: #ff8a8c; }
 
 .g-log-text {
     color: #dbe3f2;

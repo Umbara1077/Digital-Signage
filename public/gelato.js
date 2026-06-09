@@ -29,9 +29,9 @@
         .map(n => `<option value="0.${n}">0.${n}</option>`).join('');
 
     // ----- Cost model (from "War Plan" sheet) ------------------------------
-    // $4,792.47 of gelato over 140,955 g on hand  ->  $0.034 / gram.
-    // Full pans weigh ~7000-8000 g; 7500 g average -> ~$255 per full pan.
-    const PRICE_PER_GRAM = 0.034;
+    // ~$0.035 / gram of gelato on hand.
+    // Full pans weigh ~7000-8000 g; 7500 g average -> ~$262 per full pan.
+    const PRICE_PER_GRAM = 0.035;
     const GRAMS_PER_PAN = 7500;
     const COST_PER_PAN = PRICE_PER_GRAM * GRAMS_PER_PAN;   // ≈ $255 / pan
     const money = n => '$' + (Math.round((n || 0) * 100) / 100)
@@ -138,6 +138,7 @@
             if (ops) batches.push(batch);
             await Promise.all(batches.map(b => b.commit()));
             await queueDocRef().set({ queue: [] });
+            logMove('reset', `Reset inventory — zeroed all stock & cleared case for ${count} flavor(s)`);
             status('Inventory reset. All stock zeroed, case cleared.', true);
         } catch (e) {
             console.error('resetInventory failed', e);
@@ -657,8 +658,16 @@
         const f = byId(id);
         if (!f) return;
         if (!confirm(`Empty Pan ${f.casePan} (${f.name})? The remaining ${r2(f.active)} pan will be marked used.`)) return;
+        const pan = f.casePan;
         await doc(id).update({ active: 0, casePan: null, updatedAt: stamp() });
-        logMove('empty', `Emptied Pan ${f.casePan} (${f.name}, ${r2(f.active)} discarded)`);
+        logMove('empty', `Emptied Pan ${pan} (${f.name}, ${r2(f.active)} discarded)`);
+        // same swap logic as a low pan: if this flavor still has freezer stock,
+        // auto-stage a refill for the now-empty pan
+        if (storageStock(f) > EPS && !queue.some(q => q.pan === pan)) {
+            const next = queue.concat([{ pan, flavorId: f.id, name: f.name }]);
+            await queueDocRef().set({ queue: next }, { merge: true });
+            logMove('auto-stage', `Auto-staged ${f.name} refill → Pan ${pan} (emptied)`);
+        }
     }
 
     /* Move every case pan's remaining gelato back into storage (short-term
