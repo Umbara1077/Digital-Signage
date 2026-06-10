@@ -256,9 +256,24 @@
 }
 
 .g-pan-amt {
-    font-size: .7rem;
+    font-size: .72rem;
     color: var(--muted);
     text-align: center;
+}
+
+/* the big, bold quantity + percentage for each case flavor */
+.g-pan-qty,
+.g-pan-pct {
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: #ffffff;
+    line-height: 1;
+    letter-spacing: -.01em;
+}
+
+.g-pan.low .g-pan-qty,
+.g-pan.low .g-pan-pct {
+    color: #ff7a7c;
 }
 
 .g-pan-use {
@@ -307,6 +322,7 @@
 
 .g-pan-use button,
 .g-pan-empty,
+.g-pan-toshort,
 .g-assign-btn {
     font-size: .66rem;
     padding: 5px 8px;
@@ -323,9 +339,24 @@
     font-weight: 700;
 }
 
-.g-pan-empty,
 .g-assign-btn {
     width: 100%;
+}
+
+/* the two footer buttons (send to short / empty) sit side by side */
+.g-pan-foot {
+    display: flex;
+    gap: 4px;
+}
+
+.g-pan-foot button {
+    flex: 1;
+    min-width: 0;
+}
+
+.g-pan-toshort:hover {
+    background: #1f3350;
+    border-color: #38a3ff;
 }
 
 .g-pan-use button:hover,
@@ -356,6 +387,12 @@
 
 .g-btn-danger:hover {
     background-image: linear-gradient(#2a1010, #2a1010), linear-gradient(135deg, #8a2a2a, #c04a4a) !important;
+}
+
+.g-usage-actions {
+    display: flex;
+    justify-content: center;
+    margin-top: 12px;
 }
 
 /* ====================== FREEZERS ====================== */
@@ -1100,6 +1137,16 @@
     border-color: #1db954;
     background: linear-gradient(180deg, #143a27, #0f211a);
     box-shadow: 0 0 16px #1db95433;
+}
+
+.g-price-card.is-warn {
+    border-color: var(--red);
+    background: linear-gradient(180deg, #3a1a1c, #200f10);
+    box-shadow: 0 0 16px #ff4d4f33;
+}
+
+.g-price-card.is-warn .g-price-val {
+    color: #ff8a8c;
 }
 
 .g-price-label {

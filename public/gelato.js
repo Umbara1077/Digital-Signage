@@ -55,15 +55,36 @@
     let queue = [];            // [{ pan, flavorId, name }]
     let moves = [];            // recent move-history entries
     let autoStageLock = false; // guards auto-stage writes between queue snapshots
+    let usageToday = {};       // today's running usage totals (pans)
     let statMode = false;
     const queueDocRef = () => db.collection('gelatoSettings').doc('queue');
     const snapshotDocRef = () => db.collection('gelatoSettings').doc('caseSnapshot');
+    const todayStr = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD (local)
+    const usageDocRef = () => db.collection('gelatoUsage').doc(todayStr());
 
     const r2 = n => Math.round((Number(n) || 0) * 100) / 100;     // pan amounts -> 2dp
-    const byId = id => inventory.find(f => f.id === id);
     const onMenu = f => !menuIds || menuIds.has(f.id);
     const hasStock = f => (f.active || 0) > EPS || (f.shortTerm || 0) > EPS || (f.longTerm || 0) > EPS;
     const doc = id => db.collection('gelatoInventory').doc(id);
+
+    // The live menu/pending doc is the source of truth for a flavor's name &
+    // image. gelatoInventory only stores stock, so its name/image copy can go
+    // stale (e.g. after admin "Replace Menu Item" reuses a doc id). Always
+    // overlay the live name/image, matched by id.
+    const liveMeta = id => menuFlavors.find(x => x.id === id) || pendingList.find(x => x.id === id) || null;
+    const nameById = id => { const m = liveMeta(id); return m ? (m.name || '') : ''; };
+    function enrich(f) {
+        if (!f) return f;
+        const m = liveMeta(f.id);
+        if (!m) return f;
+        return {
+            ...f,
+            name: m.name || f.name,
+            gelatoImage: m.gelatoImage || m.imageURL || f.gelatoImage || '',
+            imageURL: m.imageURL || f.imageURL || ''
+        };
+    }
+    const byId = id => enrich(inventory.find(f => f.id === id));
 
     // ----- Boot ------------------------------------------------------------
     document.addEventListener('DOMContentLoaded', () => {
@@ -108,12 +129,40 @@
             moves = snap.docs.map(d => ({ ...d.data(), id: d.id }));
             renderLog();
         }, err => console.error('moves snapshot error', err));
+
+        usageDocRef().onSnapshot(d => {
+            usageToday = d.exists ? d.data() : {};
+            renderUsage();
+        }, err => console.error('usage snapshot error', err));
     }
 
     /* Append a human-readable entry to the move-history log in the DB. */
     function logMove(type, text) {
         db.collection('gelatoMoves').add({ type, text, at: stamp() })
             .catch(err => console.error('logMove failed', err));
+    }
+
+    /* Accumulate today's case usage so it isn't lost when a pan is served down
+     * or emptied. One doc per local day in `gelatoUsage`. */
+    function addUsage(field, amount) {
+        if (!(amount > 0)) return;
+        usageDocRef().set({
+            [field]: firebase.firestore.FieldValue.increment(r2(amount)),
+            date: todayStr(), updatedAt: stamp()
+        }, { merge: true }).catch(err => console.error('addUsage failed', err));
+    }
+
+    /* Zero today's running usage totals. Stock and the case are untouched. */
+    async function resetUsage() {
+        if (!confirm("Reset today's usage totals?\n\nThis clears the day's running \"used / total handled\" count. Stock and the case are NOT affected.")) return;
+        try {
+            await usageDocRef().set({ usedPans: 0, wastedPans: 0, date: todayStr(), updatedAt: stamp() }, { merge: true });
+            logMove('reset', "Reset today's usage totals");
+            status("Today's usage totals reset.", true);
+        } catch (e) {
+            console.error('resetUsage failed', e);
+            status('Reset failed — see console.');
+        }
     }
 
     /* Zero out all stock/case data for every gelatoInventory doc and clear the
@@ -202,6 +251,7 @@
         document.getElementById('close-case').addEventListener('click', closeCase);
         document.getElementById('save-snapshot').addEventListener('click', saveSnapshot);
         document.getElementById('reload-case').addEventListener('click', reloadCase);
+        document.getElementById('reset-usage').addEventListener('click', resetUsage);
 
         document.getElementById('transferForm').addEventListener('submit', onTransfer);
         document.getElementById('t-from').addEventListener('change', refreshTransferHint);
@@ -259,11 +309,23 @@
     const sumLoc = loc => r2(flavors.reduce((s, f) => s + (f[loc] || 0), 0));
     const casePans = () => flavors.filter(f => f.casePan);
     const storageStock = f => r2((f.shortTerm || 0) + (f.longTerm || 0));
+    // the case is only ever filled from SHORT-TERM storage
+    const caseStock = f => r2(f.shortTerm || 0);
+
+    /* Always render a flavor's picture from the live menu/pending doc (matched
+     * by id) rather than the copy stored in gelatoInventory, so corrected menu
+     * images show up and never get crossed with the wrong flavor. */
+    function flavorImage(f) {
+        const m = menuFlavors.find(x => x.id === f.id) || pendingList.find(x => x.id === f.id);
+        return (m && (m.gelatoImage || m.imageURL)) || f.gelatoImage || f.imageURL || '';
+    }
 
     // ----- Rendering -------------------------------------------------------
     function renderAll() {
-        // show menu flavors always, plus any off-menu flavor that has stock
+        // show menu flavors always, plus any off-menu flavor that has stock,
+        // with live name/image overlaid so stale stored copies never show
         flavors = inventory.filter(f => onMenu(f) || hasStock(f))
+            .map(enrich)
             .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         renderCaps();
         renderTransferFlavors();
@@ -279,6 +341,7 @@
         renderStageForm();
         renderQueueList();
         renderPricing();
+        renderUsage();
         refreshTransferHint();
         refreshStockHint();
         autoStageLowPans();
@@ -305,13 +368,35 @@
             </div>`).join('');
     }
 
+    /* Today's case usage: served (used), emptied (wasted), and what's still in
+     * the case right now — so the day's consumption isn't lost as pans drain. */
+    function renderUsage() {
+        const el = document.getElementById('usage-cards');
+        if (!el) return;
+        const used = r2(usageToday.usedPans || 0);
+        const inCase = activePans();
+        const cards = [
+            ['Used today (served + emptied)', used, 'used'],
+            ['Still in case', inCase, 'incase'],
+            ['Total handled today (used + still)', r2(used + inCase), 'total']
+        ];
+        el.innerHTML = cards.map(([label, pans, key]) => `
+            <div class="g-price-card ${key === 'total' ? 'is-total' : ''}">
+                <div class="g-price-label">${label}</div>
+                <div class="g-price-val">${money(pans * COST_PER_PAN)}</div>
+                <div class="g-price-sub">${r2(pans)} pans · ${grams(pans).toLocaleString()} g</div>
+            </div>`).join('');
+        const d = document.getElementById('usage-date');
+        if (d) d.textContent = usageToday.date || todayStr();
+    }
+
     /* When a case pan is in the red and the SAME flavor still has freezer
      * stock, automatically stage a refill swap for it (one write, no loop). */
     function autoStageLowPans() {
         const additions = [];
         casePans().forEach(f => {
             const low = (f.active || 0) <= SWAP_THRESHOLD + EPS;
-            if (low && storageStock(f) > EPS && !queue.some(q => q.pan === f.casePan)) {
+            if (low && caseStock(f) > EPS && !queue.some(q => q.pan === f.casePan)) {
                 additions.push({ pan: f.casePan, flavorId: f.id, name: f.name });
             }
         });
@@ -341,7 +426,8 @@
                 const lvl = Math.max(0, Math.min(1, f.active || 0));
                 const pct = Math.round(lvl * 100);
                 const low = (f.active || 0) <= SWAP_THRESHOLD + EPS;
-                const swatch = f.gelatoImage ? `style="background-image:url('${f.gelatoImage}')"` : '';
+                const img = flavorImage(f);
+                const swatch = img ? `style="background-image:url('${img}')"` : '';
                 html += `
                 <div class="g-pan ${low ? 'low' : ''}" data-id="${f.id}">
                     <div class="g-pan-head"><span class="g-pan-num">PAN ${pan}</span>${low ? '<span class="g-pan-flag">SWAP</span>' : ''}</div>
@@ -352,14 +438,17 @@
                     </div>
                     <div class="g-pan-name" title="${esc(f.name)}">${esc(f.name)}</div>
                     <div class="g-pan-meter"><span style="width:${pct}%"></span></div>
-                    <div class="g-pan-amt">${r2(f.active)} pan · ${pct}%</div>
+                    <div class="g-pan-amt"><span class="g-pan-qty">${r2(f.active)}</span> pan · <span class="g-pan-pct">${pct}%</span></div>
                     <div class="g-pan-use">
                         <select class="g-use-amt" data-id="${f.id}" aria-label="Amount to use">
                             ${USE_OPTIONS}
                         </select>
                         <button type="button" data-act="use" data-id="${f.id}">Use</button>
                     </div>
-                    <button type="button" class="g-pan-empty" data-act="empty" data-id="${f.id}">Empty pan</button>
+                    <div class="g-pan-foot">
+                        <button type="button" class="g-pan-toshort" data-act="toshort" data-id="${f.id}">&rarr; Short</button>
+                        <button type="button" class="g-pan-empty" data-act="empty" data-id="${f.id}">Empty</button>
+                    </div>
                 </div>`;
             } else {
                 html += `
@@ -378,6 +467,8 @@
         }));
         wrap.querySelectorAll('[data-act="empty"]').forEach(b =>
             b.addEventListener('click', () => emptyPan(b.dataset.id)));
+        wrap.querySelectorAll('[data-act="toshort"]').forEach(b =>
+            b.addEventListener('click', () => caseToShort(b.dataset.id)));
         wrap.querySelectorAll('.g-assign-btn').forEach(b =>
             b.addEventListener('click', () => openAssignModal(Number(b.dataset.pan))));
     }
@@ -405,7 +496,8 @@
             let icons = '';
             for (let i = 0; i < whole; i++) icons += `<span class="g-tub-icon ${tone}"></span>`;
             if (frac > EPS) icons += `<span class="g-tub-icon ${tone} part" style="--frac:${frac}"></span>`;
-            const swatch = f.gelatoImage ? `style="background-image:url('${f.gelatoImage}')"` : '';
+            const img = flavorImage(f);
+            const swatch = img ? `style="background-image:url('${img}')"` : '';
             html += `
             <div class="g-frz-tub tone-${tone}">
                 <div class="g-frz-swatch" ${swatch}></div>
@@ -521,7 +613,7 @@
                     <span class="g-reco-amt">${r2(f.active)} pan</span>
                 </div>
                 ${queued
-                    ? `<div class="g-reco-queued">✔ Staged: ${esc(queued.name)} → Pan ${f.casePan} (ready below)</div>`
+                    ? `<div class="g-reco-queued">✔ Staged: ${esc(nameById(queued.flavorId) || queued.name)} → Pan ${f.casePan} (ready below)</div>`
                     : `<div class="g-reco-note">Stage a replacement in the Swap Queue panel →</div>`}
             </div>`;
         }).join('');
@@ -538,10 +630,10 @@
             ? pans.map(f => `<option value="${f.casePan}">Pan ${f.casePan} — ${esc(f.name)} (${r2(f.active)})</option>`).join('')
             : `<option value="">No pans in the case yet</option>`;
 
-        const avail = flavors.filter(f => storageStock(f) > EPS);
+        const avail = flavors.filter(f => caseStock(f) > EPS);
         flavSel.innerHTML = avail.length
-            ? avail.map(f => `<option value="${f.id}">${esc(f.name)} (S:${r2(f.shortTerm)} L:${r2(f.longTerm)})</option>`).join('')
-            : `<option value="">No freezer stock — add some first</option>`;
+            ? avail.map(f => `<option value="${f.id}">${esc(f.name)} (Short: ${r2(f.shortTerm)})</option>`).join('')
+            : `<option value="">No short-term stock — move some up first</option>`;
 
         if (prevPan && [...panSel.options].some(o => o.value === prevPan)) panSel.value = prevPan;
         if (prevFlav && [...flavSel.options].some(o => o.value === prevFlav)) flavSel.value = prevFlav;
@@ -577,7 +669,7 @@
             return `
             <div class="g-qitem ${ready ? 'is-ready' : ''}">
                 <div class="g-qitem-main">
-                    <div><strong>${esc(q.name)}</strong> → Pan ${q.pan}</div>
+                    <div><strong>${esc(nameById(q.flavorId) || q.name)}</strong> → Pan ${q.pan}</div>
                     ${state}
                 </div>
                 <span class="g-qitem-actions">
@@ -616,11 +708,12 @@
         const incoming = byId(q.flavorId);
         if (!incoming) { status('Replacement flavor no longer exists.'); return; }
 
-        const source = (incoming.shortTerm || 0) > EPS ? 'shortTerm'
-            : (incoming.longTerm || 0) > EPS ? 'longTerm' : null;
-        if (!source) { status(`${incoming.name} has no pans in either freezer.`); return; }
+        // the case is fed from short-term only
+        if (caseStock(incoming) <= EPS) {
+            status(`${incoming.name} has no short-term stock. Move some up from long-term first.`); return;
+        }
 
-        const stock = r2(incoming[source]);
+        const stock = r2(incoming.shortTerm || 0);
         const frac = r2(stock % 1);
         const take = frac > EPS ? frac : Math.min(1, stock);
         const outgoing = flavors.find(f => f.casePan === q.pan);
@@ -630,7 +723,7 @@
             batch.update(doc(outgoing.id), { active: 0, casePan: null, updatedAt: stamp() });
         }
         batch.update(doc(incoming.id), {
-            [source]: r2((incoming[source] || 0) - take),
+            shortTerm: r2((incoming.shortTerm || 0) - take),
             active: take, casePan: q.pan, updatedAt: stamp()
         });
         await batch.commit();
@@ -638,7 +731,7 @@
         const next = queue.slice();
         next.splice(i, 1);
         await queueDocRef().set({ queue: next }, { merge: true });
-        logMove('swap', `Swapped ${incoming.name} into Pan ${q.pan} (${take} from ${LOCATION_LABELS[source]})`);
+        logMove('swap', `Swapped ${incoming.name} into Pan ${q.pan} (${take} from Short-Term)`);
         status(`Swapped ${incoming.name} into Pan ${q.pan}.`, true);
     }
 
@@ -654,20 +747,38 @@
         const update = { active: next, updatedAt: stamp() };
         if (next <= EPS) update.casePan = null;
         await doc(id).update(update);
+        addUsage('usedPans', amount);   // count served gelato toward today's usage
         logMove('use', `Used ${amount} ${f.name} (Pan ${f.casePan}) — ${r2(next)} left`);
         status(`Used ${amount} of ${f.name}. ${next <= EPS ? 'Pan emptied.' : r2(next) + ' left.'}`, true);
+    }
+
+    /* Send a case pan's remaining gelato back into short-term storage. */
+    async function caseToShort(id) {
+        const f = byId(id);
+        if (!f) return;
+        const amt = r2(f.active || 0);
+        if (amt <= 0) { status('Nothing to send back.'); return; }
+        const room = r2(SHORT_CAP - sumLoc('shortTerm'));
+        if (amt > room + EPS) { status(`Short-term only has room for ${room} more pan(s).`); return; }
+        const pan = f.casePan;
+        await doc(id).update({
+            shortTerm: r2((f.shortTerm || 0) + amt), active: 0, casePan: null, updatedAt: stamp()
+        });
+        logMove('transfer', `${amt} ${f.name}: Case (Pan ${pan}) → Short-Term`);
+        status(`Sent ${amt} of ${f.name} back to short-term.`, true);
     }
 
     async function emptyPan(id) {
         const f = byId(id);
         if (!f) return;
-        if (!confirm(`Empty Pan ${f.casePan} (${f.name})? The remaining ${r2(f.active)} pan will be marked used.`)) return;
-        const pan = f.casePan;
+        if (!confirm(`Empty Pan ${f.casePan} (${f.name})? The remaining ${r2(f.active)} pan will be used up.`)) return;
+        const pan = f.casePan, used = r2(f.active || 0);
         await doc(id).update({ active: 0, casePan: null, updatedAt: stamp() });
-        logMove('empty', `Emptied Pan ${pan} (${f.name}, ${r2(f.active)} discarded)`);
-        // same swap logic as a low pan: if this flavor still has freezer stock,
+        addUsage('usedPans', used);  // emptying = a fast way to use the whole pan
+        logMove('empty', `Used the rest of Pan ${pan} (${f.name}, ${used})`);
+        // same swap logic as a low pan: if this flavor still has SHORT-TERM stock,
         // auto-stage a refill for the now-empty pan
-        if (storageStock(f) > EPS && !queue.some(q => q.pan === pan)) {
+        if (caseStock(f) > EPS && !queue.some(q => q.pan === pan)) {
             const next = queue.concat([{ pan, flavorId: f.id, name: f.name }]);
             await queueDocRef().set({ queue: next }, { merge: true });
             logMove('auto-stage', `Auto-staged ${f.name} refill → Pan ${pan} (emptied)`);
@@ -747,11 +858,9 @@
             const s = st[p.flavorId];
             if (!s) { missing.push(p.name); return; }
             const want = r2(p.active);
+            // the case is fed from short-term only
             const fromShort = Math.min(s.shortTerm, want); s.shortTerm = r2(s.shortTerm - fromShort);
-            let rem = r2(want - fromShort);
-            const fromLong = Math.min(s.longTerm, rem); s.longTerm = r2(s.longTerm - fromLong);
-            rem = r2(rem - fromLong);
-            s.active = r2(want - rem);   // capped at available stock
+            s.active = fromShort;   // capped at short-term availability
             s.casePan = p.pan;
         });
         // write only the docs that changed
@@ -792,21 +901,22 @@
 
     // ----- Assign modal (GUI) ---------------------------------------------
     function openAssignModal(pan) {
-        const choices = flavors.filter(f => !f.casePan && storageStock(f) > EPS)
-            .sort((a, b) => storageStock(b) - storageStock(a));
+        const choices = flavors.filter(f => !f.casePan && caseStock(f) > EPS)
+            .sort((a, b) => caseStock(b) - caseStock(a));
         const body = document.getElementById('g-modal-body');
         document.getElementById('g-modal-title').textContent = `Add a flavor to Pan ${pan}`;
 
         if (!choices.length) {
-            body.innerHTML = `<p class="g-empty-note">No flavors have freezer stock yet.
-                Use <strong>Add Stock</strong> below to bring some in, then assign it here.</p>`;
+            body.innerHTML = `<p class="g-empty-note">No flavors have short-term stock yet.
+                The case fills from <strong>short-term</strong> — use <strong>Add Stock</strong> or move some up
+                from long-term, then assign it here.</p>`;
             showModal();
             return;
         }
         body.innerHTML = `
-            <label class="g-modal-label">Flavor (from storage)</label>
+            <label class="g-modal-label">Flavor (from short-term storage)</label>
             <select id="assign-flavor" class="g-modal-select">
-                ${choices.map(f => `<option value="${f.id}">${esc(f.name)} — S:${r2(f.shortTerm)} L:${r2(f.longTerm)}</option>`).join('')}
+                ${choices.map(f => `<option value="${f.id}">${esc(f.name)} — Short: ${r2(f.shortTerm)}</option>`).join('')}
             </select>
             <label class="g-modal-label">Fill amount (pans, max 1.0)</label>
             <input type="number" id="assign-amt" class="g-modal-input" list="amt-presets" value="${defaultAssignAmt(choices[0])}" min="0.1" max="1" step="0.1">
@@ -822,7 +932,7 @@
         const updateHint = () => {
             const f = byId(sel.value);
             if (!f) { hint.textContent = ''; return; }
-            hint.textContent = `${f.name}: ${storageStock(f)} pan(s) in storage. Pulls from short-term first.`;
+            hint.textContent = `${f.name}: ${r2(f.shortTerm)} pan(s) in short-term.`;
             amt.value = defaultAssignAmt(f);
         };
         sel.addEventListener('change', updateHint);
@@ -839,23 +949,18 @@
         if (!f) return;
         amount = r2(amount);
         if (!(amount > 0) || amount > 1 + EPS) { status('Fill amount must be between 0.1 and 1.0.'); return; }
-        if (casePans().length >= CASE_SLOTS) { status('The case is full (18 pans).'); return; }
-        const stock = storageStock(f);
-        if (amount > stock + EPS) { status(`Only ${stock} pan(s) of ${f.name} in storage.`); return; }
-
-        let need = amount;
-        const fromShort = Math.min(f.shortTerm || 0, need); need = r2(need - fromShort);
-        const fromLong = Math.min(f.longTerm || 0, need); need = r2(need - fromLong);
+        if (casePans().length >= CASE_SLOTS) { status(`The case is full (${CASE_SLOTS} pans).`); return; }
+        const stock = caseStock(f);  // case fills from short-term only
+        if (amount > stock + EPS) { status(`Only ${stock} pan(s) of ${f.name} in short-term.`); return; }
 
         await doc(f.id).update({
-            shortTerm: r2((f.shortTerm || 0) - fromShort),
-            longTerm: r2((f.longTerm || 0) - fromLong),
+            shortTerm: r2((f.shortTerm || 0) - amount),
             active: amount,
             casePan: pan,
             updatedAt: stamp()
         });
         closeModal();
-        logMove('assign', `Added ${f.name} to Pan ${pan} at ${amount} (from storage)`);
+        logMove('assign', `Added ${f.name} to Pan ${pan} at ${amount} (from Short-Term)`);
         status(`${f.name} added to Pan ${pan} at ${amount}.`, true);
     }
 
@@ -942,9 +1047,10 @@
             const f = byId(val);
             const m = menuFlavors.find(x => x.id === val);
             if (!f && !m) { status('Flavor not found.'); return; }
-            const name = (f || m).name;
+            const name = (m || f).name;   // prefer the live menu name
             if (f) {
-                await doc(val).update({ [loc]: r2((f[loc] || 0) + amount), updatedAt: stamp() });
+                const heal = m ? { name: m.name || f.name, gelatoImage: m.gelatoImage || m.imageURL || f.gelatoImage || '', imageURL: m.imageURL || f.imageURL || '' } : {};
+                await doc(val).update({ [loc]: r2((f[loc] || 0) + amount), ...heal, updatedAt: stamp() });
             } else {
                 // inventory doc doesn't exist yet — create it on the fly
                 await doc(val).set({
@@ -1023,7 +1129,8 @@
         if (to === 'use') {
             // consume from source, nothing to add
         } else if (to === 'active') {
-            if (!f.casePan && casePans().length >= CASE_SLOTS) { status('The case is full (18 pans).'); return; }
+            if (from !== 'shortTerm') { status('The case can only be filled from short-term storage.'); return; }
+            if (!f.casePan && casePans().length >= CASE_SLOTS) { status(`The case is full (${CASE_SLOTS} pans).`); return; }
             const newActive = r2((f.active || 0) + amount);
             if (newActive > 1 + EPS) { status(`A case pan holds max 1.0. ${f.name} would reach ${newActive}.`); return; }
             update.active = newActive;
@@ -1065,7 +1172,7 @@
      * pan first (e.g. 0.3 of 1.3) so partial pans get cleared before whole ones. */
     function defaultAssignAmt(f) {
         if (!f) return 1;
-        const total = r2((f.shortTerm || 0) + (f.longTerm || 0));
+        const total = r2(f.shortTerm || 0);   // case fills from short-term only
         const frac = r2(total % 1);
         return frac > EPS ? frac : Math.min(1, total);
     }
