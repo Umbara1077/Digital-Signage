@@ -55,6 +55,7 @@
     let queue = [];            // [{ pan, flavorId, name }]
     let moves = [];            // recent move-history entries
     let autoStageLock = false; // guards auto-stage writes between queue snapshots
+    let queueLoaded = false;   // true once the saved queue has loaded from the DB
     let usageToday = {};       // today's running usage totals (pans)
     let statMode = false;
     const queueDocRef = () => db.collection('gelatoSettings').doc('queue');
@@ -121,6 +122,7 @@
 
         queueDocRef().onSnapshot(d => {
             queue = (d.exists && Array.isArray(d.data().queue)) ? d.data().queue : [];
+            queueLoaded = true;   // safe to auto-stage now that the saved queue is known
             autoStageLock = false;
             renderAll();
         }, err => console.error('queue snapshot error', err));
@@ -307,6 +309,16 @@
     const withAmt = loc => flavors.filter(f => (f[loc] || 0) > EPS)
         .sort((a, b) => (b[loc] || 0) - (a[loc] || 0));
     const sumLoc = loc => r2(flavors.reduce((s, f) => s + (f[loc] || 0), 0));
+    // a freezer is divided into physical pan SLOTS: any partial pan still takes
+    // a whole slot, so 2.8 pans of a flavor occupies 3 slots (1 + 1 + 0.8).
+    const slotsOf = amt => (amt > EPS ? Math.ceil(amt - EPS) : 0);
+    const slotsUsed = loc => flavors.reduce((s, f) => s + slotsOf(f[loc] || 0), 0);
+    const slotsOpen = loc => (loc === 'shortTerm' ? SHORT_CAP : LONG_CAP) - slotsUsed(loc);
+    /* Slots the freezer would use if a flavor's amount in `loc` changed to newAmt. */
+    const slotsAfter = (loc, flavorId, newAmt) => {
+        const f = byId(flavorId);
+        return slotsUsed(loc) - slotsOf(f ? (f[loc] || 0) : 0) + slotsOf(newAmt);
+    };
     const casePans = () => flavors.filter(f => f.casePan);
     const storageStock = f => r2((f.shortTerm || 0) + (f.longTerm || 0));
     // the case is only ever filled from SHORT-TERM storage
@@ -393,6 +405,8 @@
     /* When a case pan is in the red and the SAME flavor still has freezer
      * stock, automatically stage a refill swap for it (one write, no loop). */
     function autoStageLowPans() {
+        // never write until the saved queue has loaded, or we'd clobber it
+        if (!queueLoaded) return;
         const additions = [];
         casePans().forEach(f => {
             const low = (f.active || 0) <= SWAP_THRESHOLD + EPS;
@@ -410,8 +424,10 @@
 
     function renderCaps() {
         document.getElementById('case-cap').textContent = `${casePans().length} / ${CASE_SLOTS} pans`;
-        document.getElementById('short-cap').textContent = `${sumLoc('shortTerm')} / ${SHORT_CAP} pans`;
-        document.getElementById('long-cap').textContent = `${sumLoc('longTerm')} / ${LONG_CAP} pans`;
+        document.getElementById('short-cap').textContent =
+            `${slotsUsed('shortTerm')} / ${SHORT_CAP} slots · ${slotsOpen('shortTerm')} open`;
+        document.getElementById('long-cap').textContent =
+            `${slotsUsed('longTerm')} / ${LONG_CAP} slots · ${slotsOpen('longTerm')} open`;
     }
 
     function renderCase() {
@@ -482,11 +498,12 @@
     function renderFreezer(prefix, loc, cap) {
         const wrap = document.getElementById(`${prefix}-visual`);
         const items = withAmt(loc);
-        const used = sumLoc(loc);
+        const used = slotsUsed(loc);
+        const open = cap - used;
         const overPct = Math.min(100, (used / cap) * 100);
 
         let html = `<div class="g-cap-bar"><div class="g-cap-bar-fill" style="width:${overPct}%"></div>
-            <span>${used} / ${cap} pans</span></div><div class="g-tubs">`;
+            <span>${used} / ${cap} slots filled · ${open} open · ${sumLoc(loc)} pans</span></div><div class="g-tubs">`;
         if (!items.length) html += `<p class="g-empty-note">No pans stored here.</p>`;
         items.forEach(f => {
             const amt = f[loc] || 0;
@@ -504,7 +521,7 @@
                 <div class="g-frz-info">
                     <div class="g-frz-name">${esc(f.name)}</div>
                     <div class="g-tub-icons">${icons}</div>
-                    <div class="g-frz-amt"><span class="g-dot ${tone}"></span>${r2(amt)} pans</div>
+                    <div class="g-frz-amt"><span class="g-dot ${tone}"></span>${r2(amt)} pans · ${slotsOf(amt)} slot${slotsOf(amt) === 1 ? '' : 's'}</div>
                 </div>
             </div>`;
         });
@@ -525,8 +542,8 @@
             ['Case pans filled', `${occ} / ${CASE_SLOTS}`, occ / CASE_SLOTS],
             ['Low pans (≤ 0.3)', `${lowCount}`, lowCount ? 1 : 0, lowCount ? 'red' : 'green'],
             ['Case gelato', `${caseFill} pans`, caseFill / CASE_SLOTS],
-            ['Short-term', `${short} / ${SHORT_CAP}`, short / SHORT_CAP],
-            ['Long-term', `${long} / ${LONG_CAP}`, long / LONG_CAP],
+            ['Short-term slots', `${slotsUsed('shortTerm')} / ${SHORT_CAP}`, slotsUsed('shortTerm') / SHORT_CAP],
+            ['Long-term slots', `${slotsUsed('longTerm')} / ${LONG_CAP}`, slotsUsed('longTerm') / LONG_CAP],
             ['Total gelato', `${total} pans`, total / (CASE_SLOTS + SHORT_CAP + LONG_CAP)]
         ]);
 
@@ -758,11 +775,13 @@
         if (!f) return;
         const amt = r2(f.active || 0);
         if (amt <= 0) { status('Nothing to send back.'); return; }
-        const room = r2(SHORT_CAP - sumLoc('shortTerm'));
-        if (amt > room + EPS) { status(`Short-term only has room for ${room} more pan(s).`); return; }
+        const newAmt = r2((f.shortTerm || 0) + amt);
+        if (slotsAfter('shortTerm', f.id, newAmt) > SHORT_CAP) {
+            status(`Short-term freezer is full — ${slotsOpen('shortTerm')} slot(s) open.`); return;
+        }
         const pan = f.casePan;
         await doc(id).update({
-            shortTerm: r2((f.shortTerm || 0) + amt), active: 0, casePan: null, updatedAt: stamp()
+            shortTerm: newAmt, active: 0, casePan: null, updatedAt: stamp()
         });
         logMove('transfer', `${amt} ${f.name}: Case (Pan ${pan}) → Short-Term`);
         status(`Sent ${amt} of ${f.name} back to short-term.`, true);
@@ -1012,7 +1031,7 @@
         const cur = loc === 'shortTerm'
             ? parseFloat(opt.getAttribute('data-short') || 0)
             : parseFloat(opt.getAttribute('data-long') || 0);
-        hint.textContent = `${name}: ${r2(cur)} in ${LOCATION_LABELS[loc]}. Room for ${r2(cap - sumLoc(loc))} more pans.`;
+        hint.textContent = `${name}: ${r2(cur)} in ${LOCATION_LABELS[loc]}. ${slotsOpen(loc)} of ${cap} slots open.`;
     }
 
     async function onAddStock(e) {
@@ -1023,8 +1042,10 @@
         if (!val) { status('Pick a flavor.'); return; }
         if (!(amount > 0)) { status('Enter a quantity greater than 0.'); return; }
         const cap = loc === 'shortTerm' ? SHORT_CAP : LONG_CAP;
-        const room = r2(cap - sumLoc(loc));
-        if (amount > room + EPS) { status(`${LOCATION_LABELS[loc]} only has room for ${room} more pans.`); return; }
+        const curLoc = ((byId(val) || {})[loc]) || 0;
+        if (slotsAfter(loc, val, r2(curLoc + amount)) > cap) {
+            status(`${LOCATION_LABELS[loc]} freezer is full — ${slotsOpen(loc)} slot(s) open.`); return;
+        }
 
         if (stockSource() === 'pending') {
             const p = pendingList.find(x => x.id === val);
@@ -1105,8 +1126,8 @@
                 : parseFloat(opt.getAttribute('data-long') || 0);
         let msg = `${name}: holds ${r2(have)} in ${LOCATION_LABELS[from]}.`;
         if (to === 'active') msg += ` Case pans cap at 1.0 each.`;
-        if (to === 'shortTerm') msg += ` Short-term free: ${r2(SHORT_CAP - sumLoc('shortTerm'))} pans.`;
-        if (to === 'longTerm') msg += ` Long-term free: ${r2(LONG_CAP - sumLoc('longTerm'))} pans.`;
+        if (to === 'shortTerm') msg += ` Short-term: ${slotsOpen('shortTerm')} of ${SHORT_CAP} slots open.`;
+        if (to === 'longTerm') msg += ` Long-term: ${slotsOpen('longTerm')} of ${LONG_CAP} slots open.`;
         hint.textContent = msg;
     }
 
@@ -1137,9 +1158,11 @@
             if (!f.casePan) update.casePan = firstFreePan();
         } else {
             const cap = to === 'shortTerm' ? SHORT_CAP : LONG_CAP;
-            const room = cap - sumLoc(to);
-            if (amount > room + EPS) { status(`${LOCATION_LABELS[to]} freezer only has room for ${r2(room)} more pans.`); return; }
-            update[to] = r2((f[to] || 0) + amount);
+            const newAmt = r2((f[to] || 0) + amount);
+            if (slotsAfter(to, f.id, newAmt) > cap) {
+                status(`${LOCATION_LABELS[to]} freezer is full — ${slotsOpen(to)} slot(s) open.`); return;
+            }
+            update[to] = newAmt;
         }
 
         if (from === 'active') {
