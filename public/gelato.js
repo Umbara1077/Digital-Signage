@@ -20,8 +20,8 @@
     // ----- Constants -------------------------------------------------------
     let CASE_SLOTS = Number(localStorage.getItem('gelatoCaseSize')) || 18;
     const SHORT_CAP = 21;      // pans the short-term freezer holds
-    const LONG_CAP = 54;       // pans the long-term freezer holds
-    const SWAP_THRESHOLD = 0.3; // recommend a swap at/below this case fill
+    const LONG_CAP = 42;       // pans the long-term freezer holds
+    const SWAP_THRESHOLD = 0.5; // a pan is "red"/recommended for swap at/below this
     const EPS = 1e-6;
 
     // 0.1 .. 0.9 options for the per-pan "use" dropdown
@@ -57,9 +57,11 @@
     let autoStageLock = false; // guards auto-stage writes between queue snapshots
     let queueLoaded = false;   // true once the saved queue has loaded from the DB
     let usageToday = {};       // today's running usage totals (pans)
+    let orderQueue = [];       // flavors flagged to make (production list)
     let statMode = false;
     const queueDocRef = () => db.collection('gelatoSettings').doc('queue');
     const snapshotDocRef = () => db.collection('gelatoSettings').doc('caseSnapshot');
+    const orderDocRef = () => db.collection('gelatoSettings').doc('orderQueue');
     const todayStr = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD (local)
     const usageDocRef = () => db.collection('gelatoUsage').doc(todayStr());
 
@@ -136,6 +138,12 @@
             usageToday = d.exists ? d.data() : {};
             renderUsage();
         }, err => console.error('usage snapshot error', err));
+
+        orderDocRef().onSnapshot(d => {
+            orderQueue = (d.exists && Array.isArray(d.data().items)) ? d.data().items : [];
+            renderOrderQueue();
+            if (statMode) renderStatTable();
+        }, err => console.error('order snapshot error', err));
     }
 
     /* Append a human-readable entry to the move-history log in the DB. */
@@ -270,6 +278,12 @@
 
         document.getElementById('stageForm').addEventListener('submit', onStage);
 
+        document.getElementById('orderAddForm').addEventListener('submit', e => {
+            e.preventDefault();
+            addToOrder(document.getElementById('order-flavor').value);
+        });
+        document.getElementById('order-clear').addEventListener('click', clearOrder);
+
         document.getElementById('g-modal-x').addEventListener('click', closeModal);
         document.getElementById('g-modal').addEventListener('click', e => {
             if (e.target.id === 'g-modal') closeModal();
@@ -402,15 +416,16 @@
         if (d) d.textContent = usageToday.date || todayStr();
     }
 
-    /* When a case pan is in the red and the SAME flavor still has freezer
-     * stock, automatically stage a refill swap for it (one write, no loop). */
+    /* Predictively stage a same-flavor refill for any case pan that has
+     * short-term stock to pull from — even before it hits the red. */
     function autoStageLowPans() {
         // never write until the saved queue has loaded, or we'd clobber it
         if (!queueLoaded) return;
         const additions = [];
         casePans().forEach(f => {
-            const low = (f.active || 0) <= SWAP_THRESHOLD + EPS;
-            if (low && caseStock(f) > EPS && !queue.some(q => q.pan === f.casePan)) {
+            // predictive: stage a refill for ANY pan that has a short-term
+            // replacement ready, even before it drops into the red
+            if (caseStock(f) > EPS && !queue.some(q => q.pan === f.casePan)) {
                 additions.push({ pan: f.casePan, flavorId: f.id, name: f.name });
             }
         });
@@ -456,14 +471,16 @@
                     <div class="g-pan-meter"><span style="width:${pct}%"></span></div>
                     <div class="g-pan-amt"><span class="g-pan-qty">${r2(f.active)}</span> pan · <span class="g-pan-pct">${pct}%</span></div>
                     <div class="g-pan-use">
-                        <select class="g-use-amt" data-id="${f.id}" aria-label="Amount to use">
+                        <select class="g-use-amt" data-id="${f.id}" aria-label="Amount to use or add">
                             ${USE_OPTIONS}
                         </select>
-                        <button type="button" data-act="use" data-id="${f.id}">Use</button>
+                        <button type="button" class="g-use-btn" data-act="use" data-id="${f.id}">− Use</button>
+                        <button type="button" class="g-add-btn" data-act="add" data-id="${f.id}">+ Add</button>
                     </div>
                     <div class="g-pan-foot">
                         <button type="button" class="g-pan-toshort" data-act="toshort" data-id="${f.id}">&rarr; Short</button>
                         <button type="button" class="g-pan-empty" data-act="empty" data-id="${f.id}">Empty</button>
+                        <button type="button" class="g-pan-discard" data-act="discard" data-id="${f.id}">Discard</button>
                     </div>
                 </div>`;
             } else {
@@ -481,8 +498,14 @@
             const input = wrap.querySelector(`.g-use-amt[data-id="${b.dataset.id}"]`);
             serve(b.dataset.id, parseFloat(input.value));
         }));
+        wrap.querySelectorAll('[data-act="add"]').forEach(b => b.addEventListener('click', () => {
+            const input = wrap.querySelector(`.g-use-amt[data-id="${b.dataset.id}"]`);
+            topUpPan(b.dataset.id, parseFloat(input.value));
+        }));
         wrap.querySelectorAll('[data-act="empty"]').forEach(b =>
             b.addEventListener('click', () => emptyPan(b.dataset.id)));
+        wrap.querySelectorAll('[data-act="discard"]').forEach(b =>
+            b.addEventListener('click', () => discardPan(b.dataset.id)));
         wrap.querySelectorAll('[data-act="toshort"]').forEach(b =>
             b.addEventListener('click', () => caseToShort(b.dataset.id)));
         wrap.querySelectorAll('.g-assign-btn').forEach(b =>
@@ -540,20 +563,22 @@
 
         kpiCards([
             ['Case pans filled', `${occ} / ${CASE_SLOTS}`, occ / CASE_SLOTS],
-            ['Low pans (≤ 0.3)', `${lowCount}`, lowCount ? 1 : 0, lowCount ? 'red' : 'green'],
+            [`Low pans (≤ ${SWAP_THRESHOLD})`, `${lowCount}`, lowCount ? 1 : 0, lowCount ? 'red' : 'green'],
             ['Case gelato', `${caseFill} pans`, caseFill / CASE_SLOTS],
             ['Short-term slots', `${slotsUsed('shortTerm')} / ${SHORT_CAP}`, slotsUsed('shortTerm') / SHORT_CAP],
             ['Long-term slots', `${slotsUsed('longTerm')} / ${LONG_CAP}`, slotsUsed('longTerm') / LONG_CAP],
             ['Total gelato', `${total} pans`, total / (CASE_SLOTS + SHORT_CAP + LONG_CAP)]
         ]);
 
-        bars('stat-case', casePans().map(f => ({ name: `P${f.casePan} ${f.name}`, val: f.active || 0 })), 1, true);
+        bars('stat-case', casePans().slice().sort((a, b) => a.casePan - b.casePan)
+            .map(f => ({ name: `Pan ${f.casePan} · ${f.name}`, val: f.active || 0 })), 1, true, true);
         bars('stat-short', withAmt('shortTerm').map(f => ({ name: f.name, val: f.shortTerm || 0 })),
             Math.max(SHORT_CAP / 4, maxVal('shortTerm')), false);
         bars('stat-long', withAmt('longTerm').map(f => ({ name: f.name, val: f.longTerm || 0 })),
             Math.max(LONG_CAP / 4, maxVal('longTerm')), false);
 
         renderStatTable();
+        renderOrderQueue();
     }
 
     const maxVal = loc => flavors.reduce((m, f) => Math.max(m, f[loc] || 0), 0) || 1;
@@ -570,9 +595,10 @@
         }).join('');
     }
 
-    function bars(elId, data, max, lowAware) {
+    function bars(elId, data, max, lowAware, keepOrder) {
         const el = document.getElementById(elId);
-        data = data.filter(d => d.val > EPS).sort((a, b) => b.val - a.val);
+        data = data.filter(d => d.val > EPS);
+        if (!keepOrder) data = data.sort((a, b) => b.val - a.val);
         if (!data.length) { el.innerHTML = `<p class="g-empty-note">Nothing here yet.</p>`; return; }
         const m = Math.max(max, ...data.map(d => d.val), 0.0001);
         el.innerHTML = data.map(d => {
@@ -589,27 +615,88 @@
 
     function renderStatTable() {
         const rows = flavors.map(f => ({
-            name: f.name, pan: f.casePan || null,
+            id: f.id, name: f.name, pan: f.casePan || null,
             active: r2(f.active), short: r2(f.shortTerm), long: r2(f.longTerm),
             total: r2((f.active || 0) + (f.shortTerm || 0) + (f.longTerm || 0))
-        })).sort((a, b) => b.total - a.total);
+        }))
+            .filter(r => r.total > EPS)   // hide flavors not in the case or either freezer
+            .sort((a, b) => b.total - a.total);
 
         const head = `<thead><tr>
             <th>Flavor</th><th>Pan</th><th>Case</th><th>Short</th><th>Long</th><th>Total</th><th>Value</th>
         </tr></thead>`;
         // colour storage cells with the same green/yellow/red tiers as the freezers
         const toneCell = v => v > EPS ? `<td class="tone-${freezerTone(v)}">${v}</td>` : `<td>—</td>`;
-        const body = rows.map(r => `
-            <tr class="${r.pan && r.active <= SWAP_THRESHOLD + EPS ? 'low' : ''}">
-                <td class="l">${esc(r.name)}</td>
+        const body = rows.map(r => {
+            const ordered = orderQueue.some(o => o.flavorId === r.id);
+            const lowRow = r.pan && r.active <= SWAP_THRESHOLD + EPS;
+            return `
+            <tr class="${lowRow ? 'low' : ''} ${ordered ? 'ordered' : ''}">
+                <td class="l"><span class="g-order-link" data-order-id="${r.id}" title="Click to queue this flavor for production">${esc(r.name)}</span></td>
                 <td>${r.pan || '—'}</td>
                 <td>${r.active || '—'}</td>
                 ${toneCell(r.short)}
                 ${toneCell(r.long)}
                 <td><strong>${r.total || '—'}</strong></td>
                 <td>${r.total > EPS ? money(r.total * COST_PER_PAN) : '—'}</td>
-            </tr>`).join('');
-        document.getElementById('stat-table').innerHTML = head + `<tbody>${body}</tbody>`;
+            </tr>`;
+        }).join('');
+        const table = document.getElementById('stat-table');
+        table.innerHTML = head + `<tbody>${body}</tbody>`;
+        table.querySelectorAll('.g-order-link').forEach(el =>
+            el.addEventListener('click', () => toggleOrder(el.dataset.orderId)));
+    }
+
+    // ----- Order queue (flavors to make) ----------------------------------
+    function renderOrderQueue() {
+        const sel = document.getElementById('order-flavor');
+        if (sel) {
+            const prev = sel.value;
+            sel.innerHTML = menuFlavors.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('');
+            if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+        }
+        const list = document.getElementById('order-list');
+        if (!list) return;
+        if (!orderQueue.length) {
+            list.innerHTML = `<p class="g-empty-note">No flavors queued for production.</p>`;
+            return;
+        }
+        list.innerHTML = orderQueue.map((o, i) => `
+            <div class="g-order-item">
+                <span class="g-order-num">${i + 1}</span>
+                <span class="g-order-iname">${esc(nameById(o.flavorId) || o.name)}</span>
+                <button type="button" class="g-order-del" data-i="${i}" aria-label="Remove">✕</button>
+            </div>`).join('');
+        list.querySelectorAll('.g-order-del').forEach(b =>
+            b.addEventListener('click', () => removeFromOrder(Number(b.dataset.i))));
+    }
+
+    function toggleOrder(flavorId) {
+        if (orderQueue.some(o => o.flavorId === flavorId)) {
+            removeFromOrder(orderQueue.findIndex(o => o.flavorId === flavorId));
+        } else {
+            addToOrder(flavorId);
+        }
+    }
+
+    async function addToOrder(flavorId) {
+        if (!flavorId || orderQueue.some(o => o.flavorId === flavorId)) return;
+        const name = nameById(flavorId) || (byId(flavorId) || {}).name || '(unnamed)';
+        const next = orderQueue.concat([{ flavorId, name }]);
+        await orderDocRef().set({ items: next }, { merge: true });
+        status(`Queued ${name} for production (order ${next.length}).`, true);
+    }
+
+    async function removeFromOrder(i) {
+        const next = orderQueue.slice();
+        next.splice(i, 1);
+        await orderDocRef().set({ items: next }, { merge: true });
+    }
+
+    async function clearOrder() {
+        if (!orderQueue.length) return;
+        if (!confirm('Clear the entire production order list?')) return;
+        await orderDocRef().set({ items: [] });
     }
 
     // ----- Recommendations (red pans) -------------------------------------
@@ -690,7 +777,7 @@
                     ${state}
                 </div>
                 <span class="g-qitem-actions">
-                    <button type="button" class="g-q-exec" data-i="${i}" ${ready ? '' : 'disabled title="Waiting until the pan is in the red"'}>Execute</button>
+                    <button type="button" class="g-q-exec" data-i="${i}">Execute</button>
                     <button type="button" class="g-q-del" data-i="${i}">Remove</button>
                 </span>
             </div>`;
@@ -769,6 +856,54 @@
         status(`Used ${amount} of ${f.name}. ${next <= EPS ? 'Pan emptied.' : r2(next) + ' left.'}`, true);
     }
 
+    /* Top up a case pan. Opens a popup to choose the source: pull from this
+     * flavor's short-term storage (if any), or add from thin air. Caps at 1.0. */
+    function topUpPan(id, amount) {
+        const f = byId(id);
+        if (!f) return;
+        amount = r2(amount);
+        if (!(amount > 0)) { status('Pick an amount to add.'); return; }
+        const room = r2(1 - (f.active || 0));
+        if (room <= EPS) { status(`Pan ${f.casePan} is already full (1.0).`); return; }
+        const add = Math.min(amount, room);                 // never exceed a full pan
+        const haveShort = caseStock(f);
+
+        document.getElementById('g-modal-title').textContent = `Add ${add} to ${f.name} (Pan ${f.casePan})`;
+        document.getElementById('g-modal-body').innerHTML = `
+            <p class="g-modal-hint">Where should this ${add} pan come from?</p>
+            <div class="g-modal-actions g-topup-actions">
+                ${haveShort > EPS
+                ? `<button type="button" class="g-modal-go" id="tu-short">Pull from short-term (have ${r2(haveShort)})</button>`
+                : `<p class="g-empty-note">No short-term stock for ${esc(f.name)} to pull from.</p>`}
+                <button type="button" class="g-modal-go g-topup-air" id="tu-air">Add from thin air</button>
+                <button type="button" class="g-modal-cancel" id="tu-cancel">Cancel</button>
+            </div>`;
+        showModal();
+
+        const shortBtn = document.getElementById('tu-short');
+        if (shortBtn) shortBtn.addEventListener('click', () => doTopUp(id, add, true));
+        document.getElementById('tu-air').addEventListener('click', () => doTopUp(id, add, false));
+        document.getElementById('tu-cancel').addEventListener('click', closeModal);
+    }
+
+    async function doTopUp(id, add, pullShort) {
+        const f = byId(id);
+        if (!f) return;
+        const fromShort = pullShort ? Math.min(caseStock(f), add) : 0;
+        const newActive = r2((f.active || 0) + add);
+        await doc(id).update({
+            active: newActive,
+            shortTerm: r2((f.shortTerm || 0) - fromShort),
+            updatedAt: stamp()
+        });
+        closeModal();
+        const src = fromShort > EPS
+            ? `${r2(fromShort)} from Short-Term${fromShort < add - EPS ? `, ${r2(add - fromShort)} added` : ''}`
+            : 'added (thin air)';
+        logMove('transfer', `Added ${r2(add)} to Pan ${f.casePan} (${f.name}) — ${src} — now ${newActive}`);
+        status(`Added ${r2(add)} to ${f.name}. Now ${newActive}.`, true);
+    }
+
     /* Send a case pan's remaining gelato back into short-term storage. */
     async function caseToShort(id) {
         const f = byId(id);
@@ -801,6 +936,22 @@
             const next = queue.concat([{ pan, flavorId: f.id, name: f.name }]);
             await queueDocRef().set({ queue: next }, { merge: true });
             logMove('auto-stage', `Auto-staged ${f.name} refill → Pan ${pan} (emptied)`);
+        }
+    }
+
+    /* Throw a case pan out (trash). NOT counted as used — no cost is recorded. */
+    async function discardPan(id) {
+        const f = byId(id);
+        if (!f) return;
+        const amt = r2(f.active || 0);
+        if (!confirm(`Discard Pan ${f.casePan} (${f.name})? The remaining ${amt} pan goes in the trash and is NOT counted as used.`)) return;
+        const pan = f.casePan;
+        await doc(id).update({ active: 0, casePan: null, updatedAt: stamp() });
+        logMove('discard', `Discarded Pan ${pan} (${f.name}, ${amt} trashed — not counted)`);
+        if (caseStock(f) > EPS && !queue.some(q => q.pan === pan)) {
+            const next = queue.concat([{ pan, flavorId: f.id, name: f.name }]);
+            await queueDocRef().set({ queue: next }, { merge: true });
+            logMove('auto-stage', `Auto-staged ${f.name} refill → Pan ${pan} (discarded)`);
         }
     }
 

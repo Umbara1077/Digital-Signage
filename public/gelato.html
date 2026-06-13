@@ -91,6 +91,18 @@
                 <h3>All flavors</h3>
                 <div class="g-stat-table-wrap"><table class="g-stat-table" id="stat-table"></table></div>
             </div>
+
+            <div class="g-stat-block" id="order-block">
+                <h3>Order Queue — flavors to make</h3>
+                <form id="orderAddForm" class="g-order-add">
+                    <select id="order-flavor" required></select>
+                    <button type="submit">+ Add to order</button>
+                    <button type="button" id="order-clear" class="btn g-btn-danger">Clear list</button>
+                </form>
+                <div id="order-list" class="g-order-list"></div>
+                <p class="g-hint-line">Or click a flavor's name in the table above to add/remove it. This list is
+                    just for planning what to make — it doesn't change any stock.</p>
+            </div>
         </section>
 
         <!-- ===================== THE CASE ===================== -->
@@ -117,7 +129,7 @@
                 <div class="g-queue">
                     <h3>Swap Queue</h3>
                     <p class="g-hint-line">Stage a replacement for any pan now — it waits here and turns
-                        <strong class="rdy">READY</strong> when that pan hits the red (&le; 0.3).</p>
+                        <strong class="rdy">READY</strong> when that pan hits the red (&le; 0.5) — but you can execute any time.</p>
                     <form id="stageForm" class="g-stage">
                         <select id="stage-pan" required></select>
                         <span class="g-stage-arrow">&larr; replace with</span>

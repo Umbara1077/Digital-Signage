@@ -282,7 +282,7 @@
 }
 
 .g-use-amt {
-    width: 100%;
+    flex: 1;
     min-width: 0;
     font-size: .74rem;
     font-weight: 700;
@@ -337,6 +337,17 @@
 .g-pan-use button {
     flex: 0 0 auto;
     font-weight: 700;
+    padding: 5px 6px;
+}
+
+.g-add-btn {
+    background: #14361f !important;
+    border-color: #1db954 !important;
+    color: #8ff0b6 !important;
+}
+
+.g-add-btn:hover {
+    background: #1c4a2b !important;
 }
 
 .g-assign-btn {
@@ -346,17 +357,37 @@
 /* the two footer buttons (send to short / empty) sit side by side */
 .g-pan-foot {
     display: flex;
+    flex-wrap: wrap;
     gap: 4px;
 }
 
 .g-pan-foot button {
-    flex: 1;
+    flex: 1 1 30%;
     min-width: 0;
+    font-size: .62rem;
+    padding: 5px 3px;
+    border-radius: 8px;
+    border: 1px solid #2f3a4f;
+    background: #1b2130;
+    color: #dbe3f2;
+    cursor: pointer;
+    white-space: nowrap;
 }
 
 .g-pan-toshort:hover {
     background: #1f3350;
     border-color: #38a3ff;
+}
+
+.g-pan-discard {
+    background: #2a1518 !important;
+    border-color: #6a2a2a !important;
+    color: #ff9a9b !important;
+}
+
+.g-pan-discard:hover {
+    background: #3a1c1f !important;
+    border-color: var(--red) !important;
 }
 
 .g-pan-use button:hover,
@@ -764,6 +795,112 @@
     color: var(--red);
 }
 
+/* clickable flavor name -> add to production order */
+.g-order-link {
+    cursor: pointer;
+    border-bottom: 1px dashed #5b6577;
+}
+
+.g-order-link:hover {
+    color: #8ff0b6;
+    border-bottom-color: #1db954;
+}
+
+/* a flavor flagged for production */
+.g-stat-table tr.ordered {
+    background: #14361f88;
+    box-shadow: inset 3px 0 0 #1db954;
+}
+
+.g-stat-table tr.ordered .g-order-link {
+    color: #8ff0b6;
+    border-bottom-color: #1db954;
+}
+
+/* ----- order queue (flavors to make) ----- */
+.g-order-add {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.g-order-add select {
+    flex: 1;
+    min-width: 140px;
+    padding: 9px;
+    background: #0f1218;
+    color: #e7eeff;
+    border: 1px solid #283042;
+    border-radius: 10px;
+}
+
+.g-order-add button {
+    padding: 9px 14px;
+    border-radius: 10px;
+    border: 1px solid #2f3a4f;
+    background: #1b2130;
+    color: #dbe3f2;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.g-order-add button[type="submit"]:hover {
+    background: #14361f;
+    border-color: var(--green);
+}
+
+.g-order-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.g-order-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border: 1px solid #2a2f3a;
+    border-left: 4px solid #1db954;
+    border-radius: 10px;
+    background: #0f1218;
+}
+
+.g-order-num {
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #1db954;
+    color: #04240f;
+    font-weight: 900;
+    font-size: .8rem;
+}
+
+.g-order-iname {
+    flex: 1;
+    font-weight: 700;
+}
+
+.g-order-del {
+    flex: 0 0 auto;
+    border: 1px solid #3a4660;
+    background: #1b2130;
+    color: #ff9a9b;
+    border-radius: 8px;
+    padding: 4px 9px;
+    cursor: pointer;
+}
+
+.g-order-del:hover {
+    background: #3a1f22;
+    border-color: var(--red);
+}
+
 /* storage stock tiers in the All-flavors table */
 .g-stat-table td.tone-green {
     color: #1db954;
@@ -958,15 +1095,21 @@
 
 .g-qitem-main {
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
 }
 
 .g-q-state {
-    display: inline-block;
-    margin-top: 3px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-size: .7rem;
     font-weight: 800;
     letter-spacing: .03em;
-    padding: 1px 7px;
+    line-height: 1;
+    padding: 4px 9px;
     border-radius: 999px;
 }
 
@@ -1090,6 +1233,19 @@
 
 .g-modal-go:hover {
     filter: brightness(1.08);
+}
+
+/* top-up source chooser: stack the options */
+.g-topup-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+}
+
+.g-topup-air {
+    background: #1b2130;
+    border-color: #2f3a4f;
+    color: #dbe3f2;
 }
 
 /* ====================== TRANSFER FORM ====================== */
@@ -1218,6 +1374,8 @@
 .g-log-type.t-snapshot,
 .g-log-type.t-reload   { background: #2a2348; color: #c0a8ff; }
 .g-log-type.t-auto-stage { background: #143a27; color: #56e08a; }
+.g-log-type.t-discard { background: #2a1518; color: #ff8a8c; }
+.g-log-type.t-order { background: #14361f; color: #8ff0b6; }
 .g-log-type.t-reset { background: #3a1f22; color: #ff8a8c; }
 
 .g-log-text {
