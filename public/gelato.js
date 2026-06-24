@@ -70,6 +70,42 @@
     const hasStock = f => (f.active || 0) > EPS || (f.shortTerm || 0) > EPS || (f.longTerm || 0) > EPS;
     const doc = id => db.collection('gelatoInventory').doc(id);
 
+    /* ----- Freezer pans -------------------------------------------------
+     * Short/long-term storage is a list of individual pans (each 0 < x <= 1),
+     * so 1.7 + a new 0.5 reads as three pans [1, 0.7, 0.5] instead of merging.
+     * The scalar `shortTerm`/`longTerm` totals are kept in sync (= sum of the
+     * list) so every existing total/price/capacity calc keeps working. */
+    const PAN_FIELD = { shortTerm: 'shortPans', longTerm: 'longPans' };
+    const panSum = arr => r2((arr || []).reduce((s, x) => s + (x || 0), 0));
+    function splitToPans(total) {                 // a raw amount -> whole pans + remainder
+        const arr = []; let n = r2(total);
+        while (n > 1 + EPS) { arr.push(1); n = r2(n - 1); }
+        if (n > EPS) arr.push(n);
+        return arr;
+    }
+    function normPans(arr, scalar) {              // existing array, or migrate a legacy scalar
+        if (Array.isArray(arr)) return arr.map(r2).filter(x => x > EPS);
+        return splitToPans(scalar || 0);
+    }
+    const pansOf = (f, loc) => normPans(f[PAN_FIELD[loc]], f[loc]);
+    const addPans = (arr, amount) => (arr || []).concat(splitToPans(amount));   // add as new pan(s)
+    function pullPans(arr, amount) {              // remove up to `amount`, smallest pans first
+        const a = (arr || []).slice().sort((x, y) => x - y);
+        let need = r2(amount); const out = [];
+        for (const p of a) {
+            if (need <= EPS) { out.push(p); }
+            else if (p <= need + EPS) { need = r2(need - p); }   // whole pan consumed
+            else { out.push(r2(p - need)); need = 0; }           // part of a pan consumed
+        }
+        return out.filter(x => x > EPS);
+    }
+    /* write helper: set both the pan list and its synced scalar total */
+    function setPans(update, loc, arr) {
+        update[PAN_FIELD[loc]] = arr;
+        update[loc] = panSum(arr);
+        return update;
+    }
+
     // The live menu/pending doc is the source of truth for a flavor's name &
     // image. gelatoInventory only stores stock, so its name/image copy can go
     // stale (e.g. after admin "Replace Menu Item" reuses a doc id). Always
@@ -111,7 +147,15 @@
         }, err => console.error('menuItems snapshot error', err));
 
         db.collection('gelatoInventory').onSnapshot(snap => {
-            inventory = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+            inventory = snap.docs.map(d => {
+                const data = { ...d.data(), id: d.id };
+                // normalize freezer storage into pan lists + synced totals
+                data.shortPans = normPans(data.shortPans, data.shortTerm);
+                data.longPans = normPans(data.longPans, data.longTerm);
+                data.shortTerm = panSum(data.shortPans);
+                data.longTerm = panSum(data.longPans);
+                return data;
+            });
             renderAll();
         }, err => console.error('inventory snapshot error', err));
 
@@ -192,7 +236,7 @@
             inventory.forEach(f => {
                 batch.update(doc(f.id), {
                     active: 0, casePan: null,
-                    shortTerm: 0, longTerm: 0,
+                    shortTerm: 0, longTerm: 0, shortPans: [], longPans: [],
                     updatedAt: stamp()
                 });
                 ops++;
@@ -227,7 +271,7 @@
                     name: m.name || '(unnamed)',
                     gelatoImage: m.gelatoImage || m.imageURL || '',
                     imageURL: m.imageURL || '',
-                    active: 0, casePan: null, shortTerm: 0, longTerm: 0,
+                    active: 0, casePan: null, shortTerm: 0, longTerm: 0, shortPans: [], longPans: [],
                     updatedAt: stamp()
                 });
                 added++;
@@ -324,15 +368,15 @@
     const withAmt = loc => flavors.filter(f => (f[loc] || 0) > EPS)
         .sort((a, b) => (b[loc] || 0) - (a[loc] || 0));
     const sumLoc = loc => r2(flavors.reduce((s, f) => s + (f[loc] || 0), 0));
-    // a freezer is divided into physical pan SLOTS: any partial pan still takes
-    // a whole slot, so 2.8 pans of a flavor occupies 3 slots (1 + 1 + 0.8).
-    const slotsOf = amt => (amt > EPS ? Math.ceil(amt - EPS) : 0);
-    const slotsUsed = loc => flavors.reduce((s, f) => s + slotsOf(f[loc] || 0), 0);
+    // a freezer holds a number of physical pan SLOTS: each individual pan
+    // (full or partial) takes one slot, so two 0.5 pans use two slots.
+    const panCount = (f, loc) => pansOf(f, loc).length;
+    const slotsUsed = loc => flavors.reduce((s, f) => s + panCount(f, loc), 0);
     const slotsOpen = loc => (loc === 'shortTerm' ? SHORT_CAP : LONG_CAP) - slotsUsed(loc);
-    /* Slots the freezer would use if a flavor's amount in `loc` changed to newAmt. */
-    const slotsAfter = (loc, flavorId, newAmt) => {
+    /* Slots the freezer would use if a flavor's pan list in `loc` became newArr. */
+    const slotsAfter = (loc, flavorId, newArr) => {
         const f = byId(flavorId);
-        return slotsUsed(loc) - slotsOf(f ? (f[loc] || 0) : 0) + slotsOf(newAmt);
+        return slotsUsed(loc) - (f ? panCount(f, loc) : 0) + newArr.length;
     };
     const casePans = () => flavors.filter(f => f.casePan);
     const storageStock = f => r2((f.shortTerm || 0) + (f.longTerm || 0));
@@ -530,13 +574,13 @@
             <span>${used} / ${cap} slots filled · ${open} open · ${sumLoc(loc)} pans</span></div><div class="g-tubs">`;
         if (!items.length) html += `<p class="g-empty-note">No pans stored here.</p>`;
         items.forEach(f => {
-            const amt = f[loc] || 0;
-            const tone = freezerTone(amt);
-            const whole = Math.floor(amt + EPS);
-            const frac = r2(amt - whole);
-            let icons = '';
-            for (let i = 0; i < whole; i++) icons += `<span class="g-tub-icon ${tone}"></span>`;
-            if (frac > EPS) icons += `<span class="g-tub-icon ${tone} part" style="--frac:${frac}"></span>`;
+            const arr = pansOf(f, loc);
+            const tone = freezerTone(f[loc] || 0);
+            // one clickable chip per physical pan — click to empty that pan
+            const chips = arr.map((amt, idx) => {
+                const t = freezerTone(amt >= 1 - EPS ? 3 : 1);   // full pan green, partial red-ish
+                return `<button type="button" class="g-pan-chip ${t}" data-id="${f.id}" data-loc="${loc}" data-idx="${idx}" title="Click to empty this pan">${r2(amt)}</button>`;
+            }).join('');
             const img = flavorImage(f);
             const swatch = img ? `style="background-image:url('${img}')"` : '';
             html += `
@@ -544,13 +588,30 @@
                 <div class="g-frz-swatch" ${swatch}></div>
                 <div class="g-frz-info">
                     <div class="g-frz-name">${esc(f.name)}</div>
-                    <div class="g-tub-icons">${icons}</div>
-                    <div class="g-frz-amt"><span class="g-dot ${tone}"></span>${r2(amt)} pans · ${slotsOf(amt)} slot${slotsOf(amt) === 1 ? '' : 's'}</div>
+                    <div class="g-pan-chips">${chips}</div>
+                    <div class="g-frz-amt"><span class="g-dot ${tone}"></span>${r2(f[loc])} pans · ${arr.length} slot${arr.length === 1 ? '' : 's'}</div>
                 </div>
             </div>`;
         });
         html += `</div>`;
         wrap.innerHTML = html;
+
+        wrap.querySelectorAll('.g-pan-chip').forEach(b => b.addEventListener('click', () =>
+            emptyStoragePan(b.dataset.id, b.dataset.loc, Number(b.dataset.idx))));
+    }
+
+    /* Empty a single freezer pan (click a chip). Removes just that pan. */
+    async function emptyStoragePan(id, loc, idx) {
+        const f = byId(id);
+        if (!f) return;
+        const arr = pansOf(f, loc);
+        const amt = arr[idx];
+        if (amt == null) return;
+        if (!confirm(`Empty this ${r2(amt)} pan of ${f.name} from ${LOCATION_LABELS[loc]}?`)) return;
+        const next = arr.slice();
+        next.splice(idx, 1);
+        await doc(id).update(setPans({ updatedAt: stamp() }, loc, next));
+        logMove('empty', `Emptied a ${r2(amt)} pan of ${f.name} from ${LOCATION_LABELS[loc]}`);
     }
 
     // ----- Stat mode -------------------------------------------------------
@@ -827,10 +888,9 @@
         if (outgoing && outgoing.id !== incoming.id) {
             batch.update(doc(outgoing.id), { active: 0, casePan: null, updatedAt: stamp() });
         }
-        batch.update(doc(incoming.id), {
-            shortTerm: r2((incoming.shortTerm || 0) - take),
-            active: take, casePan: q.pan, updatedAt: stamp()
-        });
+        batch.update(doc(incoming.id), setPans(
+            { active: take, casePan: q.pan, updatedAt: stamp() },
+            'shortTerm', pullPans(pansOf(incoming, 'shortTerm'), take)));
         await batch.commit();
 
         const next = queue.slice();
@@ -892,11 +952,9 @@
         if (!f) return;
         const fromShort = pullShort ? Math.min(caseStock(f), add) : 0;
         const newActive = r2((f.active || 0) + add);
-        await doc(id).update({
-            active: newActive,
-            shortTerm: r2((f.shortTerm || 0) - fromShort),
-            updatedAt: stamp()
-        });
+        await doc(id).update(setPans(
+            { active: newActive, updatedAt: stamp() },
+            'shortTerm', pullPans(pansOf(f, 'shortTerm'), fromShort)));
         closeModal();
         const src = fromShort > EPS
             ? `${r2(fromShort)} from Short-Term${fromShort < add - EPS ? `, ${r2(add - fromShort)} added` : ''}`
@@ -994,16 +1052,15 @@
 
         if (src.type === 'short' && src.id === tgt.id) {
             // same flavor: top its own pan up from its own short-term in one write
-            await doc(tgt.id).update({
-                active: newActive,
-                shortTerm: r2((tgt.shortTerm || 0) - moved),
-                updatedAt: stamp()
-            });
+            await doc(tgt.id).update(setPans(
+                { active: newActive, updatedAt: stamp() },
+                'shortTerm', pullPans(pansOf(tgt, 'shortTerm'), moved)));
         } else {
             const batch = db.batch();
             batch.update(doc(tgt.id), { active: newActive, updatedAt: stamp() });
             if (src.type === 'short') {
-                batch.update(doc(src.id), { shortTerm: r2((src.f.shortTerm || 0) - moved), updatedAt: stamp() });
+                batch.update(doc(src.id), setPans({ updatedAt: stamp() },
+                    'shortTerm', pullPans(pansOf(src.f, 'shortTerm'), moved)));
             } else {
                 const srcNew = r2((src.f.active || 0) - moved);
                 const u = { active: srcNew > EPS ? srcNew : 0, updatedAt: stamp() };
@@ -1024,14 +1081,13 @@
         if (!f) return;
         const amt = r2(f.active || 0);
         if (amt <= 0) { status('Nothing to send back.'); return; }
-        const newAmt = r2((f.shortTerm || 0) + amt);
-        if (slotsAfter('shortTerm', f.id, newAmt) > SHORT_CAP) {
+        const newArr = addPans(pansOf(f, 'shortTerm'), amt);   // back as its own pan
+        if (slotsAfter('shortTerm', f.id, newArr) > SHORT_CAP) {
             status(`Short-term freezer is full — ${slotsOpen('shortTerm')} slot(s) open.`); return;
         }
         const pan = f.casePan;
-        await doc(id).update({
-            shortTerm: newAmt, active: 0, casePan: null, updatedAt: stamp()
-        });
+        await doc(id).update(setPans(
+            { active: 0, casePan: null, updatedAt: stamp() }, 'shortTerm', newArr));
         logMove('transfer', `${amt} ${f.name}: Case (Pan ${pan}) → Short-Term`);
         status(`Sent ${amt} of ${f.name} back to short-term.`, true);
     }
@@ -1076,25 +1132,24 @@
         if (!inCase.length) { status('The case is already empty.'); return; }
         if (!confirm(`Close the case for the night? This moves all ${inCase.length} pan(s) back into storage.`)) return;
 
-        let shortRoom = r2(SHORT_CAP - sumLoc('shortTerm'));
-        let longRoom = r2(LONG_CAP - sumLoc('longTerm'));
+        let shortRoom = slotsOpen('shortTerm');   // free pan slots
+        let longRoom = slotsOpen('longTerm');
         const batch = db.batch();
         const stuck = [];
 
         inCase.forEach(f => {
-            let amt = r2(f.active || 0);
-            const toShort = Math.min(amt, Math.max(0, shortRoom));
-            shortRoom = r2(shortRoom - toShort); amt = r2(amt - toShort);
-            const toLong = Math.min(amt, Math.max(0, longRoom));
-            longRoom = r2(longRoom - toLong); amt = r2(amt - toLong);
-            if (amt > EPS) stuck.push(`${f.name} (${amt})`);
-            batch.update(doc(f.id), {
-                shortTerm: r2((f.shortTerm || 0) + toShort),
-                longTerm: r2((f.longTerm || 0) + toLong),
-                active: amt > EPS ? amt : 0,
-                casePan: amt > EPS ? f.casePan : null,
-                updatedAt: stamp()
-            });
+            const amt = r2(f.active || 0);
+            const clear = { active: 0, casePan: null, updatedAt: stamp() };
+            if (amt <= EPS) { batch.update(doc(f.id), clear); return; }
+            if (shortRoom > 0) {                   // back as its own pan (short first)
+                shortRoom--;
+                batch.update(doc(f.id), setPans(clear, 'shortTerm', addPans(pansOf(f, 'shortTerm'), amt)));
+            } else if (longRoom > 0) {
+                longRoom--;
+                batch.update(doc(f.id), setPans(clear, 'longTerm', addPans(pansOf(f, 'longTerm'), amt)));
+            } else {
+                stuck.push(`${f.name} (${amt})`);  // no slot — leave it in the case
+            }
         });
         await batch.commit();
         logMove('close', `Closed case for the night — ${inCase.length} pan(s) moved to storage`);
@@ -1124,39 +1179,44 @@
         const plan = snap.data().pans;
         if (!confirm(`Reload the case to the saved snapshot (${plan.length} pan(s))? Current case pans go back to storage first.`)) return;
 
-        // working copy of every flavor's stock + case state
+        // working copy of every flavor's pan lists + case state
         const st = {};
         inventory.forEach(f => st[f.id] = {
-            shortTerm: f.shortTerm || 0, longTerm: f.longTerm || 0, active: 0, casePan: null
+            shortPans: pansOf(f, 'shortTerm').slice(),
+            longPans: pansOf(f, 'longTerm').slice(),
+            active: 0, casePan: null
         });
-        // return whatever's in the case now to storage (short first, then long)
+        const slotCount = key => Object.values(st).reduce((s, v) => s + v[key].length, 0);
+        // return whatever's in the case now to storage as its own pan (short first)
         casePans().forEach(f => {
-            let amt = r2(f.active || 0);
-            const toShort = Math.min(amt, Math.max(0, SHORT_CAP - sumOf(st, 'shortTerm')));
-            st[f.id].shortTerm = r2(st[f.id].shortTerm + toShort); amt = r2(amt - toShort);
-            st[f.id].longTerm = r2(st[f.id].longTerm + amt);
+            const amt = r2(f.active || 0);
+            if (amt <= EPS) return;
+            if (slotCount('shortPans') < SHORT_CAP) st[f.id].shortPans = addPans(st[f.id].shortPans, amt);
+            else if (slotCount('longPans') < LONG_CAP) st[f.id].longPans = addPans(st[f.id].longPans, amt);
         });
-        // place snapshot flavors back into their pans, pulling from storage
+        // place snapshot flavors back into their pans, pulling from short-term
         const missing = [];
         plan.forEach(p => {
             const s = st[p.flavorId];
             if (!s) { missing.push(p.name); return; }
-            const want = r2(p.active);
-            // the case is fed from short-term only
-            const fromShort = Math.min(s.shortTerm, want); s.shortTerm = r2(s.shortTerm - fromShort);
-            s.active = fromShort;   // capped at short-term availability
+            const take = Math.min(panSum(s.shortPans), r2(p.active));   // capped at availability
+            s.shortPans = pullPans(s.shortPans, take);
+            s.active = take;
             s.casePan = p.pan;
         });
         // write only the docs that changed
         const batch = db.batch();
         inventory.forEach(f => {
             const s = st[f.id];
-            const changed = r2(f.shortTerm || 0) !== s.shortTerm || r2(f.longTerm || 0) !== s.longTerm ||
+            const newShort = panSum(s.shortPans), newLong = panSum(s.longPans);
+            const changed = r2(f.shortTerm || 0) !== newShort || r2(f.longTerm || 0) !== newLong ||
                 r2(f.active || 0) !== s.active || (f.casePan || null) !== s.casePan;
-            if (changed) batch.update(doc(f.id), {
-                shortTerm: s.shortTerm, longTerm: s.longTerm, active: s.active,
-                casePan: s.casePan, updatedAt: stamp()
-            });
+            if (changed) {
+                const u = { active: s.active, casePan: s.casePan, updatedAt: stamp() };
+                setPans(u, 'shortTerm', s.shortPans);
+                setPans(u, 'longTerm', s.longPans);
+                batch.update(doc(f.id), u);
+            }
         });
         await batch.commit();
         logMove('reload', `Reloaded case from snapshot (${plan.length} pan(s))`);
@@ -1237,12 +1297,9 @@
         const stock = caseStock(f);  // case fills from short-term only
         if (amount > stock + EPS) { status(`Only ${stock} pan(s) of ${f.name} in short-term.`); return; }
 
-        await doc(f.id).update({
-            shortTerm: r2((f.shortTerm || 0) - amount),
-            active: amount,
-            casePan: pan,
-            updatedAt: stamp()
-        });
+        await doc(f.id).update(setPans(
+            { active: amount, casePan: pan, updatedAt: stamp() },
+            'shortTerm', pullPans(pansOf(f, 'shortTerm'), amount)));
         closeModal();
         logMove('assign', `Added ${f.name} to Pan ${pan} at ${amount} (from Short-Term)`);
         status(`${f.name} added to Pan ${pan} at ${amount}.`, true);
@@ -1307,26 +1364,28 @@
         if (!val) { status('Pick a flavor.'); return; }
         if (!(amount > 0)) { status('Enter a quantity greater than 0.'); return; }
         const cap = loc === 'shortTerm' ? SHORT_CAP : LONG_CAP;
-        const curLoc = ((byId(val) || {})[loc]) || 0;
-        if (slotsAfter(loc, val, r2(curLoc + amount)) > cap) {
+        const newArr = addPans(pansOf(byId(val) || {}, loc), amount);   // added as new pan(s)
+        if (slotsAfter(loc, val, newArr) > cap) {
             status(`${LOCATION_LABELS[loc]} freezer is full — ${slotsOpen(loc)} slot(s) open.`); return;
         }
+        const other = loc === 'shortTerm' ? 'longTerm' : 'shortTerm';
 
         if (stockSource() === 'pending') {
             const p = pendingList.find(x => x.id === val);
             if (!p) { status('Pending flavor not found.'); return; }
             // inventory doc keyed by the pendingItems id; create it if it doesn't exist yet
             const base = byId(val) || {};
-            await doc(val).set({
+            const u = {
                 name: base.name || p.name || '(unnamed)',
                 gelatoImage: base.gelatoImage || p.gelatoImage || p.imageURL || '',
                 imageURL: base.imageURL || p.imageURL || '',
                 active: base.active || 0,
                 casePan: base.casePan || null,
-                shortTerm: loc === 'shortTerm' ? r2((base.shortTerm || 0) + amount) : (base.shortTerm || 0),
-                longTerm: loc === 'longTerm' ? r2((base.longTerm || 0) + amount) : (base.longTerm || 0),
                 updatedAt: stamp()
-            }, { merge: true });
+            };
+            setPans(u, loc, newArr);
+            setPans(u, other, pansOf(base, other));
+            await doc(val).set(u, { merge: true });
             logMove('intake', `Added ${amount} ${p.name} (pending) → ${LOCATION_LABELS[loc]}`);
             status(`Added ${amount} pan(s) of ${p.name} (pending) to ${LOCATION_LABELS[loc]}.`, true);
         } else {
@@ -1336,18 +1395,19 @@
             const name = (m || f).name;   // prefer the live menu name
             if (f) {
                 const heal = m ? { name: m.name || f.name, gelatoImage: m.gelatoImage || m.imageURL || f.gelatoImage || '', imageURL: m.imageURL || f.imageURL || '' } : {};
-                await doc(val).update({ [loc]: r2((f[loc] || 0) + amount), ...heal, updatedAt: stamp() });
+                await doc(val).update(setPans({ ...heal, updatedAt: stamp() }, loc, newArr));
             } else {
                 // inventory doc doesn't exist yet — create it on the fly
-                await doc(val).set({
+                const u = {
                     name: m.name || '(unnamed)',
                     gelatoImage: m.gelatoImage || m.imageURL || '',
                     imageURL: m.imageURL || '',
                     active: 0, casePan: null,
-                    shortTerm: loc === 'shortTerm' ? amount : 0,
-                    longTerm: loc === 'longTerm' ? amount : 0,
                     updatedAt: stamp()
-                }, { merge: true });
+                };
+                setPans(u, loc, newArr);
+                setPans(u, other, []);
+                await doc(val).set(u, { merge: true });
             }
             logMove('intake', `Added ${amount} ${name} → ${LOCATION_LABELS[loc]}`);
             status(`Added ${amount} pan(s) of ${name} to ${LOCATION_LABELS[loc]}.`, true);
@@ -1423,11 +1483,11 @@
             if (!f.casePan) update.casePan = firstFreePan();
         } else {
             const cap = to === 'shortTerm' ? SHORT_CAP : LONG_CAP;
-            const newAmt = r2((f[to] || 0) + amount);
-            if (slotsAfter(to, f.id, newAmt) > cap) {
+            const toArr = addPans(pansOf(f, to), amount);   // arrives as its own pan(s)
+            if (slotsAfter(to, f.id, toArr) > cap) {
                 status(`${LOCATION_LABELS[to]} freezer is full — ${slotsOpen(to)} slot(s) open.`); return;
             }
-            update[to] = newAmt;
+            setPans(update, to, toArr);
         }
 
         if (from === 'active') {
@@ -1435,7 +1495,7 @@
             update.active = (to === 'active') ? update.active : left;
             if (left <= EPS && to !== 'active') update.casePan = null;
         } else {
-            update[from] = r2((f[from] || 0) - amount);
+            setPans(update, from, pullPans(pansOf(f, from), amount));
         }
 
         try {

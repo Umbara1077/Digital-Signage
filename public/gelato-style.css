@@ -542,6 +542,47 @@
     margin: 3px 0;
 }
 
+/* one clickable chip per physical freezer pan */
+.g-pan-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 4px 0;
+}
+
+.g-pan-chip {
+    min-width: 30px;
+    padding: 3px 6px;
+    font-size: .7rem;
+    font-weight: 800;
+    border-radius: 6px;
+    border: 1px solid #3a4660;
+    background: #1a2030;
+    color: #dbe3f2;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease;
+}
+
+.g-pan-chip.green {
+    border-color: #1db954;
+    color: #8ff0b6;
+}
+
+.g-pan-chip.red {
+    border-color: #4a90d9;
+    color: #9fc8ff;
+}
+
+.g-pan-chip:hover {
+    background: #3a1f22;
+    border-color: var(--red);
+    color: #ff9a9b;
+}
+
+.g-pan-chip:hover::after {
+    content: " ✕";
+}
+
 .g-tub-icon {
     width: 13px;
     height: 17px;
