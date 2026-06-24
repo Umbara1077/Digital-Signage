@@ -264,6 +264,7 @@
         document.getElementById('reset-usage').addEventListener('click', resetUsage);
 
         document.getElementById('transferForm').addEventListener('submit', onTransfer);
+        document.getElementById('merge-pans-btn').addEventListener('click', openMergeModal);
         document.getElementById('t-from').addEventListener('change', refreshTransferHint);
         document.getElementById('t-to').addEventListener('change', refreshTransferHint);
         document.getElementById('t-flavor').addEventListener('change', refreshTransferHint);
@@ -474,13 +475,13 @@
                         <select class="g-use-amt" data-id="${f.id}" aria-label="Amount to use or add">
                             ${USE_OPTIONS}
                         </select>
-                        <button type="button" class="g-use-btn" data-act="use" data-id="${f.id}">− Use</button>
-                        <button type="button" class="g-add-btn" data-act="add" data-id="${f.id}">+ Add</button>
+                        <button type="button" class="g-use-btn" data-act="use" data-id="${f.id}">−<span class="g-btn-word"> Use</span></button>
+                        <button type="button" class="g-add-btn" data-act="add" data-id="${f.id}">+<span class="g-btn-word"> Add</span></button>
                     </div>
                     <div class="g-pan-foot">
-                        <button type="button" class="g-pan-toshort" data-act="toshort" data-id="${f.id}">&rarr; Short</button>
+                        <button type="button" class="g-pan-toshort" data-act="toshort" data-id="${f.id}">Short</button>
                         <button type="button" class="g-pan-empty" data-act="empty" data-id="${f.id}">Empty</button>
-                        <button type="button" class="g-pan-discard" data-act="discard" data-id="${f.id}">Discard</button>
+                        <button type="button" class="g-pan-discard" data-act="discard" data-id="${f.id}">Trash</button>
                     </div>
                 </div>`;
             } else {
@@ -902,6 +903,119 @@
             : 'added (thin air)';
         logMove('transfer', `Added ${r2(add)} to Pan ${f.casePan} (${f.name}) — ${src} — now ${newActive}`);
         status(`Added ${r2(add)} to ${f.name}. Now ${newActive}.`, true);
+    }
+
+    // ----- Merge into a pan -----------------------------------------------
+    /* Parse a merge "FROM" option value of the form "pan:<id>" or "short:<id>"
+     * into the source flavor, how much it holds, and which field it lives in. */
+    function mergeSource(spec) {
+        const sep = spec.indexOf(':');
+        const type = spec.slice(0, sep), id = spec.slice(sep + 1);
+        const f = byId(id);
+        if (!f) return null;
+        return { type, id, f, field: type === 'short' ? 'shortTerm' : 'active', amount: type === 'short' ? (f.shortTerm || 0) : (f.active || 0) };
+    }
+
+    /* Popup to fill a case pan up to 1.0 from another pan OR from a flavor's
+     * short-term storage. e.g. short-term 2.3 + a 0.7 pan -> moves 0.3 so the
+     * pan reads 1.0 and short-term reads 2.0. Capped at a full 1.0. */
+    function openMergeModal() {
+        const pans = casePans().slice().sort((a, b) => a.casePan - b.casePan);
+        const shortHoldings = flavors.filter(f => (f.shortTerm || 0) > EPS)
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        document.getElementById('g-modal-title').textContent = 'Merge / fill a pan';
+        const body = document.getElementById('g-modal-body');
+        if (!pans.length) {
+            body.innerHTML = `<p class="g-empty-note">You need at least one filled case pan to merge into.</p>`;
+            showModal();
+            return;
+        }
+        // short-term sources listed first (the common "top up a pan" case)
+        const fromOpts =
+            shortHoldings.map(f => `<option value="short:${f.id}">Short-Term · ${esc(f.name)} (${r2(f.shortTerm)})</option>`).join('') +
+            pans.map(f => `<option value="pan:${f.id}">Pan ${f.casePan} · ${esc(f.name)} (${r2(f.active)})</option>`).join('');
+        const intoOpts = pans.map(f => `<option value="${f.id}">Pan ${f.casePan} · ${esc(f.name)} (${r2(f.active)})</option>`).join('');
+        body.innerHTML = `
+            <label class="g-modal-label">Merge FROM (short-term, or another pan)</label>
+            <select id="merge-from" class="g-modal-select">${fromOpts}</select>
+            <label class="g-modal-label">INTO pan in the case (fills up to 1.0)</label>
+            <select id="merge-into" class="g-modal-select">${intoOpts}</select>
+            <p class="g-modal-hint" id="merge-hint"></p>
+            <div class="g-modal-actions">
+                <button type="button" class="g-modal-cancel" id="merge-cancel">Cancel</button>
+                <button type="button" class="g-modal-go" id="merge-go">Merge</button>
+            </div>`;
+        showModal();
+
+        const fromSel = document.getElementById('merge-from');
+        const intoSel = document.getElementById('merge-into');
+        const hint = document.getElementById('merge-hint');
+
+        // when the source is a flavor's short-term, target its own case pan if it has one
+        const syncInto = () => {
+            const src = mergeSource(fromSel.value);
+            if (src && src.type === 'short') {
+                const ownPan = pans.find(p => p.id === src.id);
+                if (ownPan) intoSel.value = ownPan.id;
+            }
+        };
+        // default to the first short-term holding feeding its own pan, else pan->pan
+        if (shortHoldings.length) { fromSel.value = `short:${shortHoldings[0].id}`; syncInto(); }
+        else if (pans.length >= 2) { fromSel.value = `pan:${pans[1].id}`; intoSel.value = pans[0].id; }
+
+        const updateHint = () => {
+            const src = mergeSource(fromSel.value), tgt = byId(intoSel.value);
+            if (!src || !tgt) { hint.textContent = ''; return; }
+            if (src.type === 'pan' && src.id === tgt.id) { hint.textContent = 'Source and target are the same pan.'; return; }
+            const room = r2(1 - (tgt.active || 0));
+            const moved = r2(Math.min(room, src.amount));
+            const label = src.type === 'short' ? `Short-Term ${src.f.name}` : `Pan ${src.f.casePan}`;
+            if (moved <= EPS) { hint.textContent = `Pan ${tgt.casePan} is already full.`; return; }
+            hint.textContent = `Move ${moved} from ${label} → Pan ${tgt.casePan} (now ${r2((tgt.active || 0) + moved)}). ${label} keeps ${r2(src.amount - moved)}.`;
+        };
+        fromSel.addEventListener('change', () => { syncInto(); updateHint(); });
+        intoSel.addEventListener('change', updateHint);
+        updateHint();
+
+        document.getElementById('merge-cancel').addEventListener('click', closeModal);
+        document.getElementById('merge-go').addEventListener('click', () => doMerge(fromSel.value, intoSel.value));
+    }
+
+    async function doMerge(fromSpec, tgtId) {
+        const src = mergeSource(fromSpec), tgt = byId(tgtId);
+        if (!src || !tgt) return;
+        if (src.type === 'pan' && src.id === tgt.id) { status('Pick a different source.'); return; }
+
+        const room = r2(1 - (tgt.active || 0));
+        const moved = r2(Math.min(room, src.amount));
+        if (moved <= EPS) { status(`Pan ${tgt.casePan} is already full — nothing to merge in.`); return; }
+        const newActive = r2((tgt.active || 0) + moved);
+        const label = src.type === 'short' ? `Short-Term (${src.f.name})` : `Pan ${src.f.casePan} (${src.f.name})`;
+
+        if (src.type === 'short' && src.id === tgt.id) {
+            // same flavor: top its own pan up from its own short-term in one write
+            await doc(tgt.id).update({
+                active: newActive,
+                shortTerm: r2((tgt.shortTerm || 0) - moved),
+                updatedAt: stamp()
+            });
+        } else {
+            const batch = db.batch();
+            batch.update(doc(tgt.id), { active: newActive, updatedAt: stamp() });
+            if (src.type === 'short') {
+                batch.update(doc(src.id), { shortTerm: r2((src.f.shortTerm || 0) - moved), updatedAt: stamp() });
+            } else {
+                const srcNew = r2((src.f.active || 0) - moved);
+                const u = { active: srcNew > EPS ? srcNew : 0, updatedAt: stamp() };
+                if (srcNew <= EPS) u.casePan = null;   // source pan freed
+                batch.update(doc(src.id), u);
+            }
+            await batch.commit();
+        }
+
+        closeModal();
+        logMove('transfer', `Merged ${moved} from ${label} into Pan ${tgt.casePan} (${tgt.name}) — now ${newActive}`);
+        status(`Merged into Pan ${tgt.casePan}. Now ${newActive}.`, true);
     }
 
     /* Send a case pan's remaining gelato back into short-term storage. */

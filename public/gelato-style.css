@@ -71,7 +71,7 @@
 /* ====================== THE CASE ====================== */
 .g-case {
     display: grid;
-    grid-template-columns: repeat(9, 1fr);
+    grid-template-columns: repeat(9, minmax(0, 1fr));
     gap: 12px;
     width: 100%;
     padding: 18px;
@@ -85,7 +85,7 @@
 }
 
 .g-case.g-case-12 {
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .g-case-size-toggle {
@@ -278,15 +278,17 @@
 
 .g-pan-use {
     display: flex;
+    flex-wrap: wrap;
     gap: 4px;
 }
 
 .g-use-amt {
-    flex: 1;
+    flex: 0 0 44px;
+    width: 44px;
     min-width: 0;
-    font-size: .74rem;
+    font-size: .66rem;
     font-weight: 700;
-    padding: 6px 22px 6px 9px;
+    padding: 6px 14px 6px 6px;
     border-radius: 8px;
     border: 1px solid #2f3a4f;
     background: #0f1218;
@@ -299,7 +301,7 @@
     background-image:
         linear-gradient(45deg, transparent 50%, #9fb0c8 50%),
         linear-gradient(135deg, #9fb0c8 50%, transparent 50%);
-    background-position: right 11px center, right 6px center;
+    background-position: right 9px center, right 5px center;
     background-size: 5px 5px, 5px 5px;
     background-repeat: no-repeat;
     transition: border-color .15s ease, box-shadow .15s ease;
@@ -335,9 +337,23 @@
 }
 
 .g-pan-use button {
-    flex: 0 0 auto;
+    flex: 1 1 0;
+    min-width: 0;
     font-weight: 700;
-    padding: 5px 6px;
+    font-size: .62rem;
+    padding: 6px 4px;
+    white-space: nowrap;
+}
+
+/* 18-pan mode (case is NOT .g-case-12): show only the + / − symbol so the
+ * Use/Add buttons fit the narrow pans. 12-pan mode is left untouched. */
+.g-case:not(.g-case-12) .g-pan-use .g-btn-word {
+    display: none;
+}
+
+.g-case:not(.g-case-12) .g-pan-use button {
+    font-size: .9rem;
+    line-height: 1;
 }
 
 .g-add-btn {
@@ -362,10 +378,10 @@
 }
 
 .g-pan-foot button {
-    flex: 1 1 30%;
+    flex: 1 1 0;
     min-width: 0;
     font-size: .62rem;
-    padding: 5px 3px;
+    padding: 6px 4px;
     border-radius: 8px;
     border: 1px solid #2f3a4f;
     background: #1b2130;
@@ -1257,7 +1273,21 @@
 .g-transfer-actions {
     grid-column: 1 / -1;
     display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
     justify-content: center;
+}
+
+/* Merge button: neutral so it reads as secondary next to Transfer */
+#merge-pans-btn {
+    background: #1b2130;
+    border: 1px solid #2f3a4f;
+    color: #dbe3f2;
+}
+
+#merge-pans-btn:hover {
+    background: #243049;
+    border-color: #38a3ff;
 }
 
 .g-transfer-actions button {
@@ -1387,4 +1417,156 @@
     color: var(--muted);
     font-size: .74rem;
     white-space: nowrap;
+}
+
+/* =========================================================================
+ * RESPONSIVE — tablet & phone only. All rules live inside max-width media
+ * queries (≤ 900px), so the desktop/computer view above 900px is unchanged.
+ * ========================================================================= */
+
+/* ---------- Tablet (portrait) ---------- */
+@media (max-width: 900px) {
+    main {
+        padding: 18px 12px 48px;
+    }
+
+    .g-case {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .g-case.g-case-12 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    /* stack the two-column transfer / add-stock forms */
+    .g-transfer {
+        grid-template-columns: 1fr !important;
+        gap: 8px 0 !important;
+    }
+
+    .g-transfer label {
+        align-self: end;
+        margin-top: 6px;
+    }
+
+    .g-bar-row {
+        grid-template-columns: minmax(0, 96px) 1fr 40px;
+    }
+}
+
+/* ---------- Phone ---------- */
+@media (max-width: 600px) {
+    main {
+        padding: 14px 10px 40px;
+        gap: 18px;
+    }
+
+    .g-case {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        padding: 12px;
+    }
+
+    .g-case.g-case-12 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* top controls go full width and stack */
+    .g-topbar,
+    .g-case-actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .g-topbar .btn,
+    .g-case-actions .btn,
+    #view-main-button {
+        width: 100%;
+        margin: 0;
+    }
+
+    .g-viewmode {
+        width: 100%;
+    }
+
+    .g-mode-btn {
+        flex: 1;
+    }
+
+    .g-case-size-toggle {
+        margin-left: 0;
+    }
+
+    /* pan internals a touch smaller so two columns breathe */
+    .g-pan-qty,
+    .g-pan-pct {
+        font-size: 1.3rem;
+    }
+
+    .g-section {
+        width: 100%;
+    }
+
+    .g-section > h2 {
+        font-size: 1.05rem;
+    }
+
+    /* charts: shrink the label column */
+    .g-bar-row {
+        grid-template-columns: minmax(0, 80px) 1fr 36px;
+        gap: 6px;
+    }
+
+    .g-bar-label {
+        font-size: .72rem;
+    }
+
+    /* move log: tighter, allow time to wrap under */
+    .g-log-row {
+        grid-template-columns: 58px 1fr;
+        gap: 4px 8px;
+        padding: 8px 10px;
+    }
+
+    .g-log-time {
+        grid-column: 2;
+        font-size: .68rem;
+    }
+
+    /* recommendations / queue already collapse to one column at 760px */
+    .g-queue-wrap {
+        grid-template-columns: 1fr;
+    }
+
+    /* modal fits small screens */
+    .g-modal {
+        padding: 12px;
+    }
+
+    .g-modal-card {
+        padding: 18px;
+    }
+
+    /* order form stacks */
+    .g-order-add {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .g-order-add button {
+        width: 100%;
+    }
+}
+
+/* ---------- Small phone ---------- */
+@media (max-width: 380px) {
+    .g-pan-foot button {
+        font-size: .58rem;
+        padding: 5px 2px;
+    }
+
+    .g-pan-use button {
+        font-size: .58rem;
+    }
 }
