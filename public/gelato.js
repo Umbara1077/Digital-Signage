@@ -59,6 +59,8 @@
     let usageToday = {};       // today's running usage totals (pans)
     let orderQueue = [];       // flavors flagged to make (production list)
     let statMode = false;
+    let openPanChips = new Set();   // "id|loc|idx" keys of chips in adjust mode
+    let chipHandlersAttached = false;
     const queueDocRef = () => db.collection('gelatoSettings').doc('queue');
     const snapshotDocRef = () => db.collection('gelatoSettings').doc('caseSnapshot');
     const orderDocRef = () => db.collection('gelatoSettings').doc('orderQueue');
@@ -576,10 +578,22 @@
         items.forEach(f => {
             const arr = pansOf(f, loc);
             const tone = freezerTone(f[loc] || 0);
-            // one clickable chip per physical pan — click to empty that pan
+            // one chip per physical pan — collapsed shows amount + ✕; clicking amount expands to −/+
             const chips = arr.map((amt, idx) => {
                 const t = freezerTone(amt >= 1 - EPS ? 3 : 1);   // full pan green, partial red-ish
-                return `<button type="button" class="g-pan-chip ${t}" data-id="${f.id}" data-loc="${loc}" data-idx="${idx}" title="Click to empty this pan">${r2(amt)}</button>`;
+                const key = `${f.id}|${loc}|${idx}`;
+                if (openPanChips.has(key)) {
+                    return `<span class="g-pan-chip ${t} is-open" data-id="${f.id}" data-loc="${loc}" data-idx="${idx}" data-key="${key}">` +
+                        `<button type="button" class="g-pan-chip-minus">−</button>` +
+                        `<span class="g-pan-chip-val">${r2(amt)}</span>` +
+                        `<button type="button" class="g-pan-chip-plus">+</button>` +
+                        `<button type="button" class="g-pan-chip-remove" title="Remove this pan">✕</button>` +
+                        `</span>`;
+                }
+                return `<span class="g-pan-chip ${t}" data-id="${f.id}" data-loc="${loc}" data-idx="${idx}" data-key="${key}">` +
+                    `<button type="button" class="g-pan-chip-amt" title="Adjust amount">${r2(amt)}</button>` +
+                    `<button type="button" class="g-pan-chip-remove" title="Remove this pan">✕</button>` +
+                    `</span>`;
             }).join('');
             const img = flavorImage(f);
             const swatch = img ? `style="background-image:url('${img}')"` : '';
@@ -596,8 +610,57 @@
         html += `</div>`;
         wrap.innerHTML = html;
 
-        wrap.querySelectorAll('.g-pan-chip').forEach(b => b.addEventListener('click', () =>
-            emptyStoragePan(b.dataset.id, b.dataset.loc, Number(b.dataset.idx))));
+        // collapsed: click amount to open
+        wrap.querySelectorAll('.g-pan-chip-amt').forEach(btn => {
+            const chip = btn.closest('.g-pan-chip');
+            btn.addEventListener('click', () => {
+                openPanChips.add(chip.dataset.key);
+                renderFreezer(prefix, loc, cap);
+            });
+        });
+
+        // expanded: − and + step by 0.1, save immediately
+        wrap.querySelectorAll('.g-pan-chip-minus, .g-pan-chip-plus').forEach(btn => {
+            const chip = btn.closest('.g-pan-chip');
+            btn.addEventListener('click', () => {
+                const valEl = chip.querySelector('.g-pan-chip-val');
+                const cur = r2(Number(valEl.textContent));
+                const delta = btn.classList.contains('g-pan-chip-plus') ? 0.1 : -0.1;
+                const next = r2(Math.max(0.1, Math.min(1.0, cur + delta)));
+                if (Math.abs(next - cur) < EPS) return;
+                valEl.textContent = next;
+                adjustStoragePan(chip.dataset.id, chip.dataset.loc, Number(chip.dataset.idx), next);
+            });
+        });
+
+        // remove button (works in both states)
+        wrap.querySelectorAll('.g-pan-chip-remove').forEach(btn => {
+            const chip = btn.closest('.g-pan-chip');
+            btn.addEventListener('click', () => {
+                openPanChips.delete(chip.dataset.key);
+                emptyStoragePan(chip.dataset.id, chip.dataset.loc, Number(chip.dataset.idx));
+            });
+        });
+
+        // one-time document handlers for Escape and click-outside
+        if (!chipHandlersAttached) {
+            chipHandlersAttached = true;
+            document.addEventListener('keydown', e => {
+                if (e.key === 'Escape' && openPanChips.size) {
+                    openPanChips.clear();
+                    renderFreezer('short', 'shortTerm', SHORT_CAP);
+                    renderFreezer('long', 'longTerm', LONG_CAP);
+                }
+            });
+            document.addEventListener('mousedown', e => {
+                if (!openPanChips.size) return;
+                if (!e.target.closest('.g-pan-chip.is-open')) {
+                    openPanChips.clear();
+                    renderFreezer('short', 'shortTerm', SHORT_CAP);
+                    renderFreezer('long', 'longTerm', LONG_CAP);
+                }
+            });
+        }
     }
 
     /* Empty a single freezer pan (click a chip). Removes just that pan. */
@@ -612,6 +675,20 @@
         next.splice(idx, 1);
         await doc(id).update(setPans({ updatedAt: stamp() }, loc, next));
         logMove('empty', `Emptied a ${r2(amt)} pan of ${f.name} from ${LOCATION_LABELS[loc]}`);
+    }
+
+    /* Adjust the fill amount of a single freezer pan. */
+    async function adjustStoragePan(id, loc, idx, newAmt) {
+        const f = byId(id);
+        if (!f) return;
+        const arr = pansOf(f, loc);
+        if (arr[idx] == null) return;
+        const clamped = r2(Math.max(0.1, Math.min(1, newAmt)));
+        if (Math.abs(clamped - arr[idx]) < EPS) return;
+        const next = arr.slice();
+        next[idx] = clamped;
+        await doc(id).update(setPans({ updatedAt: stamp() }, loc, next));
+        logMove('adjust', `Adjusted pan of ${f.name} in ${LOCATION_LABELS[loc]} from ${r2(arr[idx])} to ${clamped}`);
     }
 
     // ----- Stat mode -------------------------------------------------------

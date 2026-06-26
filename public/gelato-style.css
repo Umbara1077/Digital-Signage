@@ -542,7 +542,7 @@
     margin: 3px 0;
 }
 
-/* one clickable chip per physical freezer pan */
+/* one chip per physical freezer pan */
 .g-pan-chips {
     display: flex;
     flex-wrap: wrap;
@@ -551,37 +551,69 @@
 }
 
 .g-pan-chip {
-    min-width: 30px;
-    padding: 3px 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 5px;
     font-size: .7rem;
     font-weight: 800;
     border-radius: 6px;
     border: 1px solid #3a4660;
     background: #1a2030;
     color: #dbe3f2;
+    transition: border-color .15s ease;
+}
+
+.g-pan-chip.green { border-color: #1db954; color: #8ff0b6; }
+.g-pan-chip.red   { border-color: #4a90d9; color: #9fc8ff; }
+.g-pan-chip.is-open { border-style: dashed; }
+
+/* shared base for all inline buttons inside a chip */
+.g-pan-chip button {
+    background: transparent;
+    border: none;
+    color: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: 1;
     cursor: pointer;
-    transition: background .15s ease, border-color .15s ease;
+    padding: 0 1px;
 }
 
-.g-pan-chip.green {
-    border-color: #1db954;
-    color: #8ff0b6;
+/* collapsed: amount button — hover hints it's clickable */
+.g-pan-chip-amt {
+    min-width: 24px;
+    text-align: center;
+    border-radius: 3px;
+    transition: background .12s ease;
+}
+.g-pan-chip-amt:hover { background: rgba(255,255,255,.1); }
+
+/* expanded: − and + step buttons */
+.g-pan-chip-minus,
+.g-pan-chip-plus {
+    font-size: .85rem;
+    font-weight: 900;
+    padding: 0 3px;
+    border-radius: 3px;
+    transition: background .1s ease;
+}
+.g-pan-chip-minus:hover { background: rgba(255,80,80,.25); }
+.g-pan-chip-plus:hover  { background: rgba(80,200,80,.25); }
+
+/* expanded: static value display */
+.g-pan-chip-val {
+    min-width: 26px;
+    text-align: center;
 }
 
-.g-pan-chip.red {
-    border-color: #4a90d9;
-    color: #9fc8ff;
+/* remove button — faint ✕, turns red on hover */
+.g-pan-chip-remove {
+    font-size: .6rem;
+    opacity: 0.45;
+    transition: opacity .1s ease, color .1s ease;
 }
-
-.g-pan-chip:hover {
-    background: #3a1f22;
-    border-color: var(--red);
-    color: #ff9a9b;
-}
-
-.g-pan-chip:hover::after {
-    content: " ✕";
-}
+.g-pan-chip-remove:hover { opacity: 1; color: var(--red); }
 
 .g-tub-icon {
     width: 13px;
