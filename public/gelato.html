@@ -49,6 +49,7 @@
             <div class="g-viewmode" role="group" aria-label="View mode">
                 <button id="mode-visual" class="g-mode-btn active" type="button">Visual</button>
                 <button id="mode-stats" class="g-mode-btn" type="button">Stat Mode</button>
+                <button id="mode-mobile" class="g-mode-btn" type="button">Mobile</button>
             </div>
         </div>
 
@@ -56,7 +57,10 @@
 
         <!-- ===================== PRICING / VALUE ===================== -->
         <section class="g-section" id="pricing-section">
-            <h2>Inventory Value <span class="g-cap">est. @ $0.035/g · ~$262/pan</span></h2>
+            <h2>Inventory Value <span class="g-cap">est. @
+                    $<input type="number" id="price-per-gram" class="g-ppg-input" value="0.035" min="0.001"
+                        step="0.001" title="Price per gram — click to edit" aria-label="Price per gram in dollars">/g
+                    · ~$<span id="cost-per-pan-label">262</span>/pan</span></h2>
             <div class="g-price-cards" id="price-cards"></div>
         </section>
 
@@ -67,6 +71,12 @@
             <div class="g-usage-actions">
                 <button id="reset-usage" type="button" class="btn g-btn-danger">Reset Today's Usage</button>
             </div>
+        </section>
+
+        <!-- ===================== MOBILE MODE PANEL ===================== -->
+        <section class="g-section mobile-only" id="mobile-panel" hidden>
+            <h2>Mobile Overview <span class="g-cap">at a glance · tap to act</span></h2>
+            <div id="mobile-body"></div>
         </section>
 
         <!-- ===================== STAT MODE PANEL ===================== -->
@@ -100,8 +110,9 @@
                     <button type="button" id="order-clear" class="btn g-btn-danger">Clear list</button>
                 </form>
                 <div id="order-list" class="g-order-list"></div>
-                <p class="g-hint-line">Or click a flavor's name in the table above to add/remove it. This list is
-                    just for planning what to make — it doesn't change any stock.</p>
+                <p class="g-hint-line">Or click a flavor's name in the table above to add/remove it (no stock
+                    change). Hitting ✕ on an item means it's been <strong>made</strong> — one full pan (1.0) is
+                    added to Short-Term and the item leaves the list.</p>
             </div>
         </section>
 

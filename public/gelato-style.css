@@ -68,6 +68,30 @@
     margin-left: 8px;
 }
 
+/* editable $/gram rate inside the Inventory Value header */
+.g-ppg-input {
+    width: 70px;
+    padding: 3px 6px;
+    background: #0f1218;
+    color: #e7eeff;
+    border: 1px dashed #3a4560;
+    border-radius: 8px;
+    font-size: .82rem;
+    font-weight: 700;
+    text-align: right;
+    cursor: text;
+}
+
+.g-ppg-input:hover {
+    border-color: #5a6a90;
+}
+
+.g-ppg-input:focus {
+    border-style: solid;
+    border-color: var(--green);
+    outline: none;
+}
+
 /* ====================== THE CASE ====================== */
 .g-case {
     display: grid;
@@ -1642,4 +1666,285 @@
     .g-pan-use button {
         font-size: .58rem;
     }
+}
+
+/* ====================== MOBILE MODE ====================== */
+/* In mobile mode only the topbar, status line and the mobile panel show;
+   every other section is hidden and the page narrows to phone width. */
+body.g-mobile main>.g-section:not(#mobile-panel) {
+    display: none;
+}
+
+body.g-mobile main {
+    max-width: 560px;
+    margin: 0 auto;
+}
+
+.g-mob-tiles {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 4px;
+}
+
+.g-mob-tile {
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .02));
+    min-width: 0;
+}
+
+.g-mob-tile-val {
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: #eaf1ff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.g-mob-tile-val.red {
+    color: var(--red);
+}
+
+.g-mob-tile-val.green {
+    color: var(--green);
+}
+
+.g-mob-tile-label {
+    font-size: .72rem;
+    font-weight: 800;
+    color: #cdd6e6;
+    margin-top: 2px;
+}
+
+.g-mob-tile-sub {
+    font-size: .7rem;
+    color: var(--muted);
+}
+
+.g-mob-h {
+    margin: 18px 0 8px;
+    font-size: .95rem;
+}
+
+.g-mob-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.g-mob-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .03);
+    font-size: .82rem;
+    min-width: 0;
+}
+
+/* action cluster: drops to its own full-width line inside a row */
+.g-mob-acts {
+    flex: 1 0 100%;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.g-mob-btn {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .07);
+    color: #e7eeff;
+    font-weight: 800;
+    font-size: .74rem;
+    padding: 8px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .15s ease, border-color .15s ease;
+}
+
+.g-mob-btn:hover {
+    background: rgba(255, 255, 255, .12);
+}
+
+.g-mob-acts .g-mob-btn {
+    flex: 1 1 auto;
+}
+
+.g-mob-btn.danger {
+    border-color: rgba(255, 90, 90, .45);
+    color: #ff9c9c;
+}
+
+.g-mob-btn.danger:hover {
+    background: rgba(255, 80, 80, .18);
+}
+
+.g-mob-btn.go {
+    border-color: rgba(29, 185, 84, .55);
+    color: #6fe3a1;
+}
+
+.g-mob-btn.go:hover {
+    background: rgba(29, 185, 84, .18);
+}
+
+.g-mob-use-amt {
+    flex: 0 0 auto;
+    background: #0f1218;
+    color: #e7eeff;
+    border: 1px solid #283042;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: .78rem;
+    padding: 7px 6px;
+}
+
+/* order-queue add form */
+.g-mob-add {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.g-mob-add select {
+    flex: 1 1 auto;
+    min-width: 0;
+    background: #0f1218;
+    color: #e7eeff;
+    border: 1px solid #283042;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: .78rem;
+    padding: 8px;
+}
+
+.g-mob-add .g-mob-btn {
+    flex: 0 0 auto;
+}
+
+.g-mob-row.low {
+    border-color: var(--red);
+}
+
+.g-mob-pan {
+    flex: 0 0 auto;
+    min-width: 30px;
+    text-align: center;
+    font-weight: 800;
+    font-size: .72rem;
+    color: var(--muted);
+    background: rgba(255, 255, 255, .06);
+    border-radius: 6px;
+    padding: 3px 5px;
+}
+
+.g-mob-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 700;
+    color: #e7eeff;
+}
+
+/* recent-moves text can wrap to two lines instead of truncating */
+.g-mob-name.g-mob-wrap {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.g-mob-meter {
+    flex: 0 0 64px;
+    height: 6px;
+    border-radius: 999px;
+    background: #0c0f15;
+    border: 1px solid #283042;
+    overflow: hidden;
+}
+
+.g-mob-meter span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #38a3ff, #1db954);
+}
+
+.g-mob-row.low .g-mob-meter span {
+    background: var(--red);
+}
+
+.g-mob-amt {
+    flex: 0 0 auto;
+    font-weight: 800;
+    font-size: .74rem;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.g-mob-row.low .g-mob-amt {
+    color: var(--red);
+}
+
+.g-mob-state {
+    flex: 0 0 auto;
+    font-size: .68rem;
+    font-weight: 800;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.g-mob-state.ready {
+    color: var(--green);
+}
+
+.g-mob-time {
+    flex: 0 0 auto;
+    font-size: .68rem;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.g-mob-capbar {
+    position: relative;
+    height: 20px;
+    border-radius: 999px;
+    background: #0f1218;
+    border: 1px solid #283042;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.g-mob-capbar span {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: linear-gradient(90deg, #38a3ff, #1db954);
+}
+
+.g-mob-capbar em {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-style: normal;
+    font-size: .68rem;
+    font-weight: 800;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .6);
+}
+
+.g-mob-note {
+    margin: 16px 0 0;
+    text-align: center;
+    font-size: .74rem;
+    color: var(--muted);
 }

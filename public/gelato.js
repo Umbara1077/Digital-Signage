@@ -29,11 +29,13 @@
         .map(n => `<option value="0.${n}">0.${n}</option>`).join('');
 
     // ----- Cost model (from "War Plan" sheet) ------------------------------
-    // ~$0.035 / gram of gelato on hand.
+    // Price per gram is editable in the "Inventory Value" header and saved in
+    // gelatoSettings/pricing so every device shares it. Defaults to $0.035/g.
     // Full pans weigh ~7000-8000 g; 7500 g average -> ~$262 per full pan.
-    const PRICE_PER_GRAM = 0.035;
+    const DEFAULT_PRICE_PER_GRAM = 0.035;
     const GRAMS_PER_PAN = 7500;
-    const COST_PER_PAN = PRICE_PER_GRAM * GRAMS_PER_PAN;   // ≈ $255 / pan
+    let PRICE_PER_GRAM = DEFAULT_PRICE_PER_GRAM;
+    let COST_PER_PAN = PRICE_PER_GRAM * GRAMS_PER_PAN;
     const money = n => '$' + (Math.round((n || 0) * 100) / 100)
         .toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const grams = pans => Math.round((pans || 0) * GRAMS_PER_PAN);
@@ -58,12 +60,14 @@
     let queueLoaded = false;   // true once the saved queue has loaded from the DB
     let usageToday = {};       // today's running usage totals (pans)
     let orderQueue = [];       // flavors flagged to make (production list)
-    let statMode = false;
+    let viewMode = 'visual';   // 'visual' | 'stats' | 'mobile'
+    let statMode = false;      // kept in sync with viewMode === 'stats'
     let openPanChips = new Set();   // "id|loc|idx" keys of chips in adjust mode
     let chipHandlersAttached = false;
     const queueDocRef = () => db.collection('gelatoSettings').doc('queue');
     const snapshotDocRef = () => db.collection('gelatoSettings').doc('caseSnapshot');
     const orderDocRef = () => db.collection('gelatoSettings').doc('orderQueue');
+    const pricingDocRef = () => db.collection('gelatoSettings').doc('pricing');
     const todayStr = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD (local)
     const usageDocRef = () => db.collection('gelatoUsage').doc(todayStr());
 
@@ -178,6 +182,7 @@
         db.collection('gelatoMoves').orderBy('at', 'desc').limit(60).onSnapshot(snap => {
             moves = snap.docs.map(d => ({ ...d.data(), id: d.id }));
             renderLog();
+            if (viewMode === 'mobile') renderMobilePanel();
         }, err => console.error('moves snapshot error', err));
 
         usageDocRef().onSnapshot(d => {
@@ -189,7 +194,26 @@
             orderQueue = (d.exists && Array.isArray(d.data().items)) ? d.data().items : [];
             renderOrderQueue();
             if (statMode) renderStatTable();
+            if (viewMode === 'mobile') renderMobilePanel();
         }, err => console.error('order snapshot error', err));
+
+        pricingDocRef().onSnapshot(d => {
+            const v = d.exists ? Number(d.data().pricePerGram) : NaN;
+            applyPricePerGram(v > 0 ? v : DEFAULT_PRICE_PER_GRAM);
+        }, err => console.error('pricing snapshot error', err));
+    }
+
+    /* Swap in a new $/gram rate and refresh everything priced with it. */
+    function applyPricePerGram(v) {
+        PRICE_PER_GRAM = v;
+        COST_PER_PAN = PRICE_PER_GRAM * GRAMS_PER_PAN;
+        const input = document.getElementById('price-per-gram');
+        if (input && document.activeElement !== input) input.value = PRICE_PER_GRAM;
+        const perPan = document.getElementById('cost-per-pan-label');
+        if (perPan) perPan.textContent = Math.round(COST_PER_PAN).toLocaleString('en-US');
+        renderPricing();
+        renderUsage();
+        if (statMode) renderStatTable();
     }
 
     /* Append a human-readable entry to the move-history log in the DB. */
@@ -292,8 +316,33 @@
             status('Synced.', true);
         });
         document.getElementById('reset-inventory').addEventListener('click', resetInventory);
-        document.getElementById('mode-visual').addEventListener('click', () => setMode(false));
-        document.getElementById('mode-stats').addEventListener('click', () => setMode(true));
+        const pickMode = m => { localStorage.setItem('gelatoViewMode', m); setMode(m); };
+        document.getElementById('mode-visual').addEventListener('click', () => pickMode('visual'));
+        document.getElementById('mode-stats').addEventListener('click', () => pickMode('stats'));
+        document.getElementById('mode-mobile').addEventListener('click', () => pickMode('mobile'));
+        // restore the last chosen view; small screens start in Mobile by default
+        const savedMode = localStorage.getItem('gelatoViewMode');
+        if (savedMode === 'stats' || savedMode === 'mobile') setMode(savedMode);
+        else if (!savedMode && window.matchMedia('(max-width: 640px)').matches) setMode('mobile');
+
+        document.getElementById('price-per-gram').addEventListener('change', async e => {
+            const v = Number(e.target.value);
+            if (!(v > 0)) {
+                status('Price per gram must be greater than 0.');
+                e.target.value = PRICE_PER_GRAM;
+                return;
+            }
+            try {
+                await pricingDocRef().set({ pricePerGram: v, updatedAt: stamp() }, { merge: true });
+                applyPricePerGram(v);
+                logMove('adjust', `Set gelato price to $${v}/g (~${money(v * GRAMS_PER_PAN)}/pan)`);
+                status(`Price set to $${v}/g (~${money(v * GRAMS_PER_PAN)}/pan).`, true);
+            } catch (err) {
+                console.error('save price failed', err);
+                status('Saving the price failed — see console.');
+                e.target.value = PRICE_PER_GRAM;
+            }
+        });
 
         document.getElementById('size-18').addEventListener('click', () => setCaseSize(18));
         document.getElementById('size-12').addEventListener('click', () => setCaseSize(12));
@@ -351,12 +400,18 @@
         wrap.classList.toggle('g-case-12', CASE_SLOTS === 12);
     }
 
-    function setMode(stats) {
-        statMode = stats;
-        document.getElementById('mode-stats').classList.toggle('active', stats);
-        document.getElementById('mode-visual').classList.toggle('active', !stats);
-        document.querySelectorAll('.visual-only').forEach(el => { el.hidden = stats; });
-        document.querySelectorAll('.stats-only').forEach(el => { el.hidden = !stats; });
+    function setMode(mode) {
+        viewMode = mode;
+        statMode = mode === 'stats';
+        [['mode-visual', 'visual'], ['mode-stats', 'stats'], ['mode-mobile', 'mobile']].forEach(([id, m]) => {
+            const btn = document.getElementById(id);
+            if (btn) btn.classList.toggle('active', mode === m);
+        });
+        document.querySelectorAll('.visual-only').forEach(el => { el.hidden = mode !== 'visual'; });
+        document.querySelectorAll('.stats-only').forEach(el => { el.hidden = mode !== 'stats'; });
+        document.querySelectorAll('.mobile-only').forEach(el => { el.hidden = mode !== 'mobile'; });
+        // hides the always-on sections (pricing, forms, log…) via CSS in mobile mode
+        document.body.classList.toggle('g-mobile', mode === 'mobile');
         renderAll();
     }
 
@@ -403,8 +458,10 @@
         renderCaps();
         renderTransferFlavors();
         renderStockFlavors();
-        if (statMode) {
+        if (viewMode === 'stats') {
             renderStatsPanel();
+        } else if (viewMode === 'mobile') {
+            renderMobilePanel();
         } else {
             renderCase();
             renderFreezer('short', 'shortTerm', SHORT_CAP);
@@ -461,6 +518,163 @@
             </div>`).join('');
         const d = document.getElementById('usage-date');
         if (d) d.textContent = usageToday.date || todayStr();
+        if (viewMode === 'mobile') renderMobilePanel();
+    }
+
+    /* ----- Mobile mode ------------------------------------------------------
+     * A single compact overview built for phone screens: headline tiles up
+     * top (the "partially graphical" part), then dense info rows for the
+     * case, both freezers, the swap queue, the order list and recent moves.
+     * The day-to-day actions work right here — serve/empty/return case pans,
+     * execute or remove swaps, manage the order list. Bigger jobs (assign,
+     * transfer, intake, snapshots) live in Visual mode. */
+    function renderMobilePanel() {
+        const el = document.getElementById('mobile-body');
+        if (!el) return;
+
+        const inCase = casePans().slice().sort((a, b) => a.casePan - b.casePan);
+        const lowPans = inCase.filter(f => (f.active || 0) <= SWAP_THRESHOLD + EPS);
+        const caseAmt = activePans();
+        const total = r2(caseAmt + sumLoc('shortTerm') + sumLoc('longTerm'));
+        const used = r2(usageToday.usedPans || 0);
+
+        // headline tiles
+        const tiles = [
+            ['Total value', money(total * COST_PER_PAN), `${total} pans on hand`, ''],
+            ['Used today', money(used * COST_PER_PAN), `${used} pans served`, ''],
+            ['Case', `${inCase.length} / ${CASE_SLOTS}`, `${caseAmt} pans of gelato`, ''],
+            ['Low pans', String(lowPans.length),
+                lowPans.length ? 'need a swap soon' : `all above ${SWAP_THRESHOLD}`,
+                lowPans.length ? 'red' : 'green']
+        ];
+        let html = `<div class="g-mob-tiles">` + tiles.map(([label, val, sub, tone]) => `
+            <div class="g-mob-tile">
+                <div class="g-mob-tile-val ${tone}">${val}</div>
+                <div class="g-mob-tile-label">${esc(label)}</div>
+                <div class="g-mob-tile-sub">${esc(sub)}</div>
+            </div>`).join('') + `</div>`;
+
+        // the case — info line + action line per pan
+        html += `<h3 class="g-mob-h">The Case</h3>`;
+        html += inCase.length
+            ? `<div class="g-mob-list">` + inCase.map(f => {
+                const pct = Math.round(Math.max(0, Math.min(1, f.active || 0)) * 100);
+                const low = (f.active || 0) <= SWAP_THRESHOLD + EPS;
+                return `
+                <div class="g-mob-row ${low ? 'low' : ''}">
+                    <span class="g-mob-pan">P${f.casePan}</span>
+                    <span class="g-mob-name">${esc(f.name)}</span>
+                    <span class="g-mob-meter"><span style="width:${pct}%"></span></span>
+                    <span class="g-mob-amt">${r2(f.active)}${low ? ' · SWAP' : ''}</span>
+                    <span class="g-mob-acts">
+                        <select class="g-mob-use-amt" data-id="${f.id}" aria-label="Amount to use">${USE_OPTIONS}</select>
+                        <button type="button" class="g-mob-btn" data-act="mob-use" data-id="${f.id}">− Use</button>
+                        <button type="button" class="g-mob-btn" data-act="mob-short" data-id="${f.id}">→ Short</button>
+                        <button type="button" class="g-mob-btn danger" data-act="mob-empty" data-id="${f.id}">Empty</button>
+                    </span>
+                </div>`;
+            }).join('') + `</div>`
+            : `<p class="g-empty-note">The case is empty.</p>`;
+
+        // freezers — capacity bar + a row per stored flavor
+        const freezerBlock = (label, loc, cap) => {
+            const usedSlots = slotsUsed(loc);
+            const items = withAmt(loc);
+            let block = `<h3 class="g-mob-h">${label}</h3>
+            <div class="g-mob-capbar"><span style="width:${Math.min(100, (usedSlots / cap) * 100)}%"></span>
+                <em>${usedSlots} / ${cap} slots · ${sumLoc(loc)} pans</em></div>`;
+            block += items.length
+                ? `<div class="g-mob-list">` + items.map(f => {
+                    const amt = f[loc] || 0;
+                    const slots = panCount(f, loc);
+                    return `
+                    <div class="g-mob-row">
+                        <span class="g-dot ${freezerTone(amt)}"></span>
+                        <span class="g-mob-name">${esc(f.name)}</span>
+                        <span class="g-mob-amt">${r2(amt)} pans · ${slots} slot${slots === 1 ? '' : 's'}</span>
+                    </div>`;
+                }).join('') + `</div>`
+                : `<p class="g-empty-note">No pans stored here.</p>`;
+            return block;
+        };
+        html += freezerBlock('Short-Term Freezer', 'shortTerm', SHORT_CAP);
+        html += freezerBlock('Long-Term Freezer', 'longTerm', LONG_CAP);
+
+        // swap queue — execute / remove work right here
+        html += `<h3 class="g-mob-h">Swap Queue</h3>`;
+        html += queue.length
+            ? `<div class="g-mob-list">` + queue.slice().sort((a, b) => a.pan - b.pan).map(q => {
+                const i = queue.indexOf(q);
+                const target = flavors.find(f => f.casePan === q.pan);
+                const ready = !target || (target.active || 0) <= SWAP_THRESHOLD + EPS;
+                return `
+                <div class="g-mob-row">
+                    <span class="g-mob-name">${esc(nameById(q.flavorId) || q.name)} → Pan ${q.pan}</span>
+                    <span class="g-mob-state ${ready ? 'ready' : ''}">${ready ? 'READY' : `waiting · ${r2(target.active)}`}</span>
+                    <button type="button" class="g-mob-btn go" data-act="mob-exec" data-i="${i}">Execute</button>
+                    <button type="button" class="g-mob-btn danger" data-act="mob-qdel" data-i="${i}" aria-label="Remove swap">✕</button>
+                </div>`;
+            }).join('') + `</div>`
+            : `<p class="g-empty-note">Nothing staged.</p>`;
+
+        // production order list — add and remove flavors
+        html += `<h3 class="g-mob-h">Order Queue (flavors to make)</h3>`;
+        html += orderQueue.length
+            ? `<div class="g-mob-list">` + orderQueue.map((o, i) => `
+                <div class="g-mob-row">
+                    <span class="g-mob-pan">${i + 1}</span>
+                    <span class="g-mob-name">${esc(nameById(o.flavorId) || o.name)}</span>
+                    <button type="button" class="g-mob-btn go" data-act="mob-odel" data-i="${i}"
+                        title="Made it — adds 1.0 pan to Short-Term and clears it from the list"
+                        aria-label="Made — move 1 pan to short-term">✕</button>
+                </div>`).join('') + `</div>`
+            : `<p class="g-empty-note">No flavors queued for production.</p>`;
+        html += `<form class="g-mob-add" id="mob-order-form">
+            <select id="mob-order-flavor" aria-label="Flavor to queue">${menuFlavors.map(f =>
+                `<option value="${f.id}">${esc(f.name)}</option>`).join('')}</select>
+            <button type="submit" class="g-mob-btn go">+ Add to order</button>
+        </form>`;
+
+        // last few moves
+        html += `<h3 class="g-mob-h">Recent Moves</h3>`;
+        const recent = moves.slice(0, 6);
+        html += recent.length
+            ? `<div class="g-mob-list">` + recent.map(m => {
+                const when = m.at && m.at.toDate
+                    ? m.at.toDate().toLocaleString('en-US', { hour: 'numeric', minute: '2-digit' })
+                    : '…';
+                return `
+                <div class="g-mob-row">
+                    <span class="g-mob-name g-mob-wrap">${esc(m.text || '')}</span>
+                    <span class="g-mob-time">${when}</span>
+                </div>`;
+            }).join('') + `</div>`
+            : `<p class="g-empty-note">No moves recorded yet.</p>`;
+
+        html += `<p class="g-mob-note">Compact view — assigning pans, transfers and intake live in Visual mode.</p>`;
+        el.innerHTML = html;
+
+        // wire the actions (innerHTML wiped any previous listeners)
+        el.querySelectorAll('[data-act="mob-use"]').forEach(b => b.addEventListener('click', () => {
+            const sel = el.querySelector(`.g-mob-use-amt[data-id="${b.dataset.id}"]`);
+            serve(b.dataset.id, parseFloat(sel ? sel.value : '0'));
+        }));
+        el.querySelectorAll('[data-act="mob-short"]').forEach(b =>
+            b.addEventListener('click', () => caseToShort(b.dataset.id)));
+        el.querySelectorAll('[data-act="mob-empty"]').forEach(b =>
+            b.addEventListener('click', () => emptyPan(b.dataset.id)));
+        el.querySelectorAll('[data-act="mob-exec"]').forEach(b =>
+            b.addEventListener('click', () => executeSwap(Number(b.dataset.i))));
+        el.querySelectorAll('[data-act="mob-qdel"]').forEach(b =>
+            b.addEventListener('click', () => removeFromQueue(Number(b.dataset.i))));
+        el.querySelectorAll('[data-act="mob-odel"]').forEach(b =>
+            b.addEventListener('click', () => completeOrder(Number(b.dataset.i))));
+        const orderForm = document.getElementById('mob-order-form');
+        if (orderForm) orderForm.addEventListener('submit', e => {
+            e.preventDefault();
+            const sel = document.getElementById('mob-order-flavor');
+            if (sel && sel.value) addToOrder(sel.value);
+        });
     }
 
     /* Predictively stage a same-flavor refill for any case pan that has
@@ -804,10 +1018,12 @@
             <div class="g-order-item">
                 <span class="g-order-num">${i + 1}</span>
                 <span class="g-order-iname">${esc(nameById(o.flavorId) || o.name)}</span>
-                <button type="button" class="g-order-del" data-i="${i}" aria-label="Remove">✕</button>
+                <button type="button" class="g-order-del" data-i="${i}"
+                    title="Made it — adds 1.0 pan to Short-Term and clears it from the list"
+                    aria-label="Made — move 1 pan to short-term">✕</button>
             </div>`).join('');
         list.querySelectorAll('.g-order-del').forEach(b =>
-            b.addEventListener('click', () => removeFromOrder(Number(b.dataset.i))));
+            b.addEventListener('click', () => completeOrder(Number(b.dataset.i))));
     }
 
     function toggleOrder(flavorId) {
@@ -830,6 +1046,45 @@
         const next = orderQueue.slice();
         next.splice(i, 1);
         await orderDocRef().set({ items: next }, { merge: true });
+    }
+
+    /* ✕ on an order-queue item = that flavor has been made: one full pan
+     * (1.0) goes into short-term storage, then the item leaves the list.
+     * If the short-term freezer has no free slot, the item stays put. */
+    async function completeOrder(i) {
+        const o = orderQueue[i];
+        if (!o) return;
+        const f = byId(o.flavorId);
+        const name = nameById(o.flavorId) || o.name || '(unnamed)';
+        const newArr = addPans(pansOf(f || {}, 'shortTerm'), 1);
+        if (slotsAfter('shortTerm', o.flavorId, newArr) > SHORT_CAP) {
+            status(`Short-term freezer is full — ${slotsOpen('shortTerm')} slot(s) open. ${name} stays on the order list.`);
+            return;
+        }
+        try {
+            if (f) {
+                await doc(f.id).update(setPans({ updatedAt: stamp() }, 'shortTerm', newArr));
+            } else {
+                // no inventory doc yet — create it on the fly (mirrors onAddStock)
+                const m = liveMeta(o.flavorId);
+                const u = {
+                    name,
+                    gelatoImage: (m && (m.gelatoImage || m.imageURL)) || '',
+                    imageURL: (m && m.imageURL) || '',
+                    active: 0, casePan: null,
+                    updatedAt: stamp()
+                };
+                setPans(u, 'shortTerm', newArr);
+                setPans(u, 'longTerm', []);
+                await doc(o.flavorId).set(u, { merge: true });
+            }
+            await removeFromOrder(i);
+            logMove('intake', `Made ${name} — 1 pan → Short-Term (from order queue)`);
+            status(`${name} made: 1.0 pan added to Short-Term.`, true);
+        } catch (e) {
+            console.error('completeOrder failed', e);
+            status('Completing the order failed — see console.');
+        }
     }
 
     async function clearOrder() {
