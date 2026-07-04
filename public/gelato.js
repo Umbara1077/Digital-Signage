@@ -1776,7 +1776,7 @@
     async function closeCase() {
         const inCase = casePans();
         if (!inCase.length) { status('The case is already empty.'); return; }
-        if (!confirm(`Close the case for the night? This moves all ${inCase.length} pan(s) back into storage.`)) return;
+        if (!confirm(`Close the case for the night? This moves all ${inCase.length} pan(s) back into storage and clears the swap queue.`)) return;
 
         let shortRoom = slotsOpen('shortTerm');   // free pan slots
         let longRoom = slotsOpen('longTerm');
@@ -1797,10 +1797,12 @@
                 stuck.push(`${f.name} (${amt})`);  // no slot — leave it in the case
             }
         });
+        // the case is emptied for the night, so the staged swaps no longer apply
+        batch.set(queueDocRef(), { queue: [] }, { merge: true });
         await batch.commit();
-        logMove('close', `Closed case for the night — ${inCase.length} pan(s) moved to storage`);
-        if (stuck.length) status(`Closed, but storage was full — left in case: ${stuck.join(', ')}.`);
-        else status('Case closed for the night — everything moved to storage. 🌙', true);
+        logMove('close', `Closed case for the night — ${inCase.length} pan(s) moved to storage, swap queue cleared`);
+        if (stuck.length) status(`Closed, but storage was full — left in case: ${stuck.join(', ')}. Swap queue cleared.`);
+        else status('Case closed for the night — everything moved to storage, swap queue cleared. 🌙', true);
     }
 
     // ----- Case snapshot save / reload ------------------------------------
