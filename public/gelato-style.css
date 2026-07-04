@@ -1299,6 +1299,108 @@
     color: #ffe6b8;
 }
 
+/* ====================== SYNC CASE -> MENU ====================== */
+.g-btn-sync {
+    border-color: #2f5f8f;
+    background: linear-gradient(135deg, #1e4e7a, #14385a);
+    color: #dbeaff;
+}
+
+.g-modal.g-modal-wide .g-modal-card {
+    width: min(780px, 100%);
+}
+
+.g-sync-preview {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 14px;
+}
+
+@media (max-width: 620px) {
+    .g-sync-preview {
+        grid-template-columns: 1fr;
+    }
+}
+
+.g-sync-col {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, .03);
+    min-width: 0;
+}
+
+.g-sync-col h4 {
+    margin: 0 0 10px;
+    font-size: .95rem;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.g-sync-count {
+    font-size: .78rem;
+    font-weight: 800;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .1);
+}
+
+.g-sync-col.add {
+    border-color: var(--green);
+}
+
+.g-sync-col.add h4 {
+    color: var(--green);
+}
+
+.g-sync-col.remove {
+    border-color: var(--red);
+}
+
+.g-sync-col.remove h4 {
+    color: var(--red);
+}
+
+.g-sync-col ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    max-height: 340px;
+    overflow-y: auto;
+}
+
+.g-sync-col li {
+    font-size: .86rem;
+    font-weight: 600;
+    line-height: 1.45;
+    padding: 7px 11px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .05);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.g-sync-countdown {
+    text-align: center;
+    font-size: 3.4rem;
+    font-weight: 800;
+    color: #6fb8ff;
+    margin: 14px 0 6px;
+    font-variant-numeric: tabular-nums;
+}
+
+.g-sync-countdown span {
+    font-size: 1.4rem;
+    color: var(--muted);
+    margin-left: 4px;
+}
+
 /* ====================== ASSIGN MODAL ====================== */
 .g-modal {
     position: fixed;

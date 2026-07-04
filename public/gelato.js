@@ -68,10 +68,15 @@
     const snapshotDocRef = () => db.collection('gelatoSettings').doc('caseSnapshot');
     const orderDocRef = () => db.collection('gelatoSettings').doc('orderQueue');
     const pricingDocRef = () => db.collection('gelatoSettings').doc('pricing');
+    const menuBackupDocRef = () => db.collection('gelatoSettings').doc('menuBackup');
     const todayStr = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD (local)
     const usageDocRef = () => db.collection('gelatoUsage').doc(todayStr());
 
     const r2 = n => Math.round((Number(n) || 0) * 100) / 100;     // pan amounts -> 2dp
+    // The same flavor can live under several doc ids (e.g. after admin "Replace
+    // Menu Item" reuses/changes an id), so match a flavor to its menu entry and
+    // its stock by normalized NAME, not id.
+    const normName = s => String(s == null ? '' : s).trim().toLowerCase();
     const onMenu = f => !menuIds || menuIds.has(f.id);
     const hasStock = f => (f.active || 0) > EPS || (f.shortTerm || 0) > EPS || (f.longTerm || 0) > EPS;
     const doc = id => db.collection('gelatoInventory').doc(id);
@@ -201,6 +206,14 @@
             const v = d.exists ? Number(d.data().pricePerGram) : NaN;
             applyPricePerGram(v > 0 ? v : DEFAULT_PRICE_PER_GRAM);
         }, err => console.error('pricing snapshot error', err));
+
+        // show the emergency "Undo Menu Sync" button only while a backup exists
+        menuBackupDocRef().onSnapshot(d => {
+            const btn = document.getElementById('restore-menu');
+            if (!btn) return;
+            btn.hidden = !d.exists;
+            if (d.exists) btn.title = `Undo the sync from ${(d.data() || {}).savedAt || 'the last sync'}`;
+        }, err => console.error('menuBackup snapshot error', err));
     }
 
     /* Swap in a new $/gram rate and refresh everything priced with it. */
@@ -308,6 +321,201 @@
         }
     }
 
+    /* ----- Sync case -> menu (this system as source of truth) --------------
+     * Pushes the flavors currently in the display case onto the customer menu:
+     * case flavors not on the menu get added, menu flavors not in the case get
+     * removed, and everything is ordered by pan. A 1-minute visible countdown
+     * gives a coordination window so it can't collide with someone editing the
+     * menu elsewhere, and the pre-sync menu is snapshotted to gelatoSettings/
+     * menuBackup so the "Undo Menu Sync" button can put everything back. */
+    let syncCountdownTimer = null;
+    let syncInProgress = false;
+
+    /* What the sync would change, computed from the live case + menu. Matches
+     * by flavor NAME so a flavor already on the menu under a different doc id
+     * counts as "already on menu" (not a duplicate add). */
+    function computeMenuSyncPlan() {
+        const caseFlavors = casePans().slice().sort((a, b) => a.casePan - b.casePan);
+        const menuNames = new Set(menuFlavors.map(m => normName(m.name)));
+        const caseNames = new Set(caseFlavors.map(f => normName(f.name)));
+        const toAdd = caseFlavors.filter(f => !menuNames.has(normName(f.name)));
+        const stay = caseFlavors.filter(f => menuNames.has(normName(f.name)));
+        const toRemove = menuFlavors.filter(m => !caseNames.has(normName(m.name)));
+        return { caseFlavors, toAdd, stay, toRemove };
+    }
+
+    function openSyncToMenuModal() {
+        const { caseFlavors, toAdd, stay, toRemove } = computeMenuSyncPlan();
+        document.getElementById('g-modal-title').textContent = 'Sync Case → Menu';
+        const body = document.getElementById('g-modal-body');
+        document.getElementById('g-modal').classList.add('g-modal-wide');
+
+        if (!caseFlavors.length) {
+            body.innerHTML = `<p class="g-empty-note">There are no flavors in the case yet, so there's nothing to sync to the menu.</p>`;
+            showModal();
+            return;
+        }
+
+        const col = (title, items, cls, render) => `
+            <div class="g-sync-col ${cls}">
+                <h4>${title} <span class="g-sync-count">${items.length}</span></h4>
+                ${items.length ? `<ul>${items.map(render).join('')}</ul>` : `<p class="g-empty-note">None.</p>`}
+            </div>`;
+
+        body.innerHTML = `
+            <p class="g-modal-hint">The menu will be set to exactly the <strong>${caseFlavors.length}</strong> flavor(s) currently in the case, ordered by pan. Review the changes, then start the 1-minute sync window.</p>
+            <div class="g-sync-preview">
+                ${col('Added to menu', toAdd, 'add', f => `<li>Pan ${f.casePan} · ${esc(f.name)}</li>`)}
+                ${col('Replaced (removed)', toRemove, 'remove', m => `<li>${esc(m.name || '(unnamed)')}</li>`)}
+                ${col('Already on menu', stay, 'stay', f => `<li>Pan ${f.casePan} · ${esc(f.name)}</li>`)}
+            </div>
+            <div class="g-modal-actions">
+                <button type="button" class="g-modal-cancel" id="sync-cancel">Cancel</button>
+                <button type="button" class="g-modal-go" id="sync-start">Start 1-minute sync</button>
+            </div>`;
+        document.getElementById('sync-cancel').addEventListener('click', closeModal);
+        document.getElementById('sync-start').addEventListener('click', startSyncCountdown);
+        showModal();
+    }
+
+    /* Visible 60-second countdown before the sync commits. */
+    function startSyncCountdown() {
+        cancelSyncCountdown();
+        let remaining = 60;
+        const body = document.getElementById('g-modal-body');
+        body.innerHTML = `
+            <p class="g-modal-hint">Syncing shortly — make sure no one else is editing the menu right now. You can still cancel.</p>
+            <div class="g-sync-countdown">${remaining}<span>s</span></div>
+            <p class="g-modal-hint" style="text-align:center">The case flavors replace the menu when this reaches zero.</p>
+            <div class="g-modal-actions">
+                <button type="button" class="g-modal-cancel" id="sync-abort">Cancel sync</button>
+                <button type="button" class="g-modal-go" id="sync-now">Sync now</button>
+            </div>`;
+        document.getElementById('sync-abort').addEventListener('click', closeModal);
+        document.getElementById('sync-now').addEventListener('click', executeSyncToMenu);
+        syncCountdownTimer = setInterval(() => {
+            remaining -= 1;
+            const el = document.querySelector('.g-sync-countdown');
+            if (!el) { cancelSyncCountdown(); return; }   // modal was closed
+            if (remaining <= 0) { executeSyncToMenu(); return; }
+            el.innerHTML = `${remaining}<span>s</span>`;
+        }, 1000);
+    }
+
+    function cancelSyncCountdown() {
+        if (syncCountdownTimer) { clearInterval(syncCountdownTimer); syncCountdownTimer = null; }
+    }
+
+    /* Commit the sync: snapshot the current menu for undo, then rewrite the
+     * menu to match the case. Reads the menu fresh at execution time so a
+     * late edit elsewhere is captured in the backup rather than lost. */
+    async function executeSyncToMenu() {
+        if (syncInProgress) return;
+        cancelSyncCountdown();
+        const caseFlavors = casePans().slice().sort((a, b) => a.casePan - b.casePan);
+        if (!caseFlavors.length) { status('No flavors in the case to sync.'); closeModal(); return; }
+        syncInProgress = true;
+        try {
+            status('Syncing case → menu…');
+            const [menuSnap, pendingSnap] = await Promise.all([
+                db.collection('menuItems').get(),
+                db.collection('pendingItems').get()
+            ]);
+            const currentMenu = menuSnap.docs.map(d => ({ id: d.id, data: d.data() }));
+            const pendingById = new Map(pendingSnap.docs.map(d => [d.id, d.data()]));
+            // match to existing menu entries by NAME so we update the right doc
+            // instead of creating a duplicate under the case flavor's id
+            const menuByName = new Map();
+            currentMenu.forEach(m => menuByName.set(normName(m.data.name), m));
+            const removedPending = [];
+            const keptMenuIds = new Set();
+            const writtenNames = new Set();   // one menu write per flavor name
+
+            const batch = db.batch();
+
+            // 1) add/refresh each case flavor on the menu, ordered by pan.
+            caseFlavors.forEach(f => {
+                const key = normName(f.name);
+                if (writtenNames.has(key)) return;   // same flavor already handled
+                writtenNames.add(key);
+                const existing = menuByName.get(key);
+                const targetId = existing ? existing.id : f.id;
+                keptMenuIds.add(targetId);
+                const meta = liveMeta(f.id) || f;
+                const payload = {
+                    outOfStock: false,
+                    temporarilyUnavailable: false,
+                    order: f.casePan
+                };
+                if (!existing) {
+                    // brand-new menu entry: carry the name/image over from the flavor
+                    payload.name = meta.name || f.name || '(unnamed)';
+                    payload.imageURL = meta.imageURL || f.imageURL || '';
+                    payload.gelatoImage = meta.gelatoImage || f.gelatoImage || '';
+                    // promoting an off-menu flavor consumes its pendingItems copy
+                    if (pendingById.has(f.id)) {
+                        removedPending.push({ id: f.id, data: pendingById.get(f.id) });
+                        batch.delete(db.collection('pendingItems').doc(f.id));
+                    }
+                }
+                batch.set(db.collection('menuItems').doc(targetId), payload, { merge: true });
+            });
+
+            // 2) drop menu items whose name isn't in the case anymore
+            const toRemove = currentMenu.filter(m => !keptMenuIds.has(m.id));
+            const toAdd = caseFlavors.filter(f => !menuByName.has(normName(f.name)));
+            toRemove.forEach(m => batch.delete(db.collection('menuItems').doc(m.id)));
+
+            // 3) snapshot pre-sync state so the emergency undo can restore it
+            batch.set(menuBackupDocRef(), {
+                at: stamp(),
+                savedAt: new Date().toLocaleString(),
+                menuItems: currentMenu.map(m => ({ id: m.id, data: m.data })),
+                removedPending
+            });
+
+            await batch.commit();
+            logMove('menu-sync', `Synced case → menu: ${caseFlavors.length} on menu (+${toAdd.length} added, ${toRemove.length} replaced)`);
+            status(`Menu synced to the case — ${caseFlavors.length} flavor(s). Use "Undo Menu Sync" to revert.`, true);
+            closeModal();
+        } catch (e) {
+            console.error('executeSyncToMenu failed', e);
+            status('Sync failed — see console. The menu was not changed.');
+        } finally {
+            syncInProgress = false;
+        }
+    }
+
+    /* Emergency restore: put the menu back exactly as it was before the last
+     * sync, and re-create any pendingItems the sync consumed. */
+    async function restoreMenuBackup() {
+        try {
+            const snap = await menuBackupDocRef().get();
+            if (!snap.exists) { status('No menu backup found to restore.'); return; }
+            const b = snap.data() || {};
+            const savedList = Array.isArray(b.menuItems) ? b.menuItems : [];
+            const savedPending = Array.isArray(b.removedPending) ? b.removedPending : [];
+            if (!confirm(
+                `Restore the menu to its state before the last sync (${b.savedAt || 'unknown time'})?\n\n` +
+                `This puts back ${savedList.length} menu item(s) and undoes the sync.`
+            )) return;
+
+            status('Restoring menu…');
+            const menuSnap = await db.collection('menuItems').get();
+            const batch = db.batch();
+            menuSnap.docs.forEach(d => batch.delete(db.collection('menuItems').doc(d.id)));
+            savedList.forEach(m => batch.set(db.collection('menuItems').doc(m.id), m.data));
+            savedPending.forEach(p => batch.set(db.collection('pendingItems').doc(p.id), p.data));
+            batch.delete(menuBackupDocRef());   // clears the backup -> hides the Undo button
+            await batch.commit();
+            logMove('menu-restore', `Emergency restore — put the menu back to ${b.savedAt || 'its pre-sync state'} (${savedList.length} item(s))`);
+            status('Menu restored to its pre-sync state.', true);
+        } catch (e) {
+            console.error('restoreMenuBackup failed', e);
+            status('Restore failed — see console.');
+        }
+    }
+
     // ----- UI wiring -------------------------------------------------------
     function wireUi() {
         document.getElementById('sync-flavors').addEventListener('click', async () => {
@@ -316,6 +524,8 @@
             status('Synced.', true);
         });
         document.getElementById('reset-inventory').addEventListener('click', resetInventory);
+        document.getElementById('sync-to-menu').addEventListener('click', openSyncToMenuModal);
+        document.getElementById('restore-menu').addEventListener('click', restoreMenuBackup);
         const pickMode = m => { localStorage.setItem('gelatoViewMode', m); setMode(m); };
         document.getElementById('mode-visual').addEventListener('click', () => pickMode('visual'));
         document.getElementById('mode-stats').addEventListener('click', () => pickMode('stats'));
@@ -935,6 +1145,21 @@
         renderOrderQueue();
     }
 
+    /* Short-term "backup" for a flavor = every short-term pan sharing that
+     * flavor's name, summed across all inventory docs (stock for one flavor
+     * can sit under a different doc id than the case pan). Returns the pan
+     * total and the number of physical slots. */
+    function shortTermBackupFor(name) {
+        const key = normName(name);
+        let slots = 0, pans = 0;
+        flavors.forEach(f => {
+            if (normName(f.name) !== key) return;
+            slots += panCount(f, 'shortTerm');
+            pans += (f.shortTerm || 0);
+        });
+        return { slots, pans: r2(pans) };
+    }
+
     /* Every flavor currently in the case, alongside whether it has a
      * same-flavor replacement pan sitting in the short-term freezer — i.e.
      * whether it's safe to swap in without waiting on a fresh pan. Reuses the
@@ -946,9 +1171,9 @@
         if (!el) return;
         const inCase = casePans().slice().sort((a, b) => a.casePan - b.casePan);
         if (!inCase.length) { el.innerHTML = `<p class="g-empty-note">The case is empty.</p>`; return; }
-        const m = Math.max(2, ...inCase.map(f => panCount(f, 'shortTerm')));
+        const m = Math.max(2, ...inCase.map(f => shortTermBackupFor(f.name).slots));
         el.innerHTML = inCase.map(f => {
-            const backupPans = panCount(f, 'shortTerm');
+            const backupPans = shortTermBackupFor(f.name).slots;
             const hasBackup = backupPans > 0;
             const queued = queue.some(q => q.pan === f.casePan);
             const pct = hasBackup ? Math.max(6, (backupPans / m) * 100) : 3;
@@ -1727,7 +1952,12 @@
     }
 
     function showModal() { document.getElementById('g-modal').hidden = false; }
-    function closeModal() { document.getElementById('g-modal').hidden = true; }
+    function closeModal() {
+        cancelSyncCountdown();
+        const m = document.getElementById('g-modal');
+        m.hidden = true;
+        m.classList.remove('g-modal-wide');
+    }
 
     // ----- Add stock (production intake) ----------------------------------
     const stockSource = () => document.getElementById('as-source').value;
