@@ -929,9 +929,98 @@
             Math.max(SHORT_CAP / 4, maxVal('shortTerm')), false);
         bars('stat-long', withAmt('longTerm').map(f => ({ name: f.name, val: f.longTerm || 0 })),
             Math.max(LONG_CAP / 4, maxVal('longTerm')), false);
+        renderCaseBackup();
 
         renderStatTable();
         renderOrderQueue();
+    }
+
+    /* Every flavor currently in the case, alongside whether it has a
+     * same-flavor replacement pan sitting in the short-term freezer — i.e.
+     * whether it's safe to swap in without waiting on a fresh pan. Reuses the
+     * .g-bar-row markup so this card matches "Case fill by pan" next to it:
+     * same row height/columns, so the two cards line up at the same size.
+     * Rows also flag whether a swap is already staged in the queue. */
+    function renderCaseBackup() {
+        const el = document.getElementById('stat-case-backup');
+        if (!el) return;
+        const inCase = casePans().slice().sort((a, b) => a.casePan - b.casePan);
+        if (!inCase.length) { el.innerHTML = `<p class="g-empty-note">The case is empty.</p>`; return; }
+        const m = Math.max(2, ...inCase.map(f => panCount(f, 'shortTerm')));
+        el.innerHTML = inCase.map(f => {
+            const backupPans = panCount(f, 'shortTerm');
+            const hasBackup = backupPans > 0;
+            const queued = queue.some(q => q.pan === f.casePan);
+            const pct = hasBackup ? Math.max(6, (backupPans / m) * 100) : 3;
+            const label = `Pan ${f.casePan} · ${f.name}${queued ? ' 🔄' : ''}`;
+            const title = queued
+                ? 'Click to see the staged swap'
+                : (hasBackup ? `${backupPans} backup pan${backupPans === 1 ? '' : 's'} ready` : 'No backup pan in short-term');
+            return `
+            <div class="g-bar-row">
+                <span class="g-bar-label ${queued ? 'is-queued' : ''}"
+                    ${queued ? `data-pan="${f.casePan}"` : ''} title="${esc(title)}">${esc(label)}</span>
+                <span class="g-bar-track"><span class="g-bar ${hasBackup ? '' : 'low'}" style="width:${pct}%"></span></span>
+                <span class="g-bar-val">${backupPans}</span>
+            </div>`;
+        }).join('');
+        el.querySelectorAll('.g-bar-label.is-queued').forEach(node => {
+            node.addEventListener('click', e => {
+                e.stopPropagation();
+                const info = queueStageMessage(Number(node.dataset.pan));
+                if (info) showStagePopup(node, info);
+            });
+        });
+    }
+
+    /* Ready/waiting status for a pan's queued swap — same logic
+     * renderQueueList() uses, surfaced here for the click-to-check on the
+     * Case → Short-Term Backup card. */
+    function queueStageMessage(pan) {
+        const q = queue.find(x => x.pan === pan);
+        if (!q) return null;
+        const name = nameById(q.flavorId) || q.name;
+        const target = flavors.find(f => f.casePan === pan);
+        if (!target) return { ready: true, text: `${name} → Pan ${pan}: READY (pan is empty).` };
+        const lvl = target.active || 0;
+        return lvl <= SWAP_THRESHOLD + EPS
+            ? { ready: true, text: `${name} → Pan ${pan}: READY — pan is at ${r2(lvl)}.` }
+            : { ready: false, text: `${name} → Pan ${pan}: staged, waiting — pan still at ${r2(lvl)} (swaps in at ${SWAP_THRESHOLD}).` };
+    }
+
+    /* Popover anchored right next to whatever was clicked, so checking a
+     * swap's stage never requires scrolling up to the status bar. */
+    let stagePopupHandlersAttached = false;
+    function showStagePopup(anchorEl, info) {
+        const popup = document.getElementById('g-stage-popup');
+        if (!popup) return;
+        popup.textContent = info.text;
+        popup.className = `g-stage-popup ${info.ready ? 'ready' : 'wait'}`;
+        popup.hidden = false;
+
+        const rect = anchorEl.getBoundingClientRect();
+        popup.style.top = `${rect.bottom + 8}px`;
+        popup.style.left = `${rect.left}px`;
+        // clamp inside the viewport once we know the popup's rendered size
+        requestAnimationFrame(() => {
+            const maxLeft = window.innerWidth - popup.offsetWidth - 8;
+            popup.style.left = `${Math.max(8, Math.min(rect.left, maxLeft))}px`;
+            const maxTop = window.innerHeight - popup.offsetHeight - 8;
+            if (rect.bottom + 8 > maxTop) popup.style.top = `${Math.max(8, rect.top - popup.offsetHeight - 8)}px`;
+        });
+
+        if (!stagePopupHandlersAttached) {
+            stagePopupHandlersAttached = true;
+            document.addEventListener('click', hideStagePopup);
+            document.addEventListener('keydown', e => { if (e.key === 'Escape') hideStagePopup(); });
+            window.addEventListener('scroll', hideStagePopup, true);
+            window.addEventListener('resize', hideStagePopup);
+        }
+    }
+
+    function hideStagePopup() {
+        const popup = document.getElementById('g-stage-popup');
+        if (popup) popup.hidden = true;
     }
 
     const maxVal = loc => flavors.reduce((m, f) => Math.max(m, f[loc] || 0), 0) || 1;

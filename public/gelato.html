@@ -89,6 +89,10 @@
                     <div class="g-stats" id="stat-case"></div>
                 </div>
                 <div class="g-stat-block">
+                    <h3>Case → Short-Term Backup</h3>
+                    <div class="g-stats" id="stat-case-backup"></div>
+                </div>
+                <div class="g-stat-block">
                     <h3>Short-Term Freezer (pans)</h3>
                     <div class="g-stats" id="stat-short"></div>
                 </div>
@@ -251,6 +255,9 @@
             <div id="g-modal-body"></div>
         </div>
     </div>
+
+    <!-- Swap-stage popup: appears next to whatever was clicked, no scrolling needed -->
+    <div id="g-stage-popup" class="g-stage-popup" hidden></div>
 
     <script>
         document.getElementById('back-to-admin').addEventListener('click', () => {
