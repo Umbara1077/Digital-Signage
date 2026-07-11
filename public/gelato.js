@@ -62,8 +62,10 @@
     let orderQueue = [];       // flavors flagged to make (production list)
     let viewMode = 'visual';   // 'visual' | 'stats' | 'mobile'
     let statMode = false;      // kept in sync with viewMode === 'stats'
-    let openPanChips = new Set();   // "id|loc|idx" keys of chips in adjust mode
+    let openPanChips = new Set();   // "id|loc|idx|amt" keys of chips in adjust mode
     let chipHandlersAttached = false;
+    let autoStageExcluded = new Set();  // "pan|flavorId" keys excluded from auto-stage (manually removed)
+    let _started = false;  // prevents wireUi/start from running twice if auth fires twice
     const queueDocRef = () => db.collection('gelatoSettings').doc('queue');
     const snapshotDocRef = () => db.collection('gelatoSettings').doc('caseSnapshot');
     const orderDocRef = () => db.collection('gelatoSettings').doc('orderQueue');
@@ -140,6 +142,8 @@
     document.addEventListener('DOMContentLoaded', () => {
         firebase.auth().onAuthStateChanged(user => {
             if (!user) return; // auth gate in the page handles redirect
+            if (_started) return; // auth can fire twice (null then user) — only boot once
+            _started = true;
             db = firebase.firestore();
             wireUi();
             start();
@@ -560,7 +564,7 @@
 
         document.getElementById('add-to-case').addEventListener('click', () => {
             const pan = firstFreePan();
-            if (!pan) { status('The case is full (18 pans).'); return; }
+            if (!pan) { status(`The case is full (${CASE_SLOTS} pans).`); return; }
             openAssignModal(pan);
         });
         document.getElementById('close-case').addEventListener('click', closeCase);
@@ -896,7 +900,8 @@
         casePans().forEach(f => {
             // predictive: stage a refill for ANY pan that has a short-term
             // replacement ready, even before it drops into the red
-            if (caseStock(f) > EPS && !queue.some(q => q.pan === f.casePan)) {
+            if (caseStock(f) > EPS && !queue.some(q => q.pan === f.casePan)
+                    && !autoStageExcluded.has(`${f.casePan}|${f.id}`)) {
                 additions.push({ pan: f.casePan, flavorId: f.id, name: f.name });
             }
         });
@@ -1005,16 +1010,17 @@
             // one chip per physical pan — collapsed shows amount + ✕; clicking amount expands to −/+
             const chips = arr.map((amt, idx) => {
                 const t = freezerTone(amt >= 1 - EPS ? 3 : 1);   // full pan green, partial red-ish
-                const key = `${f.id}|${loc}|${idx}`;
+                // key encodes the rendered value so a stale key doesn't match a shifted index
+                const key = `${f.id}|${loc}|${idx}|${r2(amt)}`;
                 if (openPanChips.has(key)) {
-                    return `<span class="g-pan-chip ${t} is-open" data-id="${f.id}" data-loc="${loc}" data-idx="${idx}" data-key="${key}">` +
+                    return `<span class="g-pan-chip ${t} is-open" data-id="${f.id}" data-loc="${loc}" data-idx="${idx}" data-amt="${r2(amt)}" data-key="${key}">` +
                         `<button type="button" class="g-pan-chip-minus">−</button>` +
                         `<span class="g-pan-chip-val">${r2(amt)}</span>` +
                         `<button type="button" class="g-pan-chip-plus">+</button>` +
                         `<button type="button" class="g-pan-chip-remove" title="Remove this pan">✕</button>` +
                         `</span>`;
                 }
-                return `<span class="g-pan-chip ${t}" data-id="${f.id}" data-loc="${loc}" data-idx="${idx}" data-key="${key}">` +
+                return `<span class="g-pan-chip ${t}" data-id="${f.id}" data-loc="${loc}" data-idx="${idx}" data-amt="${r2(amt)}" data-key="${key}">` +
                     `<button type="button" class="g-pan-chip-amt" title="Adjust amount">${r2(amt)}</button>` +
                     `<button type="button" class="g-pan-chip-remove" title="Remove this pan">✕</button>` +
                     `</span>`;
@@ -1060,9 +1066,18 @@
         // remove button (works in both states)
         wrap.querySelectorAll('.g-pan-chip-remove').forEach(btn => {
             const chip = btn.closest('.g-pan-chip');
-            btn.addEventListener('click', () => {
-                openPanChips.delete(chip.dataset.key);
-                emptyStoragePan(chip.dataset.id, chip.dataset.loc, Number(chip.dataset.idx));
+            btn.addEventListener('click', async () => {
+                const removed = await emptyStoragePan(
+                    chip.dataset.id, chip.dataset.loc, Number(chip.dataset.idx),
+                    Number(chip.dataset.amt), chip.dataset.key);
+                if (removed) {
+                    // a removal shifts all subsequent indices — clear all expand-state
+                    // keys for this flavor/loc so no chip re-opens at the wrong position
+                    const prefix = `${chip.dataset.id}|${chip.dataset.loc}|`;
+                    for (const k of [...openPanChips]) {
+                        if (k.startsWith(prefix)) openPanChips.delete(k);
+                    }
+                }
             });
         });
 
@@ -1087,18 +1102,25 @@
         }
     }
 
-    /* Empty a single freezer pan (click a chip). Removes just that pan. */
-    async function emptyStoragePan(id, loc, idx) {
+    /* Empty a single freezer pan (click a chip). Removes just that pan.
+     * expectedAmt and key come from the chip's data attributes so we can
+     * detect stale indices and delete the expand-state key only after confirm. */
+    async function emptyStoragePan(id, loc, idx, expectedAmt, key) {
         const f = byId(id);
-        if (!f) return;
+        if (!f) return false;
         const arr = pansOf(f, loc);
         const amt = arr[idx];
-        if (amt == null) return;
-        if (!confirm(`Empty this ${r2(amt)} pan of ${f.name} from ${LOCATION_LABELS[loc]}?`)) return;
+        if (amt == null || Math.abs(r2(amt) - r2(expectedAmt)) > EPS) {
+            status('Pan data changed — please wait for the page to refresh.');
+            return false;
+        }
+        if (!confirm(`Empty this ${r2(amt)} pan of ${f.name} from ${LOCATION_LABELS[loc]}?`)) return false;
+        if (key) openPanChips.delete(key);  // delete only after the user confirms (not before)
         const next = arr.slice();
         next.splice(idx, 1);
         await doc(id).update(setPans({ updatedAt: stamp() }, loc, next));
         logMove('empty', `Emptied a ${r2(amt)} pan of ${f.name} from ${LOCATION_LABELS[loc]}`);
+        return true;
     }
 
     /* Adjust the fill amount of a single freezer pan. */
@@ -1106,7 +1128,7 @@
         const f = byId(id);
         if (!f) return;
         const arr = pansOf(f, loc);
-        if (arr[idx] == null) return;
+        if (arr[idx] == null) { status('Pan data changed — please wait for the page to refresh.'); return; }
         const clamped = r2(Math.max(0.1, Math.min(1, newAmt)));
         if (Math.abs(clamped - arr[idx]) < EPS) return;
         const next = arr.slice();
@@ -1506,6 +1528,8 @@
     }
 
     async function removeFromQueue(i) {
+        const entry = queue[i];
+        if (entry) autoStageExcluded.add(`${entry.pan}|${entry.flavorId}`);
         const next = queue.slice();
         next.splice(i, 1);
         await queueDocRef().set({ queue: next }, { merge: true });
@@ -1534,9 +1558,15 @@
         if (outgoing && outgoing.id !== incoming.id) {
             batch.update(doc(outgoing.id), { active: 0, casePan: null, updatedAt: stamp() });
         }
+        // if replacing the same flavor (e.g. Pistachio→Pistachio), the existing
+        // case gelato would be silently overwritten — return it to storage first
+        const existingActive = (outgoing && outgoing.id === incoming.id) ? r2(outgoing.active || 0) : 0;
+        const baseShortPans = existingActive > EPS
+            ? addPans(pansOf(incoming, 'shortTerm'), existingActive)
+            : pansOf(incoming, 'shortTerm');
         batch.update(doc(incoming.id), setPans(
             { active: take, casePan: q.pan, updatedAt: stamp() },
-            'shortTerm', pullPans(pansOf(incoming, 'shortTerm'), take)));
+            'shortTerm', pullPans(baseShortPans, take)));
         await batch.commit();
 
         const next = queue.slice();
@@ -1597,16 +1627,17 @@
         const f = byId(id);
         if (!f) return;
         const fromShort = pullShort ? Math.min(caseStock(f), add) : 0;
-        const newActive = r2((f.active || 0) + add);
+        // only add what was actually pulled — don't invent inventory when shortTerm
+        // holds less than the requested amount
+        const actualAdd = pullShort ? fromShort : add;
+        const newActive = r2((f.active || 0) + actualAdd);
         await doc(id).update(setPans(
             { active: newActive, updatedAt: stamp() },
             'shortTerm', pullPans(pansOf(f, 'shortTerm'), fromShort)));
         closeModal();
-        const src = fromShort > EPS
-            ? `${r2(fromShort)} from Short-Term${fromShort < add - EPS ? `, ${r2(add - fromShort)} added` : ''}`
-            : 'added (thin air)';
-        logMove('transfer', `Added ${r2(add)} to Pan ${f.casePan} (${f.name}) — ${src} — now ${newActive}`);
-        status(`Added ${r2(add)} to ${f.name}. Now ${newActive}.`, true);
+        const src = fromShort > EPS ? `${r2(fromShort)} from Short-Term` : 'added (thin air)';
+        logMove('transfer', `Added ${r2(actualAdd)} to Pan ${f.casePan} (${f.name}) — ${src} — now ${newActive}`);
+        status(`Added ${r2(actualAdd)} to ${f.name}. Now ${newActive}.`, true);
     }
 
     // ----- Merge into a pan -----------------------------------------------
@@ -1772,37 +1803,120 @@
     }
 
     /* Move every case pan's remaining gelato back into storage (short-term
-     * first, overflow to long-term) and clear the case for the night. */
+     * first, overflow to long-term) and clear the case for the night.
+     * After the move, if short-term exceeds SHORT_CAP, full (1.0) pans are
+     * automatically cascaded to long-term (oldest/first first) in the same
+     * batch, so everything commits atomically. */
     async function closeCase() {
         const inCase = casePans();
         if (!inCase.length) { status('The case is already empty.'); return; }
         if (!confirm(`Close the case for the night? This moves all ${inCase.length} pan(s) back into storage and clears the swap queue.`)) return;
 
-        let shortRoom = slotsOpen('shortTerm');   // free pan slots
-        let longRoom = slotsOpen('longTerm');
-        const batch = db.batch();
-        const stuck = [];
+        // Working copies of every flavor's pan lists — we never re-query Firestore
+        // mid-function because the snapshot hasn't fired yet after a write.
+        const shortWork = {}, longWork = {};
+        flavors.forEach(f => {
+            shortWork[f.id] = pansOf(f, 'shortTerm').slice();
+            longWork[f.id]  = pansOf(f, 'longTerm').slice();
+        });
+        let shortCount = flavors.reduce((s, f) => s + shortWork[f.id].length, 0);
+        let longCount  = flavors.reduce((s, f) => s + longWork[f.id].length, 0);
 
+        const changedShort = new Set(), changedLong = new Set();
+        const stuckIds = new Set(), stuck = [];
+
+        // Phase 1: return case pans to storage (short-term first)
         inCase.forEach(f => {
             const amt = r2(f.active || 0);
-            const clear = { active: 0, casePan: null, updatedAt: stamp() };
-            if (amt <= EPS) { batch.update(doc(f.id), clear); return; }
-            if (shortRoom > 0) {                   // back as its own pan (short first)
-                shortRoom--;
-                batch.update(doc(f.id), setPans(clear, 'shortTerm', addPans(pansOf(f, 'shortTerm'), amt)));
-            } else if (longRoom > 0) {
-                longRoom--;
-                batch.update(doc(f.id), setPans(clear, 'longTerm', addPans(pansOf(f, 'longTerm'), amt)));
+            if (amt <= EPS) return;
+            if (shortCount < SHORT_CAP) {
+                shortWork[f.id] = addPans(shortWork[f.id], amt);
+                shortCount++;
+                changedShort.add(f.id);
+            } else if (longCount < LONG_CAP) {
+                longWork[f.id] = addPans(longWork[f.id], amt);
+                longCount++;
+                changedLong.add(f.id);
             } else {
-                stuck.push(`${f.name} (${amt})`);  // no slot — leave it in the case
+                stuckIds.add(f.id);
+                stuck.push(`${f.name} (${amt})`);
             }
         });
-        // the case is emptied for the night, so the staged swaps no longer apply
+
+        // Phase 2: if short-term is over capacity, cascade full (1.0) pans to
+        // long-term, oldest first (index 0 of each flavor's array, flavors in
+        // alphabetical order), until short-term ≤ SHORT_CAP or no full pans remain.
+        const overflowMoves = [];
+        if (shortCount > SHORT_CAP) {
+            outer: for (const f of flavors) {
+                const arr = shortWork[f.id];
+                let i = 0;
+                while (i < arr.length) {
+                    if (shortCount <= SHORT_CAP) break outer;
+                    if (Math.abs(arr[i] - 1.0) < EPS) {
+                        if (longCount >= LONG_CAP) break outer;  // long-term full — can't move any more
+                        arr.splice(i, 1);
+                        shortCount--;
+                        changedShort.add(f.id);
+                        longWork[f.id] = addPans(longWork[f.id], 1.0);
+                        longCount++;
+                        changedLong.add(f.id);
+                        overflowMoves.push(f.name);
+                        // don't increment i — next element slid into this slot
+                    } else {
+                        i++;
+                    }
+                }
+            }
+        }
+
+        // Commit everything in one atomic batch
+        const batch = db.batch();
+        // Case pans: clear slot; include any storage changes for this flavor
+        inCase.forEach(f => {
+            if (stuckIds.has(f.id)) return;
+            const u = { active: 0, casePan: null, updatedAt: stamp() };
+            if (changedShort.has(f.id)) setPans(u, 'shortTerm', shortWork[f.id]);
+            if (changedLong.has(f.id))  setPans(u, 'longTerm',  longWork[f.id]);
+            batch.update(doc(f.id), u);
+        });
+        // Overflow may have touched flavors that weren't in the case tonight
+        for (const id of changedShort) {
+            if (inCase.some(f => f.id === id)) continue;
+            const u = { updatedAt: stamp() };
+            setPans(u, 'shortTerm', shortWork[id]);
+            if (changedLong.has(id)) setPans(u, 'longTerm', longWork[id]);
+            batch.update(doc(id), u);
+        }
+        for (const id of changedLong) {
+            if (inCase.some(f => f.id === id) || changedShort.has(id)) continue;
+            const u = { updatedAt: stamp() };
+            setPans(u, 'longTerm', longWork[id]);
+            batch.update(doc(id), u);
+        }
+        // the case is emptied for the night, so staged swaps no longer apply
         batch.set(queueDocRef(), { queue: [] }, { merge: true });
         await batch.commit();
-        logMove('close', `Closed case for the night — ${inCase.length} pan(s) moved to storage, swap queue cleared`);
-        if (stuck.length) status(`Closed, but storage was full — left in case: ${stuck.join(', ')}. Swap queue cleared.`);
-        else status('Case closed for the night — everything moved to storage, swap queue cleared. 🌙', true);
+
+        // Log
+        logMove('close', `Closed case for the night — ${inCase.length - stuckIds.size} pan(s) moved to storage, swap queue cleared`);
+        if (overflowMoves.length) {
+            const counts = {};
+            overflowMoves.forEach(n => counts[n] = (counts[n] || 0) + 1);
+            const detail = Object.entries(counts).map(([n, c]) => c > 1 ? `${n} ×${c}` : n).join(', ');
+            logMove('transfer', `Short-term overflow on close: moved ${overflowMoves.length} full pan(s) to Long-Term — ${detail}`);
+        }
+
+        // Status
+        const stillOver = shortCount > SHORT_CAP;
+        if (stuck.length || stillOver) {
+            const msgs = [];
+            if (stuck.length) msgs.push(`left in case: ${stuck.join(', ')}`);
+            if (stillOver) msgs.push(`short-term still over ${SHORT_CAP} slots — no full pans left to move to long-term`);
+            status(`Case closed with issues — ${msgs.join('; ')}. Swap queue cleared.`);
+        } else {
+            status('Case closed for the night — everything moved to storage, swap queue cleared. 🌙', true);
+        }
     }
 
     // ----- Case snapshot save / reload ------------------------------------
@@ -1850,7 +1964,7 @@
             const take = Math.min(panSum(s.shortPans), r2(p.active));   // capped at availability
             s.shortPans = pullPans(s.shortPans, take);
             s.active = take;
-            s.casePan = p.pan;
+            if (take > EPS) s.casePan = p.pan;  // no stock → don't occupy the slot
         });
         // write only the docs that changed
         const batch = db.batch();
