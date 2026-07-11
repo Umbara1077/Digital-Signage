@@ -77,10 +77,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 imageUrls.push({ name: data.name, url: data.imageURL });
             });
 
+            const pendingItemsByName = {};
             pendingItemsSnapshot.forEach(doc => {
                 const data = doc.data();
                 pendingItemNames.push(data.name);
                 imageUrls.push({ name: data.name, url: data.imageURL });
+                pendingItemsByName[data.name] = { ...data, id: doc.id };
             });
 
             const dropdowns = document.querySelectorAll('.item-name-dropdown');
@@ -90,6 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Store full pending list for search filtering
             window._allPendingItems = pendingItemNames.slice().sort((a, b) => a.localeCompare(b));
+            window._pendingItemsByName = pendingItemsByName;
 
             const pendingDropdowns = document.querySelectorAll('.pending-item-name-dropdown');
             pendingDropdowns.forEach(dropdown => {
@@ -104,6 +107,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // Populate "Temporarily Unavailable" dropdown for each item
             const tempAvailabilityDropdown = document.getElementById('tempAvailabilityItemName');
             tempAvailabilityDropdown.innerHTML = itemNames.map(item => `<option value="${item.id}" ${item.temporarilyUnavailable ? 'selected' : ''}>${item.name}</option>`).join('');
+
+            // Initialise previews for whichever pending item is currently selected
+            const addBackEl = document.getElementById('addBackItemName');
+            if (addBackEl && addBackEl.value) showFlavorPreview(addBackEl.value, 'addBackPreview');
+            const newPendingEl = document.getElementById('newPendingItemName');
+            if (newPendingEl && newPendingEl.value) showFlavorPreview(newPendingEl.value, 'newPendingPreview');
         }
 
         async function displayCurrentMenuItems() {
@@ -126,12 +135,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.outOfStock) statusText = 'Out of Stock';
                 if (data.temporarilyUnavailable) statusText = 'Temporarily Unavailable';
 
+                const hasGelato = !!data.gelatoImage;
                 menuItem.innerHTML = `
-                <img src="${data.imageURL}" alt="${data.name}">
+                <img src="${data.imageURL || ''}" alt="${data.name}" class="card-main-img">
                 <h3>${data.name}</h3>
                 <p>${data.description}</p>
                 <p>${statusText}</p>
+                <div class="card-img-actions">
+                    <button type="button" class="change-img-btn" data-field="imageURL">Change Menu Image</button>
+                    ${hasGelato ? '<button type="button" class="change-img-btn" data-field="gelatoImage">Change Gelato Image</button>' : ''}
+                </div>
             `;
+                menuItem.querySelectorAll('.change-img-btn[data-field]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const field = btn.dataset.field;
+                        const currentURL = data[field] || null;
+                        const folder = field === 'imageURL' ? 'images' : 'gelatoImage';
+                        const label = field === 'imageURL' ? 'Menu Image' : 'Gelato Image';
+                        openChangeImgModal(`Change ${label} — ${data.name}`, folder, async (newURL, isNewUpload) => {
+                            if (!newURL) return;
+                            try {
+                                await db.collection('menuItems').doc(doc.id).update({ [field]: newURL });
+                                if (field === 'imageURL') menuItem.querySelector('.card-main-img').src = newURL;
+                                if (isNewUpload && currentURL && currentURL !== newURL) {
+                                    const oldPath = extractStoragePath(currentURL);
+                                    if (oldPath) try { await storageRef.child(oldPath).delete(); } catch (_) {}
+                                }
+                                data[field] = newURL;
+                                alert('Image updated!');
+                            } catch (err) {
+                                console.error('Error changing image:', err);
+                                alert('Failed to update image.');
+                            }
+                        });
+                    });
+                });
 
                 menuGrid.appendChild(menuItem);
             });
@@ -159,6 +197,193 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Setup drag and drop
                 setupDragAndDrop(arrangeGrid);
             }
+        }
+
+        // Show a pending flavor's imageURL in the given <img> element.
+        function showFlavorPreview(name, imgId) {
+            const img = document.getElementById(imgId);
+            if (!img) return;
+            const data = window._pendingItemsByName && window._pendingItemsByName[name];
+            if (data && data.imageURL) {
+                img.src = data.imageURL;
+                img.alt = data.name || '';
+                img.hidden = false;
+            } else {
+                img.hidden = true;
+                img.src = '';
+            }
+        }
+
+        // Parse a Firebase Storage download URL back to its storage path
+        // e.g. ".../o/images%2Ffoo.jpg?..." → "images/foo.jpg"
+        function extractStoragePath(downloadURL) {
+            try {
+                const u = new URL(downloadURL);
+                const parts = u.pathname.split('/o/');
+                return parts.length >= 2 ? decodeURIComponent(parts[1].split('?')[0]) : null;
+            } catch (_) {
+                return null;
+            }
+        }
+
+        // === CHANGE IMAGE MODAL ===
+
+        let _cimCallback = null;
+        let _cimStorageFolder = null;
+        const _cimGalleryCache = {};
+
+        // Inject the shared picker modal into the page once
+        (function () {
+            const el = document.createElement('div');
+            el.id = 'changeImgModal';
+            el.className = 'cim-overlay';
+            el.innerHTML = `
+                <div class="cim-card">
+                    <button class="cim-close" id="cimClose" type="button">&#x2715;</button>
+                    <h3 class="cim-title" id="cimTitle">Change Image</h3>
+                    <div class="cim-upload">
+                        <label class="change-img-btn">Upload new image
+                            <input type="file" accept="image/*" id="cimFileInput" style="display:none">
+                        </label>
+                    </div>
+                    <p class="cim-or">— or pick an existing image —</p>
+                    <div class="cim-gallery" id="cimGallery"></div>
+                </div>
+            `;
+            document.body.appendChild(el);
+        })();
+
+        function closeCim() {
+            const modal = document.getElementById('changeImgModal');
+            if (modal) modal.classList.remove('open');
+            const fi = document.getElementById('cimFileInput');
+            if (fi) fi.value = '';
+            _cimCallback = null;
+            _cimStorageFolder = null;
+        }
+
+        async function openChangeImgModal(title, storageFolder, onPick) {
+            _cimCallback = onPick;
+            _cimStorageFolder = storageFolder;
+            document.getElementById('cimTitle').textContent = title;
+            document.getElementById('changeImgModal').classList.add('open');
+
+            const gallery = document.getElementById('cimGallery');
+            gallery.innerHTML = '<span class="cim-gallery-msg">Loading…</span>';
+
+            try {
+                let items = _cimGalleryCache[storageFolder];
+                if (!items) {
+                    const listResult = await storageRef.child(storageFolder + '/').listAll();
+                    const refs = listResult.items.slice(0, 60);
+                    const urls = await Promise.all(refs.map(r => r.getDownloadURL().catch(() => null)));
+                    items = refs.map((r, i) => ({ name: r.name, url: urls[i] })).filter(x => x.url);
+                    _cimGalleryCache[storageFolder] = items;
+                }
+
+                gallery.innerHTML = '';
+                if (!items.length) {
+                    gallery.innerHTML = '<span class="cim-gallery-msg">No existing images found.</span>';
+                    return;
+                }
+                items.forEach(({ name, url }) => {
+                    const img = document.createElement('img');
+                    img.className = 'cim-thumb';
+                    img.src = url;
+                    img.alt = name;
+                    img.title = name;
+                    img.addEventListener('click', () => {
+                        const cb = _cimCallback;
+                        closeCim();
+                        if (cb) cb(url, false);
+                    });
+                    gallery.appendChild(img);
+                });
+            } catch (err) {
+                console.error('Error loading image gallery:', err);
+                gallery.innerHTML = '<span class="cim-gallery-msg">Failed to load images.</span>';
+            }
+        }
+
+        // Wire modal-level handlers once (not per-card)
+        document.getElementById('cimClose').addEventListener('click', closeCim);
+        document.getElementById('changeImgModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) closeCim();
+        });
+        document.getElementById('cimFileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file || !_cimCallback || !_cimStorageFolder) return;
+            try {
+                const newRef = storageRef.child(_cimStorageFolder + '/' + Date.now() + '_' + file.name);
+                const snap = await newRef.put(file);
+                const newURL = await snap.ref.getDownloadURL();
+                delete _cimGalleryCache[_cimStorageFolder];  // invalidate so next open re-fetches
+                const cb = _cimCallback;
+                closeCim();
+                cb(newURL, true);
+            } catch (err) {
+                console.error('Error uploading image:', err);
+                alert('Failed to upload image.');
+                e.target.value = '';
+            }
+        });
+
+        async function displayPendingItems() {
+            const grid = document.getElementById('pendingItemsGrid');
+            if (!grid) return;
+            const pendingSnapshot = await db.collection('pendingItems').get();
+            grid.innerHTML = '';
+
+            pendingSnapshot.forEach(doc => {
+                const data = doc.data();
+                const card = document.createElement('div');
+                card.className = 'menu-item-card';
+                const hasGelato = !!data.gelatoImage;
+                card.innerHTML = `
+                    <img src="${data.imageURL || ''}" alt="${data.name}" class="card-main-img">
+                    <h3>${data.name}</h3>
+                    <p>${data.description || ''}</p>
+                    <div class="card-img-actions">
+                        <button type="button" class="change-img-btn" data-field="imageURL">Change Menu Image</button>
+                        ${hasGelato ? '<button type="button" class="change-img-btn" data-field="gelatoImage">Change Gelato Image</button>' : ''}
+                    </div>
+                `;
+                card.querySelectorAll('.change-img-btn[data-field]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const field = btn.dataset.field;
+                        const currentURL = data[field] || null;
+                        const folder = field === 'imageURL' ? 'images' : 'gelatoImage';
+                        const label = field === 'imageURL' ? 'Menu Image' : 'Gelato Image';
+                        openChangeImgModal(`Change ${label} — ${data.name}`, folder, async (newURL, isNewUpload) => {
+                            if (!newURL) return;
+                            try {
+                                await db.collection('pendingItems').doc(doc.id).update({ [field]: newURL });
+                                if (field === 'imageURL') {
+                                    card.querySelector('.card-main-img').src = newURL;
+                                    // Keep the preview in sync if this item is selected in a dropdown
+                                    if (window._pendingItemsByName && window._pendingItemsByName[data.name]) {
+                                        window._pendingItemsByName[data.name].imageURL = newURL;
+                                    }
+                                    const addBackSel = document.getElementById('addBackItemName');
+                                    if (addBackSel && addBackSel.value === data.name) showFlavorPreview(data.name, 'addBackPreview');
+                                    const newPendingSel = document.getElementById('newPendingItemName');
+                                    if (newPendingSel && newPendingSel.value === data.name) showFlavorPreview(data.name, 'newPendingPreview');
+                                }
+                                if (isNewUpload && currentURL && currentURL !== newURL) {
+                                    const oldPath = extractStoragePath(currentURL);
+                                    if (oldPath) try { await storageRef.child(oldPath).delete(); } catch (_) {}
+                                }
+                                data[field] = newURL;
+                                alert('Image updated!');
+                            } catch (err) {
+                                console.error('Error changing pending item image:', err);
+                                alert('Failed to update image.');
+                            }
+                        });
+                    });
+                });
+                grid.appendChild(card);
+            });
         }
 
         function setupDragAndDrop(grid) {
@@ -237,6 +462,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (filtered.length > 0) {
                     dropdown.value = filtered[0];
                     dropdown.dispatchEvent(new Event('change'));
+                } else {
+                    showFlavorPreview('', 'newPendingPreview');
                 }
             });
         }
@@ -263,6 +490,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert(`"${itemData.name}" has been removed from the menu and moved to pending items.`);
                 populateDropdowns();
                 displayCurrentMenuItems();
+                displayPendingItems();
             } catch (error) {
                 console.error('Error removing menu item:', error);
                 alert('Error removing menu item.');
@@ -291,6 +519,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const allItems = window._allPendingItems || [];
             const filtered = query === '' ? allItems : allItems.filter(name => name.toLowerCase().includes(query));
             dropdown.innerHTML = filtered.map(name => `<option value="${name}">${name}</option>`).join('');
+            if (filtered.length > 0) {
+                dropdown.value = filtered[0];
+                dropdown.dispatchEvent(new Event('change'));
+            } else {
+                showFlavorPreview('', 'addBackPreview');
+            }
+        });
+
+        document.getElementById('addBackItemName').addEventListener('change', (e) => {
+            showFlavorPreview(e.target.value, 'addBackPreview');
         });
 
         document.getElementById('addFromPendingForm').addEventListener('submit', async (e) => {
@@ -311,6 +549,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert(`"${pendingData.name}" has been added back to the menu.`);
                 populateDropdowns();
                 displayCurrentMenuItems();
+                displayPendingItems();
             } catch (error) {
                 console.error('Error adding item back to menu:', error);
                 alert('Error adding item back to menu.');
@@ -327,6 +566,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         document.getElementById('newPendingItemName').addEventListener('change', async (e) => {
+            showFlavorPreview(e.target.value, 'newPendingPreview');
             const pendingItemDetails = await getPendingItemDetails(e.target.value);
             if (pendingItemDetails) {
                 document.getElementById('newItemDescription').value = pendingItemDetails.description;
@@ -393,6 +633,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Menu item added to pending items successfully');
                 document.getElementById('addMenuItemForm').reset();
                 if (typeof populateDropdowns === 'function') populateDropdowns();
+                displayPendingItems();
 
             } catch (error) {
                 console.error('Error adding menu item: ', error);
@@ -465,6 +706,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Initial population of dropdowns and menu display
                         populateDropdowns();
                         displayCurrentMenuItems();
+                        displayPendingItems();
 
                         // Real-time listener for pending items changes
                         db.collection('pendingItems').onSnapshot(() => {
@@ -644,6 +886,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initial population of dropdowns and menu display
         populateDropdowns();
         displayCurrentMenuItems();
+        displayPendingItems();
 
         // === SAVE ARRANGE ORDER ===
         document.getElementById('saveOrderBtn').addEventListener('click', async () => {

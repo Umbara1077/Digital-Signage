@@ -649,3 +649,131 @@ a.btn {
   font-weight: 700;
   cursor: pointer;
 }
+
+/* ---------- Flavor image preview (pending selectors) ---------- */
+.flavor-preview {
+  grid-column: 1 / -1;
+  max-width: 150px;
+  max-height: 150px;
+  border-radius: 12px;
+  display: block;
+  margin: 2px auto 4px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
+/* ---------- Change Image button (menu & pending item cards) ---------- */
+.change-img-btn {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 7px 16px;
+  border-radius: 10px;
+  background: linear-gradient(var(--ink-2), var(--ink-2)), linear-gradient(135deg, #5aa1ff, #9b59ff);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  border: 1px solid transparent;
+  color: #e8f1ff;
+  font-size: .8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter .18s ease, transform .15s ease;
+}
+.change-img-btn:hover {
+  filter: brightness(1.12);
+  transform: translateY(-1px);
+}
+.change-img-btn:active {
+  transform: translateY(0) scale(.98);
+}
+
+/* ---------- Card image-action row (two buttons side by side) ---------- */
+.card-img-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.card-img-actions .change-img-btn {
+  margin-top: 0;
+}
+
+/* ---------- Change Image modal ---------- */
+.cim-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .6);
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+}
+.cim-overlay.open {
+  display: flex;
+}
+.cim-card {
+  background: var(--surface);
+  border-radius: 18px;
+  padding: 28px 24px 24px;
+  max-width: 700px;
+  width: calc(100% - 32px);
+  max-height: 85vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, .45);
+  border: 1px solid var(--border);
+}
+.cim-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  cursor: pointer;
+  color: var(--muted);
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background .15s;
+}
+.cim-close:hover {
+  background: var(--ink-2);
+  color: var(--fg);
+}
+.cim-title {
+  margin: 0 2rem 16px 0;
+  font-size: 1.05rem;
+}
+.cim-upload {
+  margin-bottom: 8px;
+}
+.cim-or {
+  text-align: center;
+  color: var(--muted);
+  font-size: .82rem;
+  margin: 8px 0 12px;
+}
+.cim-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 8px;
+}
+.cim-thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 9px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color .15s, transform .15s;
+}
+.cim-thumb:hover {
+  border-color: #5aa1ff;
+  transform: scale(1.05);
+}
+.cim-gallery-msg {
+  color: var(--muted);
+  font-size: .88rem;
+  grid-column: 1 / -1;
+  padding: 8px 0;
+}
