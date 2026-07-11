@@ -328,64 +328,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        async function displayPendingItems() {
-            const grid = document.getElementById('pendingItemsGrid');
-            if (!grid) return;
-            const pendingSnapshot = await db.collection('pendingItems').get();
-            grid.innerHTML = '';
-
-            pendingSnapshot.forEach(doc => {
-                const data = doc.data();
-                const card = document.createElement('div');
-                card.className = 'menu-item-card';
-                const hasGelato = !!data.gelatoImage;
-                card.innerHTML = `
-                    <img src="${data.imageURL || ''}" alt="${data.name}" class="card-main-img">
-                    <h3>${data.name}</h3>
-                    <p>${data.description || ''}</p>
-                    <div class="card-img-actions">
-                        <button type="button" class="change-img-btn" data-field="imageURL">Change Menu Image</button>
-                        ${hasGelato ? '<button type="button" class="change-img-btn" data-field="gelatoImage">Change Gelato Image</button>' : ''}
-                    </div>
-                `;
-                card.querySelectorAll('.change-img-btn[data-field]').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        const field = btn.dataset.field;
-                        const currentURL = data[field] || null;
-                        const folder = field === 'imageURL' ? 'images' : 'gelatoImage';
-                        const label = field === 'imageURL' ? 'Menu Image' : 'Gelato Image';
-                        openChangeImgModal(`Change ${label} — ${data.name}`, folder, async (newURL, isNewUpload) => {
-                            if (!newURL) return;
-                            try {
-                                await db.collection('pendingItems').doc(doc.id).update({ [field]: newURL });
-                                if (field === 'imageURL') {
-                                    card.querySelector('.card-main-img').src = newURL;
-                                    // Keep the preview in sync if this item is selected in a dropdown
-                                    if (window._pendingItemsByName && window._pendingItemsByName[data.name]) {
-                                        window._pendingItemsByName[data.name].imageURL = newURL;
-                                    }
-                                    const addBackSel = document.getElementById('addBackItemName');
-                                    if (addBackSel && addBackSel.value === data.name) showFlavorPreview(data.name, 'addBackPreview');
-                                    const newPendingSel = document.getElementById('newPendingItemName');
-                                    if (newPendingSel && newPendingSel.value === data.name) showFlavorPreview(data.name, 'newPendingPreview');
-                                }
-                                if (isNewUpload && currentURL && currentURL !== newURL) {
-                                    const oldPath = extractStoragePath(currentURL);
-                                    if (oldPath) try { await storageRef.child(oldPath).delete(); } catch (_) {}
-                                }
-                                data[field] = newURL;
-                                alert('Image updated!');
-                            } catch (err) {
-                                console.error('Error changing pending item image:', err);
-                                alert('Failed to update image.');
-                            }
-                        });
-                    });
-                });
-                grid.appendChild(card);
-            });
-        }
-
         function setupDragAndDrop(grid) {
             let draggedEl = null;
 
@@ -490,7 +432,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert(`"${itemData.name}" has been removed from the menu and moved to pending items.`);
                 populateDropdowns();
                 displayCurrentMenuItems();
-                displayPendingItems();
             } catch (error) {
                 console.error('Error removing menu item:', error);
                 alert('Error removing menu item.');
@@ -549,7 +490,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert(`"${pendingData.name}" has been added back to the menu.`);
                 populateDropdowns();
                 displayCurrentMenuItems();
-                displayPendingItems();
             } catch (error) {
                 console.error('Error adding item back to menu:', error);
                 alert('Error adding item back to menu.');
@@ -633,7 +573,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Menu item added to pending items successfully');
                 document.getElementById('addMenuItemForm').reset();
                 if (typeof populateDropdowns === 'function') populateDropdowns();
-                displayPendingItems();
 
             } catch (error) {
                 console.error('Error adding menu item: ', error);
@@ -706,7 +645,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Initial population of dropdowns and menu display
                         populateDropdowns();
                         displayCurrentMenuItems();
-                        displayPendingItems();
 
                         // Real-time listener for pending items changes
                         db.collection('pendingItems').onSnapshot(() => {
@@ -886,7 +824,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initial population of dropdowns and menu display
         populateDropdowns();
         displayCurrentMenuItems();
-        displayPendingItems();
 
         // === SAVE ARRANGE ORDER ===
         document.getElementById('saveOrderBtn').addEventListener('click', async () => {
