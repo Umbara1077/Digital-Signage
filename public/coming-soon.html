@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Marketing Hub — Coming Soon</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="dolce-logo.png" type="image/x-icon">
+    <style>
+        :root {
+            --green: #1db954;
+            --red: #ff4d4f;
+            --blue: #38a3ff;
+            --purple: #9b59ff;
+            --gold: #ffd873;
+            --bg1: #0b0d11;
+            --bg2: #11131a;
+            --grad-ita: linear-gradient(120deg, var(--green) 0%, var(--green) 33%, #ffffff 33%, #ffffff 66%, var(--red) 66%, var(--red) 100%);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        body {
+            font-family: ui-sans-serif, system-ui, Arial, sans-serif;
+            min-height: 100vh;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--bg1), #1a1030, var(--bg2), #0f2a1e);
+            background-size: 400% 400%;
+            animation: bgShift 16s ease-in-out infinite;
+        }
+
+        @keyframes bgShift {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        /* Soft drifting color orbs behind the card */
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(70px);
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .orb-1 {
+            width: 380px;
+            height: 380px;
+            top: -100px;
+            left: -80px;
+            background: var(--green);
+            animation: drift1 14s ease-in-out infinite;
+        }
+
+        .orb-2 {
+            width: 420px;
+            height: 420px;
+            bottom: -140px;
+            right: -100px;
+            background: var(--red);
+            animation: drift2 18s ease-in-out infinite;
+        }
+
+        .orb-3 {
+            width: 300px;
+            height: 300px;
+            top: 40%;
+            right: 10%;
+            background: var(--purple);
+            animation: drift3 12s ease-in-out infinite;
+        }
+
+        .orb-4 {
+            width: 260px;
+            height: 260px;
+            bottom: 10%;
+            left: 8%;
+            background: var(--blue);
+            animation: drift1 20s ease-in-out infinite -6s;
+        }
+
+        @keyframes drift1 {
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            50% {
+                transform: translate(60px, 40px) scale(1.15);
+            }
+        }
+
+        @keyframes drift2 {
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            50% {
+                transform: translate(-50px, -60px) scale(1.1);
+            }
+        }
+
+        @keyframes drift3 {
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            50% {
+                transform: translate(-40px, 50px) scale(0.9);
+            }
+        }
+
+        /* Twinkling sparkle particles */
+        .sparkle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: #fff;
+            opacity: 0;
+            animation: twinkle 4s ease-in-out infinite;
+        }
+
+        @keyframes twinkle {
+
+            0%,
+            100% {
+                opacity: 0;
+                transform: scale(0.5);
+            }
+
+            50% {
+                opacity: 0.9;
+                transform: scale(1.4);
+            }
+        }
+
+        .card {
+            position: relative;
+            z-index: 1;
+            width: min(92vw, 560px);
+            padding: 56px 44px;
+            text-align: center;
+            border-radius: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-top: 1px solid rgba(255, 255, 255, 0.55);
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(18px) saturate(160%);
+            -webkit-backdrop-filter: blur(18px) saturate(160%);
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.25),
+                0 0 60px rgba(29, 185, 84, 0.25),
+                0 0 90px rgba(255, 77, 79, 0.15),
+                0 20px 60px rgba(0, 0, 0, 0.5);
+            animation: cardFloat 5s ease-in-out infinite, cardIn 0.8s cubic-bezier(.34, 1.56, .64, 1) both;
+        }
+
+        @keyframes cardIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9) translateY(24px);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        @keyframes cardFloat {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .card::before {
+            content: "";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 12%;
+            right: 12%;
+            height: 3px;
+            border-radius: 999px;
+            background-image: var(--grad-ita);
+            opacity: 0.85;
+        }
+
+        .logo {
+            width: 92px;
+            height: 92px;
+            object-fit: contain;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 10px;
+            box-shadow: 0 0 30px rgba(29, 185, 84, 0.4), 0 0 50px rgba(255, 77, 79, 0.25);
+            animation: logoPulse 3s ease-in-out infinite;
+            margin-bottom: 10px;
+        }
+
+        @keyframes logoPulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 30px rgba(29, 185, 84, 0.4), 0 0 50px rgba(255, 77, 79, 0.25);
+            }
+
+            50% {
+                transform: scale(1.06);
+                box-shadow: 0 0 44px rgba(29, 185, 84, 0.6), 0 0 70px rgba(255, 77, 79, 0.4);
+            }
+        }
+
+        .eyebrow {
+            display: inline-block;
+            margin: 18px 0 6px;
+            padding: 5px 16px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #eafff0;
+            background: linear-gradient(135deg, rgba(29, 185, 84, 0.35), rgba(56, 163, 255, 0.35));
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        h1 {
+            margin: 10px 0 8px;
+            font-size: clamp(1.8rem, 5vw, 2.6rem);
+            font-weight: 900;
+            letter-spacing: 0.5px;
+            color: #ffffff;
+            text-shadow: 0 0 24px rgba(255, 255, 255, 0.35);
+        }
+
+        .coming-soon-tag {
+            display: inline-block;
+            margin: 4px 0 18px;
+            font-size: 1.05rem;
+            font-weight: 800;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            background: linear-gradient(90deg, var(--green), var(--gold), var(--red));
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: shine 4s linear infinite;
+        }
+
+        @keyframes shine {
+            0% {
+                background-position: 0% center;
+            }
+
+            100% {
+                background-position: 200% center;
+            }
+        }
+
+        p.subtitle {
+            margin: 0 auto;
+            max-width: 380px;
+            color: #cdd6e6;
+            font-size: 1.02rem;
+            line-height: 1.5;
+        }
+
+        .dots {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 26px;
+        }
+
+        .dots span {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--green), var(--blue), var(--purple), var(--red));
+            animation: dotBounce 1.4s ease-in-out infinite;
+        }
+
+        .dots span:nth-child(2) {
+            animation-delay: 0.15s;
+        }
+
+        .dots span:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        @keyframes dotBounce {
+
+            0%,
+            80%,
+            100% {
+                transform: translateY(0);
+                opacity: 0.5;
+            }
+
+            40% {
+                transform: translateY(-8px);
+                opacity: 1;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation: none !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div class="orb orb-4"></div>
+
+    <div class="card">
+        <img src="DolceLogo-Admin.png" alt="Dolce Vita Gelateria Logo" class="logo">
+        <div class="eyebrow">Dolce Vita Gelateria</div>
+        <h1>Marketing Hub</h1>
+        <div class="coming-soon-tag">Coming Soon</div>
+        <p class="subtitle">Something exciting is on the way.</p>
+        <div class="dots">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+    </div>
+
+    <script>
+        // Scatter a handful of twinkling sparkles across the page
+        const sparkleCount = 24;
+        for (let i = 0; i < sparkleCount; i++) {
+            const s = document.createElement('div');
+            s.className = 'sparkle';
+            s.style.left = Math.random() * 100 + 'vw';
+            s.style.top = Math.random() * 100 + 'vh';
+            s.style.animationDelay = (Math.random() * 4) + 's';
+            s.style.animationDuration = (3 + Math.random() * 3) + 's';
+            document.body.appendChild(s);
+        }
+    </script>
+</body>
+
+</html>
