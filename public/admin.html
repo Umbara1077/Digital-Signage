@@ -82,7 +82,7 @@
             gap: 24px;
             justify-content: center;
             align-items: center;
-            flex-wrap: nowrap;
+            flex-wrap: wrap;
         }
 
         @media (max-width: 768px) {
@@ -154,6 +154,22 @@
             animation: morphBlob3 7s ease-in-out infinite, floatBtn 3s ease-in-out infinite -2s, holographic 7s linear infinite -4s !important;
         }
 
+        .hero-btn:nth-child(4) {
+            background: linear-gradient(135deg, rgba(138, 43, 226, 0.25), rgba(180, 0, 255, 0.15), rgba(100, 0, 200, 0.2));
+            background-size: 400% 400%;
+            box-shadow: 0 0 25px rgba(138, 43, 226, 0.7), 0 0 60px rgba(180, 0, 255, 0.4);
+            border-color: rgba(180, 0, 255, 0.7);
+            animation: morphBlob4 9s ease-in-out infinite, floatBtn 4s ease-in-out infinite -3s, holographic 8s linear infinite !important;
+        }
+
+        .hero-btn:nth-child(5) {
+            background: linear-gradient(135deg, rgba(255, 0, 128, 0.25), rgba(255, 100, 200, 0.15), rgba(200, 0, 150, 0.2));
+            background-size: 400% 400%;
+            box-shadow: 0 0 25px rgba(255, 0, 128, 0.7), 0 0 60px rgba(200, 0, 150, 0.4);
+            border-color: rgba(255, 0, 128, 0.7);
+            animation: morphBlob5 5.5s ease-in-out infinite, floatBtn 4s ease-in-out infinite -4s, holographic 8s linear infinite !important;
+        }
+
         /* Shimmer overlay */
         .hero-btn::before {
             content: '';
@@ -172,6 +188,14 @@
 
         .hero-btn:nth-child(3)::before {
             animation-delay: 2s;
+        }
+
+        .hero-btn:nth-child(4)::before {
+            animation-delay: 3s;
+        }
+
+        .hero-btn:nth-child(5)::before {
+            animation-delay: 4s;
         }
 
         @keyframes morphBlob {
@@ -223,6 +247,34 @@
 
             80% {
                 border-radius: 40% 70% 30% 60% / 50% 40% 70% 30%;
+            }
+        }
+
+        @keyframes morphBlob4 {
+
+            0%,
+            100% {
+                border-radius: 55% 45% 65% 35% / 45% 55% 40% 60%;
+            }
+
+            30% {
+                border-radius: 35% 65% 40% 60% / 65% 40% 60% 35%;
+            }
+
+            60% {
+                border-radius: 65% 35% 55% 45% / 40% 65% 35% 60%;
+            }
+        }
+
+        @keyframes morphBlob5 {
+
+            0%,
+            100% {
+                border-radius: 45% 55% 50% 50% / 55% 45% 60% 40%;
+            }
+
+            50% {
+                border-radius: 60% 40% 35% 65% / 40% 60% 45% 55%;
             }
         }
 
@@ -299,6 +351,8 @@
             <button id="view-main-button" class="hero-btn">View Menu Page</button>
             <a href="https://dolcecaffesignage.web.app/admin.html" class="btn hero-btn">Caffe Menu</a>
             <a href="gelato.html" class="btn hero-btn">Gelato Inventory</a>
+            <a href="https://dolcevitagelato-inventory.web.app" target="_blank" rel="noopener noreferrer" class="btn hero-btn" title="Stock & Supplies">Supply Hub</a>
+            <a href="https://gelatosystem.web.app" target="_blank" rel="noopener noreferrer" class="btn hero-btn" title="Recipes & Formulas">Gelato Lab</a>
         </div>
 
         <section>
