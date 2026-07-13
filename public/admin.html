@@ -75,129 +75,192 @@
     </script>
 
     <style>
-        /* Neon glass top buttons. .btn already sets `transform` on hover/active
-           and the page has a prefers-reduced-motion rule that forces
-           `animation: none !important` on every element, so the base idle
-           animation here needs !important to actually run. The "View Menu
-           Page" button also has id="view-main-button", which admin-style.css
-           targets directly — an ID selector always outranks a class
-           selector's specificity, so #view-main-button is added alongside
-           .hero-btn below wherever a property would otherwise lose to it. */
+        /* Top action buttons: row on desktop, stacked on mobile. */
+        .top-actions {
+            display: flex;
+            flex-direction: row;
+            gap: 24px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: nowrap;
+        }
+
+        @media (max-width: 768px) {
+            .top-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+
+        /* Morphing liquid-blob holographic buttons. admin-style.css targets
+           #view-main-button directly with a plain class-less ID selector, and
+           an ID always outranks a class selector's specificity — so
+           #view-main-button is added alongside .hero-btn / .hero-btn:nth-child(1)
+           / :hover / :active below wherever a property would otherwise lose to
+           it. Animation gets !important so it also beats the page's
+           prefers-reduced-motion rule (`* { animation: none !important }`),
+           since an ID + !important still outranks a universal-selector
+           !important rule on specificity. */
         #view-main-button,
         .hero-btn {
             position: relative;
-            display: inline-block;
-            padding: 18px 44px;
-            font-size: 18px;
-            font-weight: 700;
-            color: #ffffff;
+            padding: 20px 40px;
+            font-size: 17px;
+            font-weight: 800;
+            color: white;
             text-transform: uppercase;
-            letter-spacing: 2px;
-            border-radius: 50px;
-            border: 2px solid rgba(255, 255, 255, 0.4);
-            background: rgba(255, 255, 255, 0.07);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+            letter-spacing: 3px;
+            border: none;
             cursor: pointer;
             overflow: hidden;
-            text-shadow: 0 0 10px currentColor;
-            animation: btnFloat 3s ease-in-out infinite, btnEntrance 0.6s ease-out both !important;
-            transition: transform 0.2s, box-shadow 0.2s;
+            min-width: 180px;
+
+            /* Morphing blob shape */
+            border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+            animation: morphBlob 6s ease-in-out infinite, floatBtn 4s ease-in-out infinite, holographic 8s linear infinite !important;
+
+            /* Holographic base */
+            background: linear-gradient(135deg, #667eea, #764ba2, #f093fb, #4facfe, #00f2fe);
+            background-size: 400% 400%;
+
+            /* Glow */
+            box-shadow: 0 0 25px rgba(102, 126, 234, 0.6), 0 0 60px rgba(118, 75, 162, 0.3);
+
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
         }
 
-        /* Each button gets a different neon color glow */
+        /* Each button gets different blob timing and color theme */
         #view-main-button,
         .hero-btn:nth-child(1) {
-            box-shadow: 0 0 15px rgba(255, 50, 80, 0.6), 0 0 40px rgba(255, 50, 80, 0.3), inset 0 0 20px rgba(255, 50, 80, 0.1);
-            border-color: rgba(255, 80, 100, 0.7);
-            animation-delay: 0s;
+            background: linear-gradient(135deg, #ff0844, #ffb199, #ff6b6b, #ee0979);
+            background-size: 400% 400%;
+            box-shadow: 0 0 25px rgba(255, 8, 68, 0.7), 0 0 60px rgba(238, 9, 121, 0.4);
+            animation: morphBlob 6s ease-in-out infinite, floatBtn 3.5s ease-in-out infinite, holographic 6s linear infinite !important;
         }
 
         .hero-btn:nth-child(2) {
-            box-shadow: 0 0 15px rgba(0, 255, 150, 0.6), 0 0 40px rgba(0, 255, 150, 0.3), inset 0 0 20px rgba(0, 255, 150, 0.1);
-            border-color: rgba(0, 255, 150, 0.7);
-            animation-delay: -1s;
+            background: linear-gradient(135deg, #00f2fe, #4facfe, #43e97b, #38f9d7);
+            background-size: 400% 400%;
+            box-shadow: 0 0 25px rgba(0, 242, 254, 0.7), 0 0 60px rgba(67, 233, 123, 0.4);
+            animation: morphBlob2 8s ease-in-out infinite, floatBtn 4.5s ease-in-out infinite -1s, holographic 9s linear infinite -2s !important;
         }
 
         .hero-btn:nth-child(3) {
-            box-shadow: 0 0 15px rgba(255, 200, 0, 0.6), 0 0 40px rgba(255, 200, 0, 0.3), inset 0 0 20px rgba(255, 200, 0, 0.1);
-            border-color: rgba(255, 200, 0, 0.7);
-            animation-delay: -2s;
+            background: linear-gradient(135deg, #f7971e, #ffd200, #f7971e, #fd7f20);
+            background-size: 400% 400%;
+            box-shadow: 0 0 25px rgba(255, 210, 0, 0.7), 0 0 60px rgba(247, 151, 30, 0.4);
+            animation: morphBlob3 7s ease-in-out infinite, floatBtn 3s ease-in-out infinite -2s, holographic 7s linear infinite -4s !important;
         }
 
-        /* Shimmer sweep */
+        /* Shimmer overlay */
         .hero-btn::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: -100%;
-            width: 60%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-            animation: shimmer 2.5s ease-in-out infinite;
+            top: -50%;
+            left: -75%;
+            width: 50%;
+            height: 200%;
+            background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.5) 50%, transparent 60%);
+            animation: shimmerSlide 3s ease-in-out infinite;
         }
 
         .hero-btn:nth-child(2)::before {
-            animation-delay: 0.8s;
+            animation-delay: 1s;
         }
 
         .hero-btn:nth-child(3)::before {
-            animation-delay: 1.6s;
+            animation-delay: 2s;
         }
 
-        /* Glow pulse */
-        .hero-btn::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            border-radius: 50px;
-            opacity: 0;
-            animation: glowPulse 2s ease-in-out infinite;
-        }
+        @keyframes morphBlob {
 
-        .hero-btn:nth-child(1)::after {
-            background: radial-gradient(ellipse at center, rgba(255, 50, 80, 0.3), transparent 70%);
-        }
-
-        .hero-btn:nth-child(2)::after {
-            background: radial-gradient(ellipse at center, rgba(0, 255, 150, 0.3), transparent 70%);
-            animation-delay: 0.6s;
-        }
-
-        .hero-btn:nth-child(3)::after {
-            background: radial-gradient(ellipse at center, rgba(255, 200, 0, 0.3), transparent 70%);
-            animation-delay: 1.2s;
-        }
-
-        @keyframes btnFloat {
-            0% {
-                transform: translateY(0px) rotate(-0.5deg);
+            0%,
+            100% {
+                border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
             }
 
             25% {
-                transform: translateY(-6px) rotate(0.5deg);
+                border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;
             }
 
             50% {
-                transform: translateY(-10px) rotate(-0.3deg);
+                border-radius: 50% 60% 30% 60% / 30% 40% 70% 50%;
             }
 
             75% {
-                transform: translateY(-5px) rotate(0.8deg);
-            }
-
-            100% {
-                transform: translateY(0px) rotate(-0.5deg);
+                border-radius: 70% 30% 60% 40% / 40% 70% 30% 60%;
             }
         }
 
-        @keyframes shimmer {
+        @keyframes morphBlob2 {
+
+            0%,
+            100% {
+                border-radius: 40% 60% 60% 40% / 70% 30% 60% 40%;
+            }
+
+            33% {
+                border-radius: 70% 30% 40% 60% / 40% 70% 30% 60%;
+            }
+
+            66% {
+                border-radius: 30% 70% 50% 50% / 60% 40% 60% 40%;
+            }
+        }
+
+        @keyframes morphBlob3 {
+
+            0%,
+            100% {
+                border-radius: 50% 50% 40% 60% / 60% 40% 50% 50%;
+            }
+
+            40% {
+                border-radius: 60% 40% 70% 30% / 30% 70% 40% 60%;
+            }
+
+            80% {
+                border-radius: 40% 70% 30% 60% / 50% 40% 70% 30%;
+            }
+        }
+
+        @keyframes floatBtn {
+
+            0%,
+            100% {
+                transform: translateY(0) rotate(-1deg);
+            }
+
+            50% {
+                transform: translateY(-12px) rotate(1deg);
+            }
+        }
+
+        @keyframes holographic {
             0% {
-                left: -100%;
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        @keyframes shimmerSlide {
+            0% {
+                left: -75%;
                 opacity: 0;
             }
 
             20% {
+                opacity: 1;
+            }
+
+            80% {
                 opacity: 1;
             }
 
@@ -207,38 +270,16 @@
             }
         }
 
-        @keyframes glowPulse {
-
-            0%,
-            100% {
-                opacity: 0;
-            }
-
-            50% {
-                opacity: 1;
-            }
-        }
-
-        @keyframes btnEntrance {
-            from {
-                opacity: 0;
-                transform: translateY(20px) scale(0.9);
-            }
-
-            to {
-                opacity: 1;
-            }
-        }
-
         #view-main-button:hover,
         .hero-btn:hover {
-            transform: translateY(-12px) scale(1.06) !important;
-            filter: brightness(1.3);
+            transform: translateY(-16px) scale(1.12) rotate(2deg) !important;
+            filter: brightness(1.4) saturate(1.3);
+            box-shadow: 0 0 40px currentColor, 0 20px 60px rgba(0, 0, 0, 0.4) !important;
         }
 
         #view-main-button:active,
         .hero-btn:active {
-            transform: scale(0.96) !important;
+            transform: scale(0.94) !important;
         }
     </style>
 
@@ -252,9 +293,11 @@
     </header>
 
     <main>
-        <button id="view-main-button" class="hero-btn">View Menu Page</button>
-        <a href="https://dolcecaffesignage.web.app/admin.html" class="btn hero-btn">Caffe Menu</a>
-        <a href="gelato.html" class="btn hero-btn">Gelato Inventory</a>
+        <div class="top-actions">
+            <button id="view-main-button" class="hero-btn">View Menu Page</button>
+            <a href="https://dolcecaffesignage.web.app/admin.html" class="btn hero-btn">Caffe Menu</a>
+            <a href="gelato.html" class="btn hero-btn">Gelato Inventory</a>
+        </div>
 
         <section>
             <h2>Snow & Flag Effect</h2>
