@@ -112,7 +112,7 @@
             letter-spacing: 3px;
             border: none;
             cursor: pointer;
-            overflow: hidden;
+            overflow: visible;
             min-width: 180px;
 
             /* Morphing blob shape */
@@ -170,8 +170,21 @@
             animation: morphBlob5 5.5s ease-in-out infinite, floatBtn 4s ease-in-out infinite -4s, holographic 8s linear infinite !important;
         }
 
+        /* .hero-btn is overflow: visible (so the NEW badge can sit outside its
+           corner) so the shimmer can no longer rely on the button's own
+           overflow to stay contained. This inner wrapper fills the button,
+           tracks its animated blob shape via border-radius: inherit, and
+           clips the shimmer sweep to it instead. */
+        .blob-clip {
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
         /* Shimmer overlay */
-        .hero-btn::before {
+        .blob-clip::before {
             content: '';
             position: absolute;
             top: -50%;
@@ -182,20 +195,52 @@
             animation: shimmerSlide 3s ease-in-out infinite;
         }
 
-        .hero-btn:nth-child(2)::before {
+        .hero-btn:nth-child(2) .blob-clip::before {
             animation-delay: 1s;
         }
 
-        .hero-btn:nth-child(3)::before {
+        .hero-btn:nth-child(3) .blob-clip::before {
             animation-delay: 2s;
         }
 
-        .hero-btn:nth-child(4)::before {
+        .hero-btn:nth-child(4) .blob-clip::before {
             animation-delay: 3s;
         }
 
-        .hero-btn:nth-child(5)::before {
+        .hero-btn:nth-child(5) .blob-clip::before {
             animation-delay: 4s;
+        }
+
+        /* "NEW" badge, floating on the top-right corner of buttons 2, 4, 5 */
+        .new-badge {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            z-index: 2;
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #ff416c, #ff4b2b);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 0 10px rgba(255, 65, 108, 0.8);
+            animation: badgePulse 1.5s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        @keyframes badgePulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.1);
+            }
         }
 
         @keyframes morphBlob {
@@ -348,11 +393,11 @@
 
     <main>
         <div class="top-actions">
-            <button id="view-main-button" class="hero-btn">View Menu Page</button>
-            <a href="https://dolcecaffesignage.web.app/admin.html" class="btn hero-btn">Caffe Menu</a>
-            <a href="gelato.html" class="btn hero-btn">Gelato Inventory</a>
-            <a href="https://dolcevitagelato-inventory.web.app" target="_blank" rel="noopener noreferrer" class="btn hero-btn" title="Stock & Supplies">Supply Hub</a>
-            <a href="https://gelatosystem.web.app" target="_blank" rel="noopener noreferrer" class="btn hero-btn" title="Recipes & Formulas">Gelato Lab</a>
+            <button id="view-main-button" class="hero-btn"><span class="blob-clip"></span>View Menu Page</button>
+            <a href="https://dolcecaffesignage.web.app/admin.html" class="btn hero-btn"><span class="blob-clip"></span>Pricing Menu<span class="new-badge">✨ NEW</span></a>
+            <a href="gelato.html" class="btn hero-btn"><span class="blob-clip"></span>Gelato Inventory</a>
+            <a href="https://dolcevitagelato-inventory.web.app" target="_blank" rel="noopener noreferrer" class="btn hero-btn" title="Stock & Supplies"><span class="blob-clip"></span>Supply Hub<span class="new-badge">✨ NEW</span></a>
+            <a href="https://gelatosystem.web.app" target="_blank" rel="noopener noreferrer" class="btn hero-btn" title="Recipes & Formulas"><span class="blob-clip"></span>Gelato Lab<span class="new-badge">✨ NEW</span></a>
         </div>
 
         <section>
