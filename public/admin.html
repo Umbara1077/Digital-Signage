@@ -253,6 +253,13 @@
             pointer-events: none;
         }
 
+        /* Marketing Hub isn't live yet, so its badge reads differently and
+           uses a warm amber "not ready yet" color instead of red-orange. */
+        .new-badge.badge-soon {
+            background: linear-gradient(135deg, #f5a623, #ffd200);
+            box-shadow: 0 0 10px rgba(245, 166, 35, 0.8);
+        }
+
         @keyframes badgePulse {
 
             0%,
@@ -449,7 +456,7 @@
             <a href="https://dolcevitagelato-inventory.web.app" target="_blank" rel="noopener noreferrer" class="btn hero-btn" title="Stock & Supplies"><span class="blob-clip"></span>Supply Hub<span class="new-badge">✨ NEW</span></a>
             <a href="https://gelatosystem.web.app" target="_blank" rel="noopener noreferrer" class="btn hero-btn" title="Recipes & Formulas"><span class="blob-clip"></span>Gelato Lab<span class="new-badge">✨ NEW</span></a>
             <a href="https://dvgpassport.web.app/admin.html" target="_blank" rel="noopener noreferrer" class="btn hero-btn"><span class="blob-clip"></span>DVG Passport<span class="new-badge">✨ NEW</span></a>
-            <a href="./coming-soon.html" class="btn hero-btn"><span class="blob-clip"></span>Marketing Hub<span class="new-badge">✨ NEW</span></a>
+            <a href="./coming-soon.html" class="btn hero-btn"><span class="blob-clip"></span>Marketing Hub<span class="new-badge badge-soon">🚧 COMING SOON</span></a>
         </div>
 
         <section>
