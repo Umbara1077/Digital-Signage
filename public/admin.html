@@ -64,9 +64,12 @@
 
     <main>
         <div class="top-actions">
-            <button id="view-main-button" class="btn btn-hero btn-crimson"><span class="btn-label">View Menu Page</span></button>
-            <a href="https://dolcecaffesignage.web.app/admin.html" class="btn btn-hero btn-forest"><span class="btn-label">Caffe Menu</span></a>
-            <a href="gelato.html" class="btn btn-hero btn-gold"><span class="btn-label">Gelato Inventory</span></a>
+            <span class="btn-orb orb-crimson"></span>
+            <span class="btn-orb orb-emerald"></span>
+            <span class="btn-orb orb-gold"></span>
+            <button id="view-main-button" class="btn btn-hero hero-btn btn-crimson"><span class="btn-label">View Menu Page</span></button>
+            <a href="https://dolcecaffesignage.web.app/admin.html" class="btn btn-hero hero-btn btn-forest"><span class="btn-label">Caffe Menu</span></a>
+            <a href="gelato.html" class="btn btn-hero hero-btn btn-gold"><span class="btn-label">Gelato Inventory</span></a>
         </div>
 
         <section>
@@ -281,6 +284,58 @@
         });
 
         fetchCurrentBusinessHours();
+    </script>
+    <script>
+        // Drives the 3 hero button's idle float/rotate/scale directly via
+        // element.style.transform so the motion can't be overridden by CSS
+        // specificity — CSS never sets transform on .hero-btn.
+        (function () {
+            const heroBtns = document.querySelectorAll('.hero-btn');
+            if (!heroBtns.length) return;
+
+            const cfg = [
+                { ySpeed: 800, yAmp: 5, rSpeed: 1200, rAmp: 1.5, sSpeed: 900, sAmp: 0.02, phase: 0 },
+                { ySpeed: 1100, yAmp: 6, rSpeed: 1400, rAmp: 2, sSpeed: 700, sAmp: 0.025, phase: 2 },
+                { ySpeed: 950, yAmp: 4, rSpeed: 1050, rAmp: 1, sSpeed: 1100, sAmp: 0.015, phase: 4 }
+            ];
+
+            const state = Array.from(heroBtns).map(() => ({ hover: false, pressed: false }));
+
+            heroBtns.forEach((btn, i) => {
+                btn.addEventListener('mouseenter', () => { state[i].hover = true; });
+                btn.addEventListener('mouseleave', () => { state[i].hover = false; state[i].pressed = false; });
+                btn.addEventListener('mousedown', () => { state[i].pressed = true; });
+                btn.addEventListener('mouseup', () => { state[i].pressed = false; });
+                btn.addEventListener('touchstart', () => { state[i].pressed = true; }, { passive: true });
+                btn.addEventListener('touchend', () => { state[i].pressed = false; });
+            });
+
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+            function animateButtons() {
+                const t = Date.now();
+                heroBtns.forEach((btn, i) => {
+                    const c = cfg[i % cfg.length];
+                    const s = state[i];
+
+                    if (s.pressed) {
+                        btn.style.transform = 'translateY(2px) scale(0.95)';
+                        return;
+                    }
+
+                    const boost = s.hover ? 1.8 : 1;
+                    const speedFactor = s.hover ? 0.55 : 1;
+
+                    const y = Math.sin(t / (c.ySpeed * speedFactor) + c.phase) * c.yAmp * boost;
+                    const r = Math.sin(t / (c.rSpeed * speedFactor) + c.phase) * c.rAmp * boost;
+                    const sc = 1 + Math.sin(t / (c.sSpeed * speedFactor) + c.phase) * c.sAmp * boost + (s.hover ? 0.05 : 0);
+
+                    btn.style.transform = `translateY(${y.toFixed(2)}px) rotate(${r.toFixed(2)}deg) scale(${sc.toFixed(4)})`;
+                });
+                requestAnimationFrame(animateButtons);
+            }
+            requestAnimationFrame(animateButtons);
+        })();
     </script>
 </body>
 
