@@ -12,6 +12,27 @@
     <script src="firebaseConfig.js"></script>
     <script src="admin-script.js"></script>
     <link rel="icon" href="DolceLogo-Admin.png" type="image/x-icon">
+    <style>
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #fff;
+            background-color: #007bff;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn:hover {
+            background-color: #0056b3;
+        }
+
+        .btn:active {
+            background-color: #004085;
+        }
+    </style>
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             if (sessionStorage.getItem('authChecked')) {
@@ -53,6 +74,174 @@
         });
     </script>
 
+    <style>
+        /* Neon glass top buttons. .btn already sets `transform` on hover/active
+           and the page has a prefers-reduced-motion rule that forces
+           `animation: none !important` on every element, so the base idle
+           animation here needs !important to actually run. The "View Menu
+           Page" button also has id="view-main-button", which admin-style.css
+           targets directly — an ID selector always outranks a class
+           selector's specificity, so #view-main-button is added alongside
+           .hero-btn below wherever a property would otherwise lose to it. */
+        #view-main-button,
+        .hero-btn {
+            position: relative;
+            display: inline-block;
+            padding: 18px 44px;
+            font-size: 18px;
+            font-weight: 700;
+            color: #ffffff;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-radius: 50px;
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            background: rgba(255, 255, 255, 0.07);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            cursor: pointer;
+            overflow: hidden;
+            text-shadow: 0 0 10px currentColor;
+            animation: btnFloat 3s ease-in-out infinite, btnEntrance 0.6s ease-out both !important;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        /* Each button gets a different neon color glow */
+        #view-main-button,
+        .hero-btn:nth-child(1) {
+            box-shadow: 0 0 15px rgba(255, 50, 80, 0.6), 0 0 40px rgba(255, 50, 80, 0.3), inset 0 0 20px rgba(255, 50, 80, 0.1);
+            border-color: rgba(255, 80, 100, 0.7);
+            animation-delay: 0s;
+        }
+
+        .hero-btn:nth-child(2) {
+            box-shadow: 0 0 15px rgba(0, 255, 150, 0.6), 0 0 40px rgba(0, 255, 150, 0.3), inset 0 0 20px rgba(0, 255, 150, 0.1);
+            border-color: rgba(0, 255, 150, 0.7);
+            animation-delay: -1s;
+        }
+
+        .hero-btn:nth-child(3) {
+            box-shadow: 0 0 15px rgba(255, 200, 0, 0.6), 0 0 40px rgba(255, 200, 0, 0.3), inset 0 0 20px rgba(255, 200, 0, 0.1);
+            border-color: rgba(255, 200, 0, 0.7);
+            animation-delay: -2s;
+        }
+
+        /* Shimmer sweep */
+        .hero-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 60%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+            animation: shimmer 2.5s ease-in-out infinite;
+        }
+
+        .hero-btn:nth-child(2)::before {
+            animation-delay: 0.8s;
+        }
+
+        .hero-btn:nth-child(3)::before {
+            animation-delay: 1.6s;
+        }
+
+        /* Glow pulse */
+        .hero-btn::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 50px;
+            opacity: 0;
+            animation: glowPulse 2s ease-in-out infinite;
+        }
+
+        .hero-btn:nth-child(1)::after {
+            background: radial-gradient(ellipse at center, rgba(255, 50, 80, 0.3), transparent 70%);
+        }
+
+        .hero-btn:nth-child(2)::after {
+            background: radial-gradient(ellipse at center, rgba(0, 255, 150, 0.3), transparent 70%);
+            animation-delay: 0.6s;
+        }
+
+        .hero-btn:nth-child(3)::after {
+            background: radial-gradient(ellipse at center, rgba(255, 200, 0, 0.3), transparent 70%);
+            animation-delay: 1.2s;
+        }
+
+        @keyframes btnFloat {
+            0% {
+                transform: translateY(0px) rotate(-0.5deg);
+            }
+
+            25% {
+                transform: translateY(-6px) rotate(0.5deg);
+            }
+
+            50% {
+                transform: translateY(-10px) rotate(-0.3deg);
+            }
+
+            75% {
+                transform: translateY(-5px) rotate(0.8deg);
+            }
+
+            100% {
+                transform: translateY(0px) rotate(-0.5deg);
+            }
+        }
+
+        @keyframes shimmer {
+            0% {
+                left: -100%;
+                opacity: 0;
+            }
+
+            20% {
+                opacity: 1;
+            }
+
+            100% {
+                left: 150%;
+                opacity: 0;
+            }
+        }
+
+        @keyframes glowPulse {
+
+            0%,
+            100% {
+                opacity: 0;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
+        @keyframes btnEntrance {
+            from {
+                opacity: 0;
+                transform: translateY(20px) scale(0.9);
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        #view-main-button:hover,
+        .hero-btn:hover {
+            transform: translateY(-12px) scale(1.06) !important;
+            filter: brightness(1.3);
+        }
+
+        #view-main-button:active,
+        .hero-btn:active {
+            transform: scale(0.96) !important;
+        }
+    </style>
+
 </head>
 
 <body>
@@ -63,14 +252,9 @@
     </header>
 
     <main>
-        <div class="top-actions">
-            <span class="btn-orb orb-crimson"></span>
-            <span class="btn-orb orb-emerald"></span>
-            <span class="btn-orb orb-gold"></span>
-            <button id="view-main-button" class="btn btn-hero hero-btn btn-crimson"><span class="btn-label">View Menu Page</span></button>
-            <a href="https://dolcecaffesignage.web.app/admin.html" class="btn btn-hero hero-btn btn-forest"><span class="btn-label">Caffe Menu</span></a>
-            <a href="gelato.html" class="btn btn-hero hero-btn btn-gold"><span class="btn-label">Gelato Inventory</span></a>
-        </div>
+        <button id="view-main-button" class="hero-btn">View Menu Page</button>
+        <a href="https://dolcecaffesignage.web.app/admin.html" class="btn hero-btn">Caffe Menu</a>
+        <a href="gelato.html" class="btn hero-btn">Gelato Inventory</a>
 
         <section>
             <h2>Snow & Flag Effect</h2>
@@ -284,58 +468,6 @@
         });
 
         fetchCurrentBusinessHours();
-    </script>
-    <script>
-        // Drives the 3 hero button's idle float/rotate/scale directly via
-        // element.style.transform so the motion can't be overridden by CSS
-        // specificity — CSS never sets transform on .hero-btn.
-        (function () {
-            const heroBtns = document.querySelectorAll('.hero-btn');
-            if (!heroBtns.length) return;
-
-            const cfg = [
-                { ySpeed: 800, yAmp: 5, rSpeed: 1200, rAmp: 1.5, sSpeed: 900, sAmp: 0.02, phase: 0 },
-                { ySpeed: 1100, yAmp: 6, rSpeed: 1400, rAmp: 2, sSpeed: 700, sAmp: 0.025, phase: 2 },
-                { ySpeed: 950, yAmp: 4, rSpeed: 1050, rAmp: 1, sSpeed: 1100, sAmp: 0.015, phase: 4 }
-            ];
-
-            const state = Array.from(heroBtns).map(() => ({ hover: false, pressed: false }));
-
-            heroBtns.forEach((btn, i) => {
-                btn.addEventListener('mouseenter', () => { state[i].hover = true; });
-                btn.addEventListener('mouseleave', () => { state[i].hover = false; state[i].pressed = false; });
-                btn.addEventListener('mousedown', () => { state[i].pressed = true; });
-                btn.addEventListener('mouseup', () => { state[i].pressed = false; });
-                btn.addEventListener('touchstart', () => { state[i].pressed = true; }, { passive: true });
-                btn.addEventListener('touchend', () => { state[i].pressed = false; });
-            });
-
-            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-            function animateButtons() {
-                const t = Date.now();
-                heroBtns.forEach((btn, i) => {
-                    const c = cfg[i % cfg.length];
-                    const s = state[i];
-
-                    if (s.pressed) {
-                        btn.style.transform = 'translateY(2px) scale(0.95)';
-                        return;
-                    }
-
-                    const boost = s.hover ? 1.8 : 1;
-                    const speedFactor = s.hover ? 0.55 : 1;
-
-                    const y = Math.sin(t / (c.ySpeed * speedFactor) + c.phase) * c.yAmp * boost;
-                    const r = Math.sin(t / (c.rSpeed * speedFactor) + c.phase) * c.rAmp * boost;
-                    const sc = 1 + Math.sin(t / (c.sSpeed * speedFactor) + c.phase) * c.sAmp * boost + (s.hover ? 0.05 : 0);
-
-                    btn.style.transform = `translateY(${y.toFixed(2)}px) rotate(${r.toFixed(2)}deg) scale(${sc.toFixed(4)})`;
-                });
-                requestAnimationFrame(animateButtons);
-            }
-            requestAnimationFrame(animateButtons);
-        })();
     </script>
 </body>
 

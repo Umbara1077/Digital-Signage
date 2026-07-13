@@ -97,34 +97,6 @@
   }
 }
 
-/* ---------- Hero top buttons ---------- */
-/* Continuous idle motion (float/rotate/scale) is driven by JS directly via
-   element.style.transform so it can't be fought by CSS specificity — see the
-   script block near the end of admin.html. CSS here only owns opacity/color/
-   shadow, never transform, on .hero-btn. */
-@keyframes btnFadeIn {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes orbDrift {
-  0%,
-  100% {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: .55;
-  }
-
-  50% {
-    transform: translate(-50%, -50%) scale(1.15);
-    opacity: .8;
-  }
-}
-
 /* Respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   * {
@@ -226,95 +198,37 @@ main {
 }
 
 /* Top action buttons side-by-side */
-.top-actions {
-  position: relative;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 26px;
-  margin: 0 0 8px;
-  padding: 50px 6px 10px;
-}
-
-/* Colorful blurred light sources behind the buttons — this is what the
-   backdrop-filter on .btn-hero actually blurs through. Without these the
-   glass has nothing colorful to catch and just looks like a dark box. */
-.btn-orb {
-  position: absolute;
-  top: 50%;
-  width: 260px;
-  height: 260px;
-  border-radius: 50%;
-  filter: blur(60px);
-  pointer-events: none;
-  z-index: 0;
-  animation: orbDrift 6s ease-in-out infinite;
-}
-
-.btn-orb.orb-crimson {
-  left: 16%;
-  background: #c0392b;
-}
-
-.btn-orb.orb-emerald {
-  left: 50%;
-  background: #1abc9c;
-  animation-delay: -2s;
-}
-
-.btn-orb.orb-gold {
-  left: 84%;
-  background: #f39c12;
-  animation-delay: -4s;
-}
-
-/* Frosted glass buttons. Idle motion (float/rotate/scale) is applied by JS
-   to element.style.transform — this rule intentionally never sets transform
-   so it can't fight the script. */
-.btn-hero {
-  position: relative;
-  z-index: 1;
+#view-main-button,
+.btn {
   display: inline-flex;
+  /* FIX: inline row */
   align-items: center;
   justify-content: center;
-  min-width: 200px;
-  min-height: 60px;
-  padding: 18px 40px;
-  border: 1px solid rgba(255, 255, 255, .3);
-  border-top: 1px solid rgba(255, 255, 255, .6);
-  border-radius: 999px;
-  font-size: 1.2rem;
-  font-weight: 800;
-  letter-spacing: .3px;
-  color: #fff;
-  text-decoration: none;
-  cursor: pointer;
-  background: rgba(255, 255, 255, .08);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, .4), inset 0 1px 0 rgba(255, 255, 255, .3);
-  text-shadow: 0 1px 4px rgba(0, 0, 0, .5), 0 0 16px rgba(255, 255, 255, .3);
-  animation: btnFadeIn .5s ease both;
-  transition: background .25s ease, border-color .25s ease, box-shadow .25s ease;
+  margin: 0 10px 8px;
+  /* spacing between the two */
+  border: 1px solid transparent;
+  background-image: linear-gradient(var(--ink-2), var(--ink-2)), var(--grad-flow);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  color: #e8f1ff;
+  padding: 12px 20px;
+  font-weight: 700;
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+  background-size: 100% 100%, 200% 200%;
 }
 
-.btn-hero:hover {
-  background: rgba(255, 255, 255, .15);
-  border-color: rgba(255, 255, 255, .5);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .45);
+#view-main-button:hover,
+.btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.05);
+  background-size: 100% 100%, 240% 240%;
 }
 
-.btn-crimson {
-  animation-delay: 0s;
-}
-
-.btn-forest {
-  animation-delay: .12s;
-}
-
-.btn-gold {
-  animation-delay: .24s;
+#view-main-button:active,
+.btn:active {
+  transform: translateY(0) scale(.99)
 }
 
 /* ---------- Forms ---------- */
