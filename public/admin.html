@@ -12,27 +12,6 @@
     <script src="firebaseConfig.js"></script>
     <script src="admin-script.js"></script>
     <link rel="icon" href="DolceLogo-Admin.png" type="image/x-icon">
-    <style>
-        .btn {
-            display: inline-block;
-            padding: 10px 20px;
-            font-size: 16px;
-            font-weight: bold;
-            color: #fff;
-            background-color: #007bff;
-            text-decoration: none;
-            border-radius: 5px;
-            transition: background-color 0.3s ease;
-        }
-
-        .btn:hover {
-            background-color: #0056b3;
-        }
-
-        .btn:active {
-            background-color: #004085;
-        }
-    </style>
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             if (sessionStorage.getItem('authChecked')) {
@@ -84,9 +63,11 @@
     </header>
 
     <main>
-        <button id="view-main-button">View Menu Page</button>
-        <a href="https://dolcecaffesignage.web.app/admin.html" class="btn">Caffe Menu</a>
-        <a href="gelato.html" class="btn">Gelato Inventory</a>
+        <div class="top-actions">
+            <button id="view-main-button" class="btn btn-hero btn-crimson"><span class="btn-label">View Menu Page</span></button>
+            <a href="https://dolcecaffesignage.web.app/admin.html" class="btn btn-hero btn-forest"><span class="btn-label">Caffe Menu</span></a>
+            <a href="gelato.html" class="btn btn-hero btn-gold"><span class="btn-label">Gelato Inventory</span></a>
+        </div>
 
         <section>
             <h2>Snow & Flag Effect</h2>
