@@ -122,6 +122,8 @@
             /* Holographic base */
             background: linear-gradient(135deg, #667eea, #764ba2, #f093fb, #4facfe, #00f2fe);
             background-size: 400% 400%;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
 
             /* Glow */
             box-shadow: 0 0 25px rgba(102, 126, 234, 0.6), 0 0 60px rgba(118, 75, 162, 0.3);
@@ -132,21 +134,21 @@
         /* Each button gets different blob timing and color theme */
         #view-main-button,
         .hero-btn:nth-child(1) {
-            background: linear-gradient(135deg, #ff0844, #ffb199, #ff6b6b, #ee0979);
+            background: linear-gradient(135deg, rgba(255, 8, 68, 0.25), rgba(255, 100, 100, 0.15), rgba(238, 9, 121, 0.2));
             background-size: 400% 400%;
             box-shadow: 0 0 25px rgba(255, 8, 68, 0.7), 0 0 60px rgba(238, 9, 121, 0.4);
             animation: morphBlob 6s ease-in-out infinite, floatBtn 3.5s ease-in-out infinite, holographic 6s linear infinite !important;
         }
 
         .hero-btn:nth-child(2) {
-            background: linear-gradient(135deg, #00f2fe, #4facfe, #43e97b, #38f9d7);
+            background: linear-gradient(135deg, rgba(0, 242, 254, 0.25), rgba(79, 172, 254, 0.15), rgba(67, 233, 123, 0.2));
             background-size: 400% 400%;
             box-shadow: 0 0 25px rgba(0, 242, 254, 0.7), 0 0 60px rgba(67, 233, 123, 0.4);
             animation: morphBlob2 8s ease-in-out infinite, floatBtn 4.5s ease-in-out infinite -1s, holographic 9s linear infinite -2s !important;
         }
 
         .hero-btn:nth-child(3) {
-            background: linear-gradient(135deg, #f7971e, #ffd200, #f7971e, #fd7f20);
+            background: linear-gradient(135deg, rgba(247, 151, 30, 0.25), rgba(255, 210, 0, 0.15), rgba(253, 127, 32, 0.2));
             background-size: 400% 400%;
             box-shadow: 0 0 25px rgba(255, 210, 0, 0.7), 0 0 60px rgba(247, 151, 30, 0.4);
             animation: morphBlob3 7s ease-in-out infinite, floatBtn 3s ease-in-out infinite -2s, holographic 7s linear infinite -4s !important;
