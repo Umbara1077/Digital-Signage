@@ -184,6 +184,20 @@
             animation: morphBlob7 6.5s ease-in-out infinite, floatBtn 4s ease-in-out infinite -6s, holographic 8s linear infinite !important;
         }
 
+        .hero-btn:nth-child(8) {
+            background: linear-gradient(135deg, rgba(255, 94, 58, 0.25), rgba(255, 140, 0, 0.15), rgba(255, 60, 60, 0.2));
+            background-size: 400% 400%;
+            box-shadow: 0 0 25px rgba(255, 94, 58, 0.7), 0 0 60px rgba(255, 60, 60, 0.4);
+            animation: morphBlob8 8.5s ease-in-out infinite, floatBtn 4s ease-in-out infinite -7s, holographic 8s linear infinite !important;
+        }
+
+        .hero-btn:nth-child(9) {
+            background: linear-gradient(135deg, rgba(58, 123, 253, 0.25), rgba(100, 180, 255, 0.15), rgba(30, 80, 200, 0.2));
+            background-size: 400% 400%;
+            box-shadow: 0 0 25px rgba(58, 123, 253, 0.7), 0 0 60px rgba(30, 80, 200, 0.4);
+            animation: morphBlob9 7.2s ease-in-out infinite, floatBtn 4s ease-in-out infinite -8s, holographic 8s linear infinite !important;
+        }
+
         /* .hero-btn is overflow: visible (so the NEW badge can sit outside its
            corner) so the shimmer can no longer rely on the button's own
            overflow to stay contained. This inner wrapper fills the button,
@@ -233,7 +247,15 @@
             animation-delay: 6s;
         }
 
-        /* "NEW" badge, floating on the top-right corner of buttons 2, 4, 5, 6, 7 */
+        .hero-btn:nth-child(8) .blob-clip::before {
+            animation-delay: 7s;
+        }
+
+        .hero-btn:nth-child(9) .blob-clip::before {
+            animation-delay: 8s;
+        }
+
+        /* "NEW" badge, floating on the top-right corner of buttons 2, 4, 5, 6, 7, 8, 9 */
         .new-badge {
             position: absolute;
             top: -10px;
@@ -380,6 +402,38 @@
             }
         }
 
+        @keyframes morphBlob8 {
+
+            0%,
+            100% {
+                border-radius: 65% 35% 50% 50% / 45% 65% 35% 55%;
+            }
+
+            30% {
+                border-radius: 45% 55% 65% 35% / 60% 40% 60% 40%;
+            }
+
+            65% {
+                border-radius: 55% 45% 35% 65% / 35% 55% 65% 45%;
+            }
+        }
+
+        @keyframes morphBlob9 {
+
+            0%,
+            100% {
+                border-radius: 45% 55% 55% 45% / 60% 45% 55% 40%;
+            }
+
+            45% {
+                border-radius: 60% 40% 40% 60% / 40% 60% 45% 55%;
+            }
+
+            80% {
+                border-radius: 35% 65% 60% 40% / 55% 35% 65% 45%;
+            }
+        }
+
         @keyframes floatBtn {
 
             0%,
@@ -457,6 +511,8 @@
             <a href="https://gelatosystem.web.app" target="_blank" rel="noopener noreferrer" class="btn hero-btn" title="Recipes & Formulas"><span class="blob-clip"></span>Gelato Lab<span class="new-badge">✨ NEW</span></a>
             <a href="https://dvgpassport.web.app/admin.html" target="_blank" rel="noopener noreferrer" class="btn hero-btn"><span class="blob-clip"></span>DVG Passport<span class="new-badge">✨ NEW</span></a>
             <a href="./coming-soon.html" class="btn hero-btn"><span class="blob-clip"></span>Marketing Hub<span class="new-badge badge-soon">🚧 COMING SOON</span></a>
+            <a href="https://coffeemanagment.web.app/analysis.html" target="_blank" rel="noopener noreferrer" class="btn hero-btn"><span class="blob-clip"></span>Mobile Order Sales<span class="new-badge">✨ NEW</span></a>
+            <a href="https://coffeemanagment.web.app/index.html" target="_blank" rel="noopener noreferrer" class="btn hero-btn"><span class="blob-clip"></span>Mobile Orders<span class="new-badge">✨ NEW</span></a>
         </div>
 
         <section>
