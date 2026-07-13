@@ -282,6 +282,15 @@
             box-shadow: 0 0 10px rgba(245, 166, 35, 0.8);
         }
 
+        /* Mobile Order Sales is still in development — caution-tape stripes
+           instead of the usual red-orange "NEW" gradient. */
+        .new-badge.badge-dev {
+            background: repeating-linear-gradient(135deg, #ffd200 0px, #ffd200 8px, #111111 8px, #111111 16px);
+            color: #fff;
+            text-shadow: 0 0 3px rgba(0, 0, 0, 0.9), 0 1px 1px rgba(0, 0, 0, 0.9);
+            box-shadow: 0 0 10px rgba(255, 210, 0, 0.8);
+        }
+
         @keyframes badgePulse {
 
             0%,
@@ -511,7 +520,7 @@
             <a href="https://gelatosystem.web.app" target="_blank" rel="noopener noreferrer" class="btn hero-btn" title="Recipes & Formulas"><span class="blob-clip"></span>Gelato Lab<span class="new-badge">✨ NEW</span></a>
             <a href="https://dvgpassport.web.app/admin.html" target="_blank" rel="noopener noreferrer" class="btn hero-btn"><span class="blob-clip"></span>DVG Passport<span class="new-badge">✨ NEW</span></a>
             <a href="./coming-soon.html" class="btn hero-btn"><span class="blob-clip"></span>Marketing Hub<span class="new-badge badge-soon">🚧 COMING SOON</span></a>
-            <a href="https://coffeemanagment.web.app/analysis.html" target="_blank" rel="noopener noreferrer" class="btn hero-btn"><span class="blob-clip"></span>Mobile Order Sales<span class="new-badge">✨ NEW</span></a>
+            <a href="https://coffeemanagment.web.app/analysis.html" target="_blank" rel="noopener noreferrer" class="btn hero-btn"><span class="blob-clip"></span>Mobile Order Sales<span class="new-badge badge-dev">🚧 DEV</span></a>
             <a href="https://coffeemanagment.web.app/index.html" target="_blank" rel="noopener noreferrer" class="btn hero-btn"><span class="blob-clip"></span>Mobile Orders<span class="new-badge">✨ NEW</span></a>
         </div>
 
