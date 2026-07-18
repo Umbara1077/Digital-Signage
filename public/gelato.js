@@ -467,10 +467,22 @@
                 batch.set(db.collection('menuItems').doc(targetId), payload, { merge: true });
             });
 
-            // 2) drop menu items whose name isn't in the case anymore
+            // 2) menu items whose flavor isn't in the case anymore move to
+            // pending instead of being deleted outright - preserves the full
+            // record (name, description, images, order, flags, etc.) so the
+            // flavor can be brought back later. Mirrors the admin panel's
+            // "Remove from Menu" action exactly (admin-script.js:
+            // db.collection('pendingItems').add(itemData) then delete the
+            // menuItems doc) - db.collection('pendingItems').doc() here is
+            // the batch-compatible equivalent of .add() (same auto-id
+            // behavior), so the pending copy and the menuItems delete land
+            // in the same atomic batch as the rest of the sync.
             const toRemove = currentMenu.filter(m => !keptMenuIds.has(m.id));
             const toAdd = caseFlavors.filter(f => !menuByName.has(normName(f.name)));
-            toRemove.forEach(m => batch.delete(db.collection('menuItems').doc(m.id)));
+            toRemove.forEach(m => {
+                batch.set(db.collection('pendingItems').doc(), m.data);
+                batch.delete(db.collection('menuItems').doc(m.id));
+            });
 
             // 3) snapshot pre-sync state so the emergency undo can restore it
             batch.set(menuBackupDocRef(), {
