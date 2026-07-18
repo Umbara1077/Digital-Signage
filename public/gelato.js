@@ -66,6 +66,8 @@
     let chipHandlersAttached = false;
     let autoStageExcluded = new Set();  // "pan|flavorId" keys excluded from auto-stage (manually removed)
     let _started = false;  // prevents wireUi/start from running twice if auth fires twice
+    let pendingDummyFocusId = null;  // id of a just-created dummy pan to auto-focus once rendered
+    let longFreezerCtxAttached = false;  // guards the one-time "empty space" right-click listener
     const queueDocRef = () => db.collection('gelatoSettings').doc('queue');
     const snapshotDocRef = () => db.collection('gelatoSettings').doc('caseSnapshot');
     const orderDocRef = () => db.collection('gelatoSettings').doc('orderQueue');
@@ -567,16 +569,17 @@
             if (!pan) { status(`The case is full (${CASE_SLOTS} pans).`); return; }
             openAssignModal(pan);
         });
+        document.getElementById('assign-long').addEventListener('click', () => openFreezerAssignModal('longTerm'));
         document.getElementById('close-case').addEventListener('click', closeCase);
         document.getElementById('save-snapshot').addEventListener('click', saveSnapshot);
         document.getElementById('reload-case').addEventListener('click', reloadCase);
         document.getElementById('reset-usage').addEventListener('click', resetUsage);
 
         document.getElementById('transferForm').addEventListener('submit', onTransfer);
-        document.getElementById('merge-pans-btn').addEventListener('click', openMergeModal);
-        document.getElementById('t-from').addEventListener('change', refreshTransferHint);
+        document.getElementById('merge-pans-btn').addEventListener('click', () => openMergeModal());
+        document.getElementById('t-from').addEventListener('change', () => { renderTransferAmounts(); refreshTransferHint(); });
         document.getElementById('t-to').addEventListener('change', refreshTransferHint);
-        document.getElementById('t-flavor').addEventListener('change', refreshTransferHint);
+        document.getElementById('t-flavor').addEventListener('change', () => { renderTransferAmounts(); refreshTransferHint(); });
 
         document.getElementById('addStockForm').addEventListener('submit', onAddStock);
         document.getElementById('as-loc').addEventListener('change', refreshStockHint);
@@ -587,11 +590,13 @@
         });
 
         document.getElementById('stageForm').addEventListener('submit', onStage);
+        document.getElementById('queue-clear').addEventListener('click', clearQueue);
 
         document.getElementById('orderAddForm').addEventListener('submit', e => {
             e.preventDefault();
             addToOrder(document.getElementById('order-flavor').value);
         });
+        document.getElementById('order-source').addEventListener('change', renderOrderQueue);
         document.getElementById('order-clear').addEventListener('click', clearOrder);
 
         document.getElementById('g-modal-x').addEventListener('click', closeModal);
@@ -653,6 +658,12 @@
     const storageStock = f => r2((f.shortTerm || 0) + (f.longTerm || 0));
     // the case is only ever filled from SHORT-TERM storage
     const caseStock = f => r2(f.shortTerm || 0);
+    // gelato-only pan total for a location — excludes dummy (non-flavor)
+    // placeholder pans so $ value / "gelato" quantity figures aren't polluted
+    // by things like a "Mini Cones" pan. Slot/capacity counts (slotsUsed,
+    // sumLoc, the freezer cap bars) stay inclusive since dummy pans DO take
+    // up real physical space.
+    const sumLocGelato = loc => r2(flavors.filter(f => !f.isDummy).reduce((s, f) => s + (f[loc] || 0), 0));
 
     /* Always render a flavor's picture from the live menu/pending doc (matched
      * by id) rather than the copy stored in gelatoInventory, so corrected menu
@@ -671,6 +682,7 @@
             .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         renderCaps();
         renderTransferFlavors();
+        renderTransferAmounts();
         renderStockFlavors();
         if (viewMode === 'stats') {
             renderStatsPanel();
@@ -695,7 +707,9 @@
     const activePans = () => r2(casePans().reduce((s, f) => s + (f.active || 0), 0));
 
     function renderPricing() {
-        const a = activePans(), s = sumLoc('shortTerm'), l = sumLoc('longTerm');
+        // gelato-only for Long-Term: a dummy pan (mini cones, packaging, etc.)
+        // isn't worth $262 and shouldn't inflate the inventory value cards
+        const a = activePans(), s = sumLoc('shortTerm'), l = sumLocGelato('longTerm');
         const storage = r2(s + l), total = r2(a + storage);
         const cards = [
             ['Case (active)', a, 'active'],
@@ -749,7 +763,7 @@
         const inCase = casePans().slice().sort((a, b) => a.casePan - b.casePan);
         const lowPans = inCase.filter(f => (f.active || 0) <= SWAP_THRESHOLD + EPS);
         const caseAmt = activePans();
-        const total = r2(caseAmt + sumLoc('shortTerm') + sumLoc('longTerm'));
+        const total = r2(caseAmt + sumLoc('shortTerm') + sumLocGelato('longTerm'));
         const used = r2(usageToday.usedPans || 0);
 
         // headline tiles
@@ -892,10 +906,19 @@
     }
 
     /* Predictively stage a same-flavor refill for any case pan that has
-     * short-term stock to pull from — even before it hits the red. */
+     * short-term stock to pull from — even before it hits the red. Also
+     * reconciles the queue against reality: an entry whose replacement
+     * flavor no longer has short-term stock (moved/transferred away after
+     * being staged) is dropped instead of sitting there falsely "READY". */
     function autoStageLowPans() {
         // never write until the saved queue has loaded, or we'd clobber it
         if (!queueLoaded) return;
+
+        const stale = queue.filter(q => {
+            const f = byId(q.flavorId);
+            return !f || caseStock(f) <= EPS;
+        });
+
         const additions = [];
         casePans().forEach(f => {
             // predictive: stage a refill for ANY pan that has a short-term
@@ -905,12 +928,29 @@
                 additions.push({ pan: f.casePan, flavorId: f.id, name: f.name });
             }
         });
-        if (!additions.length || autoStageLock) return;
+
+        if ((!additions.length && !stale.length) || autoStageLock) return;
         autoStageLock = true;
-        const next = queue.concat(additions);
+        const next = queue.filter(q => !stale.includes(q)).concat(additions);
         queueDocRef().set({ queue: next }, { merge: true })
-            .then(() => additions.forEach(a => logMove('auto-stage', `Auto-staged ${a.name} refill → Pan ${a.pan}`)))
+            .then(() => {
+                stale.forEach(q => logMove('auto-stage',
+                    `Removed stale swap (${nameById(q.flavorId) || q.name} → Pan ${q.pan}) — no longer has short-term backup`));
+                additions.forEach(a => logMove('auto-stage', `Auto-staged ${a.name} refill → Pan ${a.pan}`));
+            })
             .catch(err => { autoStageLock = false; console.error('autoStage failed', err); });
+    }
+
+    /* Bulk-clear the swap queue and let auto-stage reassign fresh
+     * recommendations from scratch (unlike per-item Remove, this also drops
+     * the manual-exclusion memory so nothing is held back from re-staging). */
+    async function clearQueue() {
+        if (!queue.length) return;
+        if (!confirm('Clear the entire swap queue?\n\nFresh recommendations will be re-staged automatically for any pan that still qualifies.')) return;
+        autoStageExcluded.clear();
+        await queueDocRef().set({ queue: [] });
+        logMove('reset', 'Cleared the swap queue — recommendations will be reassigned');
+        status('Swap queue cleared — recommendations refreshing.', true);
     }
 
     function renderCaps() {
@@ -986,6 +1026,24 @@
             b.addEventListener('click', () => caseToShort(b.dataset.id)));
         wrap.querySelectorAll('.g-assign-btn').forEach(b =>
             b.addEventListener('click', () => openAssignModal(Number(b.dataset.pan))));
+
+        // right-click a filled pan for a shortcut menu of the same pan
+        // movements as the buttons below it (merge / empty / short / trash)
+        wrap.querySelectorAll('.g-pan[data-id]').forEach(panEl => {
+            panEl.addEventListener('contextmenu', e => {
+                e.preventDefault();
+                const id = panEl.dataset.id;
+                const f = byId(id);
+                if (!f) return;
+                showContextMenu(e.clientX, e.clientY, [
+                    { label: `Merge into Pan ${f.casePan}…`, action: () => openMergeModal(f.id) },
+                    { label: 'Send remainder to Short-Term', action: () => caseToShort(id) },
+                    { label: 'Empty pan (use up remainder)', action: () => emptyPan(id) },
+                    { divider: true },
+                    { label: 'Discard pan (trash, not counted)', danger: true, action: () => discardPan(id) }
+                ]);
+            });
+        });
     }
 
     function freezerTone(amt) {
@@ -1006,6 +1064,31 @@
         if (!items.length) html += `<p class="g-empty-note">No pans stored here.</p>`;
         items.forEach(f => {
             const arr = pansOf(f, loc);
+
+            if (f.isDummy) {
+                // a placeholder pan for whatever isn't a gelato flavor (mini
+                // cones, packaging…) — just a "slot occupied" chip + a
+                // top-right editable label, no amount/adjust UI since there's
+                // no meaningful fractional fill level to speak of
+                const chips = arr.map((amt, idx) => {
+                    const key = `${f.id}|${loc}|${idx}|${r2(amt)}`;
+                    return `<span class="g-pan-chip dummy" data-id="${f.id}" data-loc="${loc}" data-idx="${idx}" data-amt="${r2(amt)}" data-key="${key}">` +
+                        `occupied <button type="button" class="g-pan-chip-remove" title="Remove this pan">✕</button>` +
+                        `</span>`;
+                }).join('');
+                html += `
+                <div class="g-frz-tub g-frz-dummy">
+                    <div class="g-dummy-head">
+                        <span class="g-dummy-tag">Dummy pan</span>
+                        <input type="text" class="g-dummy-label" data-id="${f.id}" value="${esc(f.name)}"
+                            maxlength="60" placeholder="What's in here?" aria-label="Dummy pan label">
+                    </div>
+                    <div class="g-pan-chips">${chips}</div>
+                    <div class="g-frz-amt">${arr.length} slot${arr.length === 1 ? '' : 's'} used · not counted as gelato stock</div>
+                </div>`;
+                return;
+            }
+
             const tone = freezerTone(f[loc] || 0);
             // one chip per physical pan — collapsed shows amount + ✕; clicking amount expands to −/+
             const chips = arr.map((amt, idx) => {
@@ -1039,6 +1122,17 @@
         });
         html += `</div>`;
         wrap.innerHTML = html;
+
+        // dummy pans: editable label, saved on change/Enter
+        wrap.querySelectorAll('.g-dummy-label').forEach(input => {
+            input.addEventListener('change', () => renameDummyPan(input.dataset.id, input.value));
+            input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+        });
+        // auto-focus a just-created dummy pan's label so it's ready to type into
+        if (pendingDummyFocusId) {
+            const toFocus = wrap.querySelector(`.g-dummy-label[data-id="${pendingDummyFocusId}"]`);
+            if (toFocus) { toFocus.focus(); toFocus.select(); pendingDummyFocusId = null; }
+        }
 
         // collapsed: click amount to open
         wrap.querySelectorAll('.g-pan-chip-amt').forEach(btn => {
@@ -1080,6 +1174,55 @@
                 }
             });
         });
+
+        // right-click a chip for a shortcut menu of pan movements — always
+        // scoped to that exact chip's id+loc+idx+amt, so with more than one
+        // pan of a flavor in this freezer the right one is always the target
+        wrap.querySelectorAll('.g-pan-chip').forEach(chip => {
+            chip.addEventListener('contextmenu', e => {
+                e.preventDefault();
+                const chipId = chip.dataset.id, chipLoc = chip.dataset.loc;
+                const idx = Number(chip.dataset.idx), amt = Number(chip.dataset.amt);
+                const f = byId(chipId);
+                if (!f) return;
+
+                if (f.isDummy) {
+                    const items = [
+                        { label: 'Edit label', action: () => focusDummyLabel(chipId) },
+                        { divider: true },
+                        { label: 'Remove this pan', danger: true, action: () => emptyStoragePan(chipId, chipLoc, idx, amt, chip.dataset.key) }
+                    ];
+                    if (chipLoc === 'longTerm') items.push({ divider: true }, { label: '+ Add Dummy Pan', action: addDummyPan });
+                    showContextMenu(e.clientX, e.clientY, items);
+                    return;
+                }
+
+                const other = chipLoc === 'shortTerm' ? 'longTerm' : 'shortTerm';
+                const items = [
+                    { label: `Move this ${amt} pan to Case`, action: () => moveSpecificPan(chipId, chipLoc, idx, amt, 'active') },
+                    { label: `Move this ${amt} pan to ${LOCATION_LABELS[other]}`, action: () => moveSpecificPan(chipId, chipLoc, idx, amt, other) },
+                    { label: `Use / serve this ${amt} pan`, action: () => moveSpecificPan(chipId, chipLoc, idx, amt, 'use') },
+                    { divider: true },
+                    { label: 'Remove this pan', danger: true, action: () => emptyStoragePan(chipId, chipLoc, idx, amt, chip.dataset.key) }
+                ];
+                if (chipLoc === 'longTerm') items.push({ divider: true }, { label: '+ Add Dummy Pan', action: addDummyPan });
+                showContextMenu(e.clientX, e.clientY, items);
+            });
+        });
+
+        // right-click empty freezer background (Long-Term only) to create a
+        // new dummy pan — attached once to the wrap itself since innerHTML
+        // above only replaces its children, not the wrap element
+        if (loc === 'longTerm' && !longFreezerCtxAttached) {
+            longFreezerCtxAttached = true;
+            wrap.addEventListener('contextmenu', e => {
+                if (e.target.closest('.g-pan-chip, .g-frz-tub')) return;  // handled by the chip's own menu above
+                e.preventDefault();
+                showContextMenu(e.clientX, e.clientY, [
+                    { label: '+ Add Dummy Pan (mini cones, packaging, etc.)', action: addDummyPan }
+                ]);
+            });
+        }
 
         // one-time document handlers for Escape and click-outside
         if (!chipHandlersAttached) {
@@ -1143,7 +1286,7 @@
         const lowCount = casePans().filter(f => (f.active || 0) <= SWAP_THRESHOLD + EPS).length;
         const caseFill = r2(casePans().reduce((s, f) => s + (f.active || 0), 0));
         const short = sumLoc('shortTerm');
-        const long = sumLoc('longTerm');
+        const long = sumLocGelato('longTerm');  // "Total gelato" shouldn't count dummy pans
         const total = r2(caseFill + short + long);
 
         kpiCards([
@@ -1159,7 +1302,7 @@
             .map(f => ({ name: `Pan ${f.casePan} · ${f.name}`, val: f.active || 0 })), 1, true, true);
         bars('stat-short', withAmt('shortTerm').map(f => ({ name: f.name, val: f.shortTerm || 0 })),
             Math.max(SHORT_CAP / 4, maxVal('shortTerm')), false);
-        bars('stat-long', withAmt('longTerm').map(f => ({ name: f.name, val: f.longTerm || 0 })),
+        bars('stat-long', withAmt('longTerm').filter(f => !f.isDummy).map(f => ({ name: f.name, val: f.longTerm || 0 })),
             Math.max(LONG_CAP / 4, maxVal('longTerm')), false);
         renderCaseBackup();
 
@@ -1270,6 +1413,110 @@
         if (popup) popup.hidden = true;
     }
 
+    /* ----- Right-click context menu ----------------------------------------
+     * Generic small popup menu used by both the case pans and the freezer
+     * pan chips (see renderCase()/renderFreezer()) so "any of the pan
+     * movements" are reachable with a right-click instead of hunting for the
+     * matching button. `items` is [{ label, action, disabled, danger }] or
+     * { divider: true } to insert a separator. */
+    let ctxMenuHandlersAttached = false;
+    function showContextMenu(x, y, items) {
+        const menu = document.getElementById('g-ctx-menu');
+        if (!menu) return;
+        menu.innerHTML = items.map((it, i) => it.divider
+            ? `<div class="g-ctx-divider"></div>`
+            : `<button type="button" class="g-ctx-item ${it.danger ? 'danger' : ''}" data-i="${i}" ${it.disabled ? 'disabled' : ''}>${esc(it.label)}</button>`
+        ).join('');
+        menu.style.left = `${x}px`;
+        menu.style.top = `${y}px`;
+        menu.hidden = false;
+        // clamp inside the viewport once we know the menu's rendered size
+        requestAnimationFrame(() => {
+            const maxLeft = window.innerWidth - menu.offsetWidth - 8;
+            const maxTop = window.innerHeight - menu.offsetHeight - 8;
+            menu.style.left = `${Math.max(4, Math.min(x, maxLeft))}px`;
+            menu.style.top = `${Math.max(4, Math.min(y, maxTop))}px`;
+        });
+
+        menu.querySelectorAll('.g-ctx-item').forEach(btn => {
+            btn.addEventListener('click', () => {
+                hideContextMenu();
+                const item = items[Number(btn.dataset.i)];
+                if (item && item.action) item.action();
+            });
+        });
+
+        if (!ctxMenuHandlersAttached) {
+            ctxMenuHandlersAttached = true;
+            document.addEventListener('click', hideContextMenu);
+            document.addEventListener('contextmenu', e => {
+                if (!e.target.closest('.g-pan, .g-pan-chip')) hideContextMenu();
+            });
+            document.addEventListener('keydown', e => { if (e.key === 'Escape') hideContextMenu(); });
+            window.addEventListener('scroll', hideContextMenu, true);
+            window.addEventListener('resize', hideContextMenu);
+        }
+    }
+
+    function hideContextMenu() {
+        const menu = document.getElementById('g-ctx-menu');
+        if (menu) menu.hidden = true;
+    }
+
+    /* Move ONE specific physical pan (identified by its exact index in the
+     * flavor's pan list, not just an aggregate amount) from a freezer to
+     * another location. Same destinations as the Transfer form/onTransfer,
+     * but pinned to the exact pan a right-click was made on — critical when
+     * a flavor has more than one pan sitting in the same freezer. */
+    async function moveSpecificPan(id, loc, idx, expectedAmt, dest) {
+        const f = byId(id);
+        if (!f || f.isDummy) return;  // dummy pans use their own menu (edit label / remove)
+        const arr = pansOf(f, loc);
+        const amt = arr[idx];
+        if (amt == null || Math.abs(r2(amt) - r2(expectedAmt)) > EPS) {
+            status('Pan data changed — please wait for the page to refresh.');
+            return;
+        }
+        if (dest === loc) return;
+
+        if (dest === 'active') {
+            if (loc !== 'shortTerm') { status('The case can only be filled from short-term storage.'); return; }
+            if (!f.casePan && casePans().length >= CASE_SLOTS) { status(`The case is full (${CASE_SLOTS} pans).`); return; }
+            const newActive = r2((f.active || 0) + amt);
+            if (newActive > 1 + EPS) { status(`A case pan holds max 1.0 — this ${r2(amt)} pan would push ${f.name} to ${newActive}.`); return; }
+            const next = arr.slice(); next.splice(idx, 1);
+            const update = setPans({ active: newActive, updatedAt: stamp() }, loc, next);
+            if (!f.casePan) update.casePan = firstFreePan();
+            await doc(id).update(update);
+            logMove('transfer', `${r2(amt)} ${f.name}: ${LOCATION_LABELS[loc]} → Case (Pan ${update.casePan || f.casePan})`);
+            status(`Moved ${r2(amt)} pan of ${f.name} into the case.`, true);
+            return;
+        }
+
+        if (dest === 'use') {
+            const next = arr.slice(); next.splice(idx, 1);
+            await doc(id).update(setPans({ updatedAt: stamp() }, loc, next));
+            addUsage('usedPans', amt);
+            logMove('use', `Used a ${r2(amt)} pan of ${f.name} directly from ${LOCATION_LABELS[loc]}`);
+            status(`Used ${r2(amt)} of ${f.name} from ${LOCATION_LABELS[loc]}.`, true);
+            return;
+        }
+
+        // freezer -> freezer (shortTerm <-> longTerm)
+        const cap = dest === 'shortTerm' ? SHORT_CAP : LONG_CAP;
+        const destArr = addPans(pansOf(f, dest), amt);
+        if (slotsAfter(dest, id, destArr) > cap) {
+            status(`${LOCATION_LABELS[dest]} freezer is full — ${slotsOpen(dest)} slot(s) open.`); return;
+        }
+        const next = arr.slice(); next.splice(idx, 1);
+        const update = { updatedAt: stamp() };
+        setPans(update, loc, next);
+        setPans(update, dest, destArr);
+        await doc(id).update(update);
+        logMove('transfer', `${r2(amt)} ${f.name}: ${LOCATION_LABELS[loc]} → ${LOCATION_LABELS[dest]}`);
+        status(`Moved ${r2(amt)} pan of ${f.name}: ${LOCATION_LABELS[loc]} → ${LOCATION_LABELS[dest]}.`, true);
+    }
+
     const maxVal = loc => flavors.reduce((m, f) => Math.max(m, f[loc] || 0), 0) || 1;
 
     function kpiCards(rows) {
@@ -1303,7 +1550,7 @@
     }
 
     function renderStatTable() {
-        const rows = flavors.map(f => ({
+        const rows = flavors.filter(f => !f.isDummy).map(f => ({
             id: f.id, name: f.name, pan: f.casePan || null,
             active: r2(f.active), short: r2(f.shortTerm), long: r2(f.longTerm),
             total: r2((f.active || 0) + (f.shortTerm || 0) + (f.longTerm || 0))
@@ -1337,11 +1584,28 @@
     }
 
     // ----- Order queue (flavors to make) ----------------------------------
+    const orderSource = () => (document.getElementById('order-source') || {}).value || 'active';
+
     function renderOrderQueue() {
         const sel = document.getElementById('order-flavor');
         if (sel) {
             const prev = sel.value;
-            sel.innerHTML = menuFlavors.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('');
+            if (orderSource() === 'pending') {
+                sel.innerHTML = pendingList.length
+                    ? pendingList.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('')
+                    : `<option value="">No pending flavors</option>`;
+            } else {
+                // priority: whatever's in the display case right now, then the
+                // rest of the active menu — staging for production should look
+                // at what's actually running low on the floor first
+                const inCase = new Set(casePans().map(f => f.id));
+                const cased = menuFlavors.filter(f => inCase.has(f.id));
+                const rest = menuFlavors.filter(f => !inCase.has(f.id));
+                sel.innerHTML =
+                    (cased.length ? `<optgroup label="In the Case (priority)">${cased.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('')}</optgroup>` : '') +
+                    (rest.length ? `<optgroup label="Other Active Flavors">${rest.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('')}</optgroup>` : '');
+                if (!cased.length && !rest.length) sel.innerHTML = `<option value="">No active flavors on menu</option>`;
+            }
             if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
         }
         const list = document.getElementById('order-list');
@@ -1654,9 +1918,9 @@
     /* Popup to fill a case pan up to 1.0 from another pan OR from a flavor's
      * short-term storage. e.g. short-term 2.3 + a 0.7 pan -> moves 0.3 so the
      * pan reads 1.0 and short-term reads 2.0. Capped at a full 1.0. */
-    function openMergeModal() {
+    function openMergeModal(preselectPanFlavorId) {
         const pans = casePans().slice().sort((a, b) => a.casePan - b.casePan);
-        const shortHoldings = flavors.filter(f => (f.shortTerm || 0) > EPS)
+        const shortHoldings = flavors.filter(f => !f.isDummy && (f.shortTerm || 0) > EPS)
             .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         document.getElementById('g-modal-title').textContent = 'Merge / fill a pan';
         const body = document.getElementById('g-modal-body');
@@ -1697,6 +1961,13 @@
         // default to the first short-term holding feeding its own pan, else pan->pan
         if (shortHoldings.length) { fromSel.value = `short:${shortHoldings[0].id}`; syncInto(); }
         else if (pans.length >= 2) { fromSel.value = `pan:${pans[1].id}`; intoSel.value = pans[0].id; }
+
+        // a right-click "Merge into this pan…" wins over the defaults above
+        if (preselectPanFlavorId && pans.some(p => p.id === preselectPanFlavorId)) {
+            intoSel.value = preselectPanFlavorId;
+            const ownShort = shortHoldings.find(f => f.id === preselectPanFlavorId);
+            if (ownShort) fromSel.value = `short:${ownShort.id}`;
+        }
 
         const updateHint = () => {
             const src = mergeSource(fromSel.value), tgt = byId(intoSel.value);
@@ -2007,7 +2278,7 @@
 
     // ----- Assign modal (GUI) ---------------------------------------------
     function openAssignModal(pan) {
-        const choices = flavors.filter(f => !f.casePan && caseStock(f) > EPS)
+        const choices = flavors.filter(f => !f.isDummy && !f.casePan && caseStock(f) > EPS)
             .sort((a, b) => caseStock(b) - caseStock(a));
         const body = document.getElementById('g-modal-body');
         document.getElementById('g-modal-title').textContent = `Add a flavor to Pan ${pan}`;
@@ -2065,6 +2336,122 @@
         closeModal();
         logMove('assign', `Added ${f.name} to Pan ${pan} at ${amount} (from Short-Term)`);
         status(`${f.name} added to Pan ${pan} at ${amount}.`, true);
+    }
+
+    // ----- Freezer assign modal (Long-Term "assign pans" shortcut) --------
+    /* Quick intake shortcut scoped to one freezer location, opened right from
+     * that freezer's own section instead of scrolling to the general Add
+     * Stock form below. Adds brand-new pan(s) of a chosen flavor directly
+     * into `loc` (mirrors onAddStock's logic — not pulled from other stock). */
+    function openFreezerAssignModal(loc) {
+        const offMenu = flavors.filter(f => !f.isDummy && (!menuIds || !menuIds.has(f.id)));
+        const choices = [...menuFlavors, ...offMenu]
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        document.getElementById('g-modal-title').textContent = `Assign a flavor to ${LOCATION_LABELS[loc]}`;
+        const body = document.getElementById('g-modal-body');
+        if (!choices.length) {
+            body.innerHTML = `<p class="g-empty-note">No flavors available yet.</p>`;
+            showModal();
+            return;
+        }
+        body.innerHTML = `
+            <label class="g-modal-label">Flavor</label>
+            <select id="frz-assign-flavor" class="g-modal-select">
+                ${choices.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('')}
+            </select>
+            <label class="g-modal-label">Pans to add</label>
+            <input type="number" id="frz-assign-amt" class="g-modal-input" list="amt-presets" value="1" min="0.1" step="0.1">
+            <p class="g-modal-hint" id="frz-assign-hint"></p>
+            <div class="g-modal-actions">
+                <button type="button" class="g-modal-cancel" id="frz-assign-cancel">Cancel</button>
+                <button type="button" class="g-modal-go" id="frz-assign-go">Add to ${LOCATION_LABELS[loc]}</button>
+            </div>`;
+
+        const sel = document.getElementById('frz-assign-flavor');
+        const hint = document.getElementById('frz-assign-hint');
+        const cap = loc === 'shortTerm' ? SHORT_CAP : LONG_CAP;
+        const updateHint = () => {
+            const f = byId(sel.value);
+            const cur = f ? (f[loc] || 0) : 0;
+            const label = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+            hint.textContent = `${label}: ${r2(cur)} already in ${LOCATION_LABELS[loc]}. ${slotsOpen(loc)} of ${cap} slots open.`;
+        };
+        sel.addEventListener('change', updateHint);
+        updateHint();
+
+        document.getElementById('frz-assign-cancel').addEventListener('click', closeModal);
+        document.getElementById('frz-assign-go').addEventListener('click', () =>
+            doFreezerAssign(loc, sel.value, parseFloat(document.getElementById('frz-assign-amt').value)));
+        showModal();
+    }
+
+    async function doFreezerAssign(loc, flavorId, amount) {
+        amount = r2(amount);
+        if (!flavorId) { status('Pick a flavor.'); return; }
+        if (!(amount > 0)) { status('Enter a quantity greater than 0.'); return; }
+        const cap = loc === 'shortTerm' ? SHORT_CAP : LONG_CAP;
+        const f = byId(flavorId);
+        const m = liveMeta(flavorId);
+        const newArr = addPans(pansOf(f || {}, loc), amount);
+        if (slotsAfter(loc, flavorId, newArr) > cap) {
+            status(`${LOCATION_LABELS[loc]} freezer is full — ${slotsOpen(loc)} slot(s) open.`); return;
+        }
+        if (f) {
+            const heal = m ? { name: m.name || f.name, gelatoImage: m.gelatoImage || m.imageURL || f.gelatoImage || '', imageURL: m.imageURL || f.imageURL || '' } : {};
+            await doc(flavorId).update(setPans({ ...heal, updatedAt: stamp() }, loc, newArr));
+        } else {
+            const other = loc === 'shortTerm' ? 'longTerm' : 'shortTerm';
+            const u = {
+                name: (m && m.name) || '(unnamed)',
+                gelatoImage: (m && (m.gelatoImage || m.imageURL)) || '',
+                imageURL: (m && m.imageURL) || '',
+                active: 0, casePan: null,
+                updatedAt: stamp()
+            };
+            setPans(u, loc, newArr);
+            setPans(u, other, []);
+            await doc(flavorId).set(u, { merge: true });
+        }
+        closeModal();
+        const name = (m && m.name) || (f && f.name) || '(unnamed)';
+        logMove('intake', `Assigned ${amount} ${name} → ${LOCATION_LABELS[loc]}`);
+        status(`Added ${amount} pan(s) of ${name} to ${LOCATION_LABELS[loc]}.`, true);
+    }
+
+    // ----- Dummy (non-flavor) pans — Long-Term only ------------------------
+    /* A placeholder pan for whatever isn't a gelato flavor (mini cones,
+     * packaging, etc.) so it can still occupy — and be seen occupying — a
+     * real freezer slot. It's just a gelatoInventory doc like any other,
+     * flagged `isDummy: true` so every flavor-driven picker/automation
+     * (Transfer, Add Stock, case-assign, merge, swap queue, order queue,
+     * stat table/bars, $ value) skips it — see the `!f.isDummy` guards and
+     * sumLocGelato() above. Physical slot/capacity counts stay inclusive. */
+    async function addDummyPan() {
+        if (slotsUsed('longTerm') >= LONG_CAP) {
+            status(`Long-Term freezer is full — ${slotsOpen('longTerm')} slot(s) open.`);
+            return;
+        }
+        const id = `dummy_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+        const name = 'New Item';
+        const u = { isDummy: true, name, active: 0, casePan: null, updatedAt: stamp() };
+        setPans(u, 'longTerm', [1]);
+        setPans(u, 'shortTerm', []);
+        await db.collection('gelatoInventory').doc(id).set(u);
+        pendingDummyFocusId = id;   // renderFreezer() focuses its label input once rendered
+        logMove('intake', `Added a dummy pan to Long-Term — edit its label to say what's in it`);
+        status('Dummy pan added — type what it holds in the label at top-right.', true);
+    }
+
+    async function renameDummyPan(id, name) {
+        const clean = String(name || '').trim().slice(0, 60) || 'New Item';
+        await doc(id).update({ name: clean, updatedAt: stamp() });
+    }
+
+    /* Right-click "Edit label" on an already-rendered dummy chip — no
+     * Firestore round-trip needed, the input is already on the page. */
+    function focusDummyLabel(id) {
+        const el = document.querySelector(`.g-dummy-label[data-id="${id}"]`);
+        if (el) { el.focus(); el.select(); }
     }
 
     function showModal() { document.getElementById('g-modal').hidden = false; }
@@ -2186,7 +2573,7 @@
         const sel = document.getElementById('t-flavor');
         const prev = sel.value;
         // merge: all menu flavors + any off-menu flavors that still have stock
-        const offMenu = flavors.filter(f => !menuIds || !menuIds.has(f.id));
+        const offMenu = flavors.filter(f => !f.isDummy && (!menuIds || !menuIds.has(f.id)));
         const allOpts = [...menuFlavors, ...offMenu]
             .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         sel.innerHTML = allOpts.length
@@ -2201,6 +2588,27 @@
             }).join('')
             : `<option value="">No flavors available</option>`;
         if (prev && allOpts.some(f => f.id === prev)) sel.value = prev;
+    }
+
+    /* The transfer amount is a specific physical pan, not a free-typed
+     * number — options come straight from that flavor's actual pan volumes
+     * in the chosen "From" location (deduped), so you can only pick a value
+     * that really exists in the database. The case only ever holds one pan
+     * per flavor (the scalar `active` amount), so that's the sole option
+     * there. Kept in sync with renderAll() so it never goes stale. */
+    function renderTransferAmounts() {
+        const sel = document.getElementById('t-amount');
+        if (!sel) return;
+        const prev = sel.value;
+        const f = byId(document.getElementById('t-flavor').value);
+        const from = document.getElementById('t-from').value;
+        const vols = !f ? [] : from === 'active'
+            ? ((f.active || 0) > EPS ? [r2(f.active)] : [])
+            : [...new Set(pansOf(f, from))].sort((a, b) => b - a);
+        sel.innerHTML = vols.length
+            ? vols.map(v => `<option value="${v}">${v} pan${v === 1 ? '' : 's'}</option>`).join('')
+            : `<option value="">Nothing to transfer from ${LOCATION_LABELS[from]}</option>`;
+        if (prev && vols.some(v => String(v) === prev)) sel.value = prev;
     }
 
     function refreshTransferHint() {
@@ -2228,9 +2636,12 @@
         const f = byId(document.getElementById('t-flavor').value);
         const from = document.getElementById('t-from').value;
         const to = document.getElementById('t-to').value;
-        const amount = r2(document.getElementById('t-amount').value);
+        const amountRaw = document.getElementById('t-amount').value;
 
         if (!f) return;
+        if (f.isDummy) { status('Dummy pans aren\'t flavors — use the right-click menu on the pan itself.'); return; }
+        if (!amountRaw) { status(`Nothing to transfer from ${LOCATION_LABELS[from]}.`); return; }
+        const amount = r2(amountRaw);
         if (amount <= 0) { status('Amount must be greater than 0.'); return; }
         if (from === to) { status('Pick two different locations.'); return; }
 

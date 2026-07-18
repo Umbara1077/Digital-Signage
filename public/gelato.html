@@ -111,6 +111,10 @@
             <div class="g-stat-block" id="order-block">
                 <h3>Order Queue — flavors to make</h3>
                 <form id="orderAddForm" class="g-order-add">
+                    <select id="order-source">
+                        <option value="active">Active (on menu)</option>
+                        <option value="pending">Pending (off menu)</option>
+                    </select>
                     <select id="order-flavor" required></select>
                     <button type="submit">+ Add to order</button>
                     <button type="button" id="order-clear" class="btn g-btn-danger">Clear list</button>
@@ -144,7 +148,10 @@
             <div class="g-queue-wrap">
                 <div class="g-recos" id="swap-recos"></div>
                 <div class="g-queue">
-                    <h3>Swap Queue</h3>
+                    <div class="g-queue-head">
+                        <h3>Swap Queue</h3>
+                        <button type="button" id="queue-clear" class="btn g-btn-danger">Clear queue</button>
+                    </div>
                     <p class="g-hint-line">Stage a replacement for any pan now — it waits here and turns
                         <strong class="rdy">READY</strong> when that pan hits the red (&le; 0.5) — but you can execute any time.</p>
                     <form id="stageForm" class="g-stage">
@@ -166,6 +173,9 @@
 
         <section class="g-section visual-only">
             <h2>Long-Term Freezer <span class="g-cap" id="long-cap"></span></h2>
+            <div class="g-freezer-actions">
+                <button id="assign-long" type="button" class="btn">+ Assign Flavor to Long-Term</button>
+            </div>
             <div class="g-freezer" id="long-visual"></div>
         </section>
 
@@ -220,8 +230,8 @@
                     <option value="longTerm">Long-Term Freezer</option>
                 </select>
 
-                <label for="t-amount">Amount (pans)</label>
-                <input type="number" id="t-amount" min="0.1" step="0.1" value="1" required>
+                <label for="t-amount">Pan (pans)</label>
+                <select id="t-amount" required></select>
 
                 <div class="g-transfer-actions">
                     <button type="submit">Transfer</button>
@@ -260,6 +270,9 @@
 
     <!-- Swap-stage popup: appears next to whatever was clicked, no scrolling needed -->
     <div id="g-stage-popup" class="g-stage-popup" hidden></div>
+
+    <!-- Right-click context menu: case pans + freezer pan chips -->
+    <div id="g-ctx-menu" class="g-ctx-menu" hidden></div>
 
     <script>
         document.getElementById('back-to-admin').addEventListener('click', () => {

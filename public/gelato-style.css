@@ -466,6 +466,12 @@
     margin-top: 12px;
 }
 
+.g-freezer-actions {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+
 /* ====================== FREEZERS ====================== */
 .g-freezer {
     width: 100%;
@@ -564,6 +570,56 @@
     flex-wrap: wrap;
     gap: 3px;
     margin: 3px 0;
+}
+
+/* Dummy (non-flavor) pan card — mini cones, packaging, etc. Distinct dashed
+ * border so it reads as "not a gelato flavor" at a glance in the freezer grid. */
+.g-frz-dummy {
+    display: block;
+    border: 1px dashed #4a5470;
+    border-radius: 12px;
+    padding: 10px 12px;
+    background: #12151d;
+}
+
+.g-dummy-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.g-dummy-tag {
+    flex: 0 0 auto;
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.g-dummy-label {
+    flex: 1;
+    min-width: 0;
+    text-align: right;
+    padding: 4px 8px;
+    font-size: .82rem;
+    font-weight: 700;
+    color: #e7eeff;
+    background: #0f1218;
+    border: 1px solid #283042;
+    border-radius: 8px;
+}
+
+.g-dummy-label:focus {
+    outline: none;
+    border-color: #38a3ff;
+}
+
+.g-pan-chip.dummy {
+    border-style: dashed;
+    color: var(--muted);
 }
 
 /* one chip per physical freezer pan */
@@ -1082,6 +1138,24 @@
     font-size: 1rem;
 }
 
+.g-queue-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.g-queue-head h3 {
+    margin: 0 0 10px;
+}
+
+.g-queue-head .g-btn-danger {
+    padding: 6px 12px;
+    font-size: .78rem;
+    border-radius: 10px;
+    margin-bottom: 10px;
+}
+
 .g-reco {
     padding: 10px;
     border: 1px solid #2a2f3a;
@@ -1297,6 +1371,58 @@
 .g-stage-popup.wait {
     border-color: #f0a92b;
     color: #ffe6b8;
+}
+
+/* ====================== RIGHT-CLICK CONTEXT MENU ====================== */
+.g-ctx-menu {
+    position: fixed;
+    z-index: 95;
+    min-width: 200px;
+    max-width: 280px;
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: linear-gradient(180deg, #161c26, #10141b);
+    box-shadow: var(--shadow-lg);
+}
+
+.g-ctx-menu[hidden] {
+    display: none !important;
+}
+
+.g-ctx-item {
+    display: block;
+    width: 100%;
+    padding: 9px 12px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #dbe3f2;
+    font-size: .85rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+
+.g-ctx-item:hover:not(:disabled) {
+    background: #243049;
+    color: #fff;
+}
+
+.g-ctx-item:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+}
+
+.g-ctx-item.danger:hover:not(:disabled) {
+    background: #3a1f22;
+    color: #ff9a9b;
+}
+
+.g-ctx-divider {
+    height: 1px;
+    margin: 4px 6px;
+    background: #2a2f3a;
 }
 
 /* ====================== SYNC CASE -> MENU ====================== */

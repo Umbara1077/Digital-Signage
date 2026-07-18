@@ -16,5 +16,8 @@
   "bugs": {
     "url": "https://github.com/Umbara1077/Digital-Signage/issues"
   },
-  "homepage": "https://github.com/Umbara1077/Digital-Signage#readme"
+  "homepage": "https://github.com/Umbara1077/Digital-Signage#readme",
+  "dependencies": {
+    "firebase": "^12.16.0"
+  }
 }
