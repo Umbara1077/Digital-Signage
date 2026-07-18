@@ -520,8 +520,19 @@
 
             status('Restoring menu…');
             const menuSnap = await db.collection('menuItems').get();
+            const savedIds = new Set(savedList.map(m => m.id));
             const batch = db.batch();
-            menuSnap.docs.forEach(d => batch.delete(db.collection('menuItems').doc(d.id)));
+            // Anything on the menu right now that the restored (pre-sync) menu
+            // doesn't include moves to pending instead of being deleted outright
+            // - same principle as the sync fix: preserves the full record so it
+            // can be brought back later. Items present in both just get
+            // overwritten by the savedList.forEach below, so they're skipped
+            // here to avoid writing them to pending too.
+            menuSnap.docs.forEach(d => {
+                if (savedIds.has(d.id)) return;
+                batch.set(db.collection('pendingItems').doc(), d.data());
+                batch.delete(db.collection('menuItems').doc(d.id));
+            });
             savedList.forEach(m => batch.set(db.collection('menuItems').doc(m.id), m.data));
             savedPending.forEach(p => batch.set(db.collection('pendingItems').doc(p.id), p.data));
             batch.delete(menuBackupDocRef());   // clears the backup -> hides the Undo button
