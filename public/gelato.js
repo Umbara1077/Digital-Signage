@@ -547,6 +547,7 @@
 
     // ----- UI wiring -------------------------------------------------------
     function wireUi() {
+        wireCaseButtonEffects();
         document.getElementById('sync-flavors').addEventListener('click', async () => {
             status('Syncing flavors from menu…');
             await seedMissingFromMenu();
@@ -626,6 +627,60 @@
         document.getElementById('g-modal').addEventListener('click', e => {
             if (e.target.id === 'g-modal') closeModal();
         });
+    }
+
+    // ----- Case action effects --------------------------------------------
+    // One lightweight, reusable stage for every case mutation. It is created
+    // in JS so the effect never blocks the controls or Firestore operations.
+    function wireCaseButtonEffects() {
+        const caseEl = document.getElementById('case-visual');
+        if (!caseEl) return;
+        caseEl.addEventListener('pointerdown', e => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            btn.classList.remove('g-button-hit');
+            void btn.offsetWidth;
+            btn.classList.add('g-button-hit');
+        });
+        caseEl.addEventListener('animationend', e => {
+            if (e.animationName === 'gButtonHit') e.target.classList.remove('g-button-hit');
+        });
+    }
+
+    function caseActionFx(type, title, detail, pan) {
+        const old = document.querySelector('.g-action-fx');
+        if (old) old.remove();
+
+        const themes = {
+            add:      { icon: '+', verb: 'ADDED' },
+            subtract: { icon: '\u2212', verb: 'SERVED' },
+            remove:   { icon: '\u00d7', verb: 'REMOVED' },
+            merge:    { icon: '\u21c9', verb: 'MERGED' },
+            swap:     { icon: '\u21c4', verb: 'SWAPPED' },
+            transfer: { icon: '\u2192', verb: 'MOVED' }
+        };
+        const theme = themes[type] || themes.transfer;
+        const fx = document.createElement('div');
+        fx.className = `g-action-fx g-fx-${type}`;
+        fx.setAttribute('role', 'status');
+        fx.setAttribute('aria-live', 'polite');
+
+        const particles = Array.from({ length: 14 }, (_, i) => {
+            const angle = (i / 14) * Math.PI * 2;
+            const x = Math.round(Math.cos(angle) * (90 + (i % 3) * 18));
+            const y = Math.round(Math.sin(angle) * (70 + (i % 4) * 12));
+            return `<i class="g-fx-particle" style="--x:${x}px;--y:${y}px;--d:${i * 22}ms"></i>`;
+        }).join('');
+
+        fx.innerHTML = `<div class="g-fx-scene">
+            <div class="g-fx-ring"></div>${particles}
+            <div class="g-fx-pan"><div class="g-fx-gelato"></div><span>${theme.icon}</span></div>
+            <div class="g-fx-copy"><strong>${theme.verb}</strong><b></b><small></small></div>
+        </div>`;
+        fx.querySelector('.g-fx-copy b').textContent = title || 'Case updated';
+        fx.querySelector('.g-fx-copy small').textContent = detail || (pan ? `Pan ${pan}` : 'Action complete');
+        document.body.appendChild(fx);
+        window.setTimeout(() => fx.remove(), 1900);
     }
 
     function setCaseSize(n) {
@@ -1861,6 +1916,7 @@
         await queueDocRef().set({ queue: next }, { merge: true });
         logMove('swap', `Swapped ${incoming.name} into Pan ${q.pan} (${take} from Short-Term)`);
         status(`Swapped ${incoming.name} into Pan ${q.pan}.`, true);
+        caseActionFx('swap', incoming.name, `Now in Pan ${q.pan}`, q.pan);
     }
 
     // ----- Case slot actions ----------------------------------------------
@@ -1878,6 +1934,7 @@
         addUsage('usedPans', amount);   // count served gelato toward today's usage
         logMove('use', `Used ${amount} ${f.name} (Pan ${f.casePan}) — ${r2(next)} left`);
         status(`Used ${amount} of ${f.name}. ${next <= EPS ? 'Pan emptied.' : r2(next) + ' left.'}`, true);
+        caseActionFx('subtract', f.name, `\u2212${amount} \u00b7 ${r2(next)} remaining`, f.casePan);
     }
 
     /* Top up a case pan. Opens a popup to choose the source: pull from this
@@ -1925,6 +1982,7 @@
         const src = fromShort > EPS ? `${r2(fromShort)} from Short-Term` : 'added (thin air)';
         logMove('transfer', `Added ${r2(actualAdd)} to Pan ${f.casePan} (${f.name}) — ${src} — now ${newActive}`);
         status(`Added ${r2(actualAdd)} to ${f.name}. Now ${newActive}.`, true);
+        caseActionFx('add', f.name, `+${r2(actualAdd)} \u00b7 ${newActive} in Pan ${f.casePan}`, f.casePan);
     }
 
     // ----- Merge into a pan -----------------------------------------------
@@ -2044,6 +2102,7 @@
         closeModal();
         logMove('transfer', `Merged ${moved} from ${label} into Pan ${tgt.casePan} (${tgt.name}) — now ${newActive}`);
         status(`Merged into Pan ${tgt.casePan}. Now ${newActive}.`, true);
+        caseActionFx('merge', tgt.name, `${moved} merged into Pan ${tgt.casePan}`, tgt.casePan);
     }
 
     /* Send a case pan's remaining gelato back into short-term storage. */
@@ -2061,6 +2120,7 @@
             { active: 0, casePan: null, updatedAt: stamp() }, 'shortTerm', newArr));
         logMove('transfer', `${amt} ${f.name}: Case (Pan ${pan}) → Short-Term`);
         status(`Sent ${amt} of ${f.name} back to short-term.`, true);
+        caseActionFx('transfer', f.name, `Pan ${pan} \u2192 Short-Term`, pan);
     }
 
     async function emptyPan(id) {
@@ -2078,6 +2138,7 @@
             await queueDocRef().set({ queue: next }, { merge: true });
             logMove('auto-stage', `Auto-staged ${f.name} refill → Pan ${pan} (emptied)`);
         }
+        caseActionFx('remove', f.name, `Pan ${pan} emptied`, pan);
     }
 
     /* Throw a case pan out (trash). NOT counted as used — no cost is recorded. */
@@ -2094,6 +2155,7 @@
             await queueDocRef().set({ queue: next }, { merge: true });
             logMove('auto-stage', `Auto-staged ${f.name} refill → Pan ${pan} (discarded)`);
         }
+        caseActionFx('remove', f.name, `${amt} discarded from Pan ${pan}`, pan);
     }
 
     /* Move every case pan's remaining gelato back into storage (short-term
@@ -2210,6 +2272,7 @@
             status(`Case closed with issues — ${msgs.join('; ')}. Swap queue cleared.`);
         } else {
             status('Case closed for the night — everything moved to storage, swap queue cleared. 🌙', true);
+            caseActionFx('transfer', 'Case closed', `${inCase.length} pan(s) moved into storage`);
         }
     }
 
@@ -2277,7 +2340,10 @@
         await batch.commit();
         logMove('reload', `Reloaded case from snapshot (${plan.length} pan(s))`);
         if (missing.length) status(`Reloaded. These flavors no longer exist: ${missing.join(', ')}.`);
-        else status('Case reloaded from the saved snapshot. ✅', true);
+        else {
+            status('Case reloaded from the saved snapshot. ✅', true);
+            caseActionFx('add', 'Case reloaded', `${plan.length} pan(s) restored`);
+        }
     }
 
     const sumOf = (state, key) => r2(Object.values(state).reduce((s, v) => s + (v[key] || 0), 0));
@@ -2359,6 +2425,7 @@
         closeModal();
         logMove('assign', `Added ${f.name} to Pan ${pan} at ${amount} (from Short-Term)`);
         status(`${f.name} added to Pan ${pan} at ${amount}.`, true);
+        caseActionFx('add', f.name, `Added to Pan ${pan} at ${amount}`, pan);
     }
 
     // ----- Freezer assign modal (Long-Term "assign pans" shortcut) --------
@@ -2703,6 +2770,10 @@
             await doc(f.id).update(update);
             logMove('transfer', `${amount} ${f.name}: ${LOCATION_LABELS[from]} → ${LOCATION_LABELS[to]}`);
             status(`Moved ${amount} pan(s) of ${f.name}: ${LOCATION_LABELS[from]} → ${LOCATION_LABELS[to]}.`, true);
+            if (from === 'active' || to === 'active') {
+                const fxType = to === 'active' ? 'add' : (to === 'use' ? 'subtract' : 'transfer');
+                caseActionFx(fxType, f.name, `${amount} pan(s): ${LOCATION_LABELS[from]} → ${LOCATION_LABELS[to]}`, f.casePan);
+            }
         } catch (err) {
             console.error('transfer failed', err);
             status('Transfer failed — see console.');

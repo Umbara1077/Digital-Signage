@@ -2232,3 +2232,130 @@ body.g-mobile main {
     font-size: .74rem;
     color: var(--muted);
 }
+
+/* ===== Cinematic case action feedback ================================== */
+.g-button-hit {
+    animation: gButtonHit .42s cubic-bezier(.2, .9, .25, 1.35) !important;
+    transform-origin: 50% 70%;
+}
+
+@keyframes gButtonHit {
+    0% { transform: perspective(500px) translateZ(0) scale(1); filter: brightness(1); }
+    38% { transform: perspective(500px) translateZ(-18px) scale(.9) rotateX(12deg); filter: brightness(1.5); }
+    72% { transform: perspective(500px) translateZ(24px) scale(1.1) rotateX(-5deg); }
+    100% { transform: perspective(500px) translateZ(0) scale(1); filter: brightness(1); }
+}
+
+.g-action-fx {
+    --fx: #38a3ff;
+    --fx2: #8be9ff;
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    perspective: 900px;
+    background: radial-gradient(circle at center, color-mix(in srgb, var(--fx) 14%, transparent), transparent 42%);
+    animation: gFxCurtain 1.85s ease both;
+}
+
+.g-fx-add { --fx: #20e38c; --fx2: #c8ffe8; }
+.g-fx-subtract { --fx: #ffb13b; --fx2: #fff0a8; }
+.g-fx-remove { --fx: #ff4d68; --fx2: #ffb0bd; }
+.g-fx-merge { --fx: #a979ff; --fx2: #e4d4ff; }
+.g-fx-swap { --fx: #24d8ff; --fx2: #ff55d7; }
+.g-fx-transfer { --fx: #4d8dff; --fx2: #b6d0ff; }
+
+.g-fx-scene {
+    position: relative;
+    width: min(420px, 88vw);
+    height: 330px;
+    transform-style: preserve-3d;
+    animation: gFxScene 1.7s cubic-bezier(.16, .8, .2, 1) both;
+}
+
+.g-fx-ring {
+    position: absolute;
+    left: 50%; top: 43%;
+    width: 150px; height: 150px;
+    border: 5px solid var(--fx);
+    border-radius: 50%;
+    box-shadow: 0 0 28px var(--fx), inset 0 0 28px var(--fx);
+    transform: translate(-50%, -50%) rotateX(68deg);
+    animation: gFxRing 1.25s .12s ease-out both;
+}
+
+.g-fx-pan {
+    position: absolute;
+    left: 50%; top: 42%;
+    width: 136px; height: 92px;
+    border: 7px solid #e8eef8;
+    border-top-width: 11px;
+    border-radius: 18px 18px 34px 34px;
+    overflow: hidden;
+    background: linear-gradient(145deg, #566071, #171c25 55%, #080a0f);
+    box-shadow: 0 28px 45px rgba(0,0,0,.62), 0 0 32px color-mix(in srgb, var(--fx) 75%, transparent), inset 8px -10px 18px rgba(0,0,0,.65);
+    transform-style: preserve-3d;
+    transform: translate(-50%, -50%) rotateX(-12deg) rotateY(-14deg) translateZ(70px);
+    animation: gFxPan 1.55s cubic-bezier(.16, .9, .25, 1.15) both;
+}
+
+.g-fx-gelato {
+    position: absolute;
+    inset: 36% 0 0;
+    background: linear-gradient(150deg, var(--fx2), var(--fx) 52%, color-mix(in srgb, var(--fx) 55%, #111));
+    box-shadow: inset 0 10px 14px rgba(255,255,255,.38);
+    animation: gFxFill 1.25s .18s cubic-bezier(.2, .8, .25, 1) both;
+}
+
+.g-fx-pan span {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    z-index: 2;
+    color: #fff;
+    font: 900 3.7rem/1 system-ui, sans-serif;
+    text-shadow: 0 4px 12px rgba(0,0,0,.5), 0 0 18px var(--fx);
+    animation: gFxIcon .9s .25s cubic-bezier(.16, .9, .3, 1.3) both;
+}
+
+.g-fx-particle {
+    position: absolute;
+    left: 50%; top: 42%;
+    width: 9px; height: 9px;
+    border-radius: 3px;
+    background: var(--fx2);
+    box-shadow: 0 0 12px var(--fx);
+    animation: gFxParticle 1s var(--d) cubic-bezier(.1, .7, .2, 1) both;
+}
+
+.g-fx-copy {
+    position: absolute;
+    inset: auto 0 2px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    text-shadow: 0 4px 16px #000;
+    animation: gFxCopy .8s .38s cubic-bezier(.15, .9, .2, 1) both;
+}
+.g-fx-copy strong { color: var(--fx2); font: 900 .78rem/1 system-ui; letter-spacing: .35em; }
+.g-fx-copy b { color: #fff; font: 900 clamp(1.4rem, 5vw, 2.25rem)/1.15 system-ui; margin-top: 8px; }
+.g-fx-copy small { color: #d8dfec; font: 700 .88rem/1.2 system-ui; margin-top: 7px; }
+
+@keyframes gFxCurtain { 0%,100% { opacity: 0; } 10%,78% { opacity: 1; } }
+@keyframes gFxScene { 0% { transform: rotateX(18deg) scale(.25); opacity: 0; } 22% { transform: rotateX(0) scale(1.06); opacity: 1; } 72% { transform: scale(1); opacity: 1; } 100% { transform: translateY(-30px) scale(1.08); opacity: 0; } }
+@keyframes gFxPan { 0% { transform: translate(-50%,-50%) rotateX(65deg) rotateY(-55deg) translateZ(-180px) scale(.2); } 45% { transform: translate(-50%,-50%) rotateX(-12deg) rotateY(18deg) translateZ(85px) scale(1.12); } 72% { transform: translate(-50%,-50%) rotateX(-8deg) rotateY(-10deg) translateZ(70px); } 100% { transform: translate(-50%,-58%) rotateX(-20deg) rotateY(16deg) translateZ(110px) scale(.92); } }
+@keyframes gFxRing { 0% { opacity: 0; transform: translate(-50%,-50%) rotateX(68deg) scale(.15); } 45% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%,-50%) rotateX(68deg) scale(2.5); } }
+@keyframes gFxFill { 0% { transform: translateY(110%); } 65% { transform: translateY(-8%); } 100% { transform: translateY(0); } }
+@keyframes gFxIcon { 0% { transform: translateZ(-80px) scale(.1) rotate(-120deg); opacity: 0; } 70% { transform: translateZ(40px) scale(1.25) rotate(8deg); opacity: 1; } 100% { transform: translateZ(20px) scale(1) rotate(0); opacity: 1; } }
+@keyframes gFxParticle { 0% { transform: translate(-50%,-50%) scale(0) rotate(0); opacity: 0; } 20% { opacity: 1; } 100% { transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(.2) rotate(220deg); opacity: 0; } }
+@keyframes gFxCopy { from { opacity: 0; transform: translateY(35px) scale(.8); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+    .g-button-hit { animation: none !important; }
+    .g-action-fx, .g-fx-scene, .g-fx-ring, .g-fx-pan, .g-fx-gelato,
+    .g-fx-pan span, .g-fx-particle, .g-fx-copy { animation-duration: .01ms !important; animation-delay: 0ms !important; }
+}
