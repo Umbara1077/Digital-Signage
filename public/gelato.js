@@ -548,6 +548,7 @@
     // ----- UI wiring -------------------------------------------------------
     function wireUi() {
         wireCaseButtonEffects();
+        wireFloatingNav();
         document.getElementById('sync-flavors').addEventListener('click', async () => {
             status('Syncing flavors from menu…');
             await seedMissingFromMenu();
@@ -645,6 +646,65 @@
         caseEl.addEventListener('animationend', e => {
             if (e.animationName === 'gButtonHit') e.target.classList.remove('g-button-hit');
         });
+    }
+
+    // ----- Floating section nav -------------------------------------------
+    // A quick jump-to-section overlay that only appears once the main .g-topbar
+    // (the existing nav bar) has scrolled out of view, and hides again when it
+    // scrolls back. Links are rebuilt from whatever sections are actually
+    // visible in the current view mode, so it stays in sync with Visual / Stat
+    // / Mobile without hard-coding section ids.
+    function wireFloatingNav() {
+        const topbar = document.querySelector('.g-topbar');
+        const nav = document.getElementById('g-floatnav');
+        if (!topbar || !nav || typeof IntersectionObserver === 'undefined') return;
+        const linksWrap = nav.querySelector('.g-floatnav-links');
+
+        function buildLinks() {
+            const sections = [...document.querySelectorAll('main > section.g-section')]
+                .filter(s => s.getClientRects().length > 0);   // only currently-visible sections
+            // view-mode toggle at the top, mirroring the top-bar Visual/Stat/Mobile
+            // buttons; active state reflects the current viewMode
+            const modes = [['visual', 'Visual'], ['stats', 'Stat'], ['mobile', 'Mobile']];
+            let html = '<div class="g-floatnav-modes" role="group" aria-label="View mode">' +
+                modes.map(([m, label]) =>
+                    `<button type="button" class="g-mode-btn g-floatnav-mode${viewMode === m ? ' active' : ''}" data-mode="${m}">${label}</button>`
+                ).join('') + '</div>';
+            html += '<button type="button" class="g-floatnav-link g-floatnav-top" data-target="__top" title="Back to top">↑ Top</button>';
+            html += sections.map((s, i) => {
+                if (!s.id) s.id = `g-sec-${i}`;
+                const h = s.querySelector('h2');
+                let label = h ? ((h.childNodes[0] && h.childNodes[0].textContent) || h.textContent) : `Section ${i + 1}`;
+                label = label.replace(/\s*\(.*$/, '').trim() || `Section ${i + 1}`;   // drop any "(…)" tail
+                return `<button type="button" class="g-floatnav-link" data-target="${s.id}" title="${esc(label)}">${esc(label)}</button>`;
+            }).join('');
+            linksWrap.innerHTML = html;
+            // mode buttons reuse the exact top-bar handlers (persist + setMode +
+            // render) by clicking the real top-bar button, then rebuild so the
+            // floating nav reflects the new active mode and visible sections
+            linksWrap.querySelectorAll('.g-floatnav-mode').forEach(b => b.addEventListener('click', () => {
+                const topBtn = document.getElementById('mode-' + b.dataset.mode);
+                if (topBtn) topBtn.click();
+                buildLinks();
+            }));
+            linksWrap.querySelectorAll('.g-floatnav-link').forEach(b => b.addEventListener('click', () => {
+                const t = b.dataset.target;
+                if (t === '__top') { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+                const el = document.getElementById(t);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }));
+        }
+
+        const io = new IntersectionObserver(entries => {
+            // show the floating nav only while the top nav is NOT on screen
+            if (entries[0].isIntersecting) {
+                nav.classList.remove('is-visible');
+            } else {
+                buildLinks();
+                nav.classList.add('is-visible');
+            }
+        }, { threshold: 0 });
+        io.observe(topbar);
     }
 
     function caseActionFx(type, title, detail, pan) {
@@ -1056,8 +1116,8 @@
                 const img = flavorImage(f);
                 const swatch = img ? `style="background-image:url('${img}')"` : '';
                 html += `
-                <div class="g-pan ${low ? 'low' : ''}" data-id="${f.id}">
-                    <div class="g-pan-head"><span class="g-pan-num">PAN ${pan}</span>${flag ? `<span class="g-pan-flag">${flag}</span>` : ''}</div>
+                <div class="g-pan ${staged ? 'low' : (low ? 'low-warn' : '')}" data-id="${f.id}">
+                    <div class="g-pan-head"><span class="g-pan-num">PAN ${pan}</span>${flag ? `<span class="g-pan-flag${flag === 'LOW' ? ' g-pan-flag--low' : ''}">${flag}</span>` : ''}</div>
                     <div class="g-tub">
                         <div class="g-tub-rim"></div>
                         <div class="g-gelato" style="height:${pct}%"><div class="g-gelato-top"></div></div>
@@ -1142,6 +1202,14 @@
         let html = `<div class="g-cap-bar"><div class="g-cap-bar-fill" style="width:${overPct}%"></div>
             <span>${used} / ${cap} slots filled · ${open} open · ${sumLoc(loc)} pans</span></div><div class="g-tubs">`;
         if (!items.length) html += `<p class="g-empty-note">No pans stored here.</p>`;
+
+        // Short-term pans reserved as the source of a staged swap. Each staged
+        // swap pulls the flavor's SMALLEST short-term pan first (see
+        // executeSwap → pullPans), so a flavor with N staged swaps reserves its
+        // N smallest short-term pans. Long-term is never a swap source.
+        const swapAllocCount = {};
+        if (loc === 'shortTerm') queue.forEach(q => { swapAllocCount[q.flavorId] = (swapAllocCount[q.flavorId] || 0) + 1; });
+
         items.forEach(f => {
             const arr = pansOf(f, loc);
 
@@ -1170,20 +1238,33 @@
             }
 
             const tone = freezerTone(f[loc] || 0);
+            // of this flavor's short-term pans, the N smallest are the ones a
+            // staged swap would actually pull (mirrors executeSwap's smallest-
+            // first pull), so only those specific pans get the swap marker
+            const swapAlloc = new Set();
+            const swapN = swapAllocCount[f.id] || 0;
+            if (swapN > 0) {
+                arr.map((amt, idx) => ({ idx, amt })).sort((a, b) => a.amt - b.amt || a.idx - b.idx)
+                    .slice(0, swapN).forEach(x => swapAlloc.add(x.idx));
+            }
             // one chip per physical pan — collapsed shows amount + ✕; clicking amount expands to −/+
             const chips = arr.map((amt, idx) => {
                 const t = freezerTone(amt >= 1 - EPS ? 3 : 1);   // full pan green, partial red-ish
                 // key encodes the rendered value so a stale key doesn't match a shifted index
                 const key = `${f.id}|${loc}|${idx}|${r2(amt)}`;
+                const swapCls = swapAlloc.has(idx) ? ' is-swap-src' : '';
+                const swapBadge = swapAlloc.has(idx) ? '<span class="g-pan-chip-swap" title="Reserved for a staged swap">SWAP</span>' : '';
                 if (openPanChips.has(key)) {
-                    return `<span class="g-pan-chip ${t} is-open" data-id="${f.id}" data-loc="${loc}" data-idx="${idx}" data-amt="${r2(amt)}" data-key="${key}">` +
+                    return `<span class="g-pan-chip ${t} is-open${swapCls}" data-id="${f.id}" data-loc="${loc}" data-idx="${idx}" data-amt="${r2(amt)}" data-key="${key}">` +
+                        swapBadge +
                         `<button type="button" class="g-pan-chip-minus">−</button>` +
                         `<span class="g-pan-chip-val">${r2(amt)}</span>` +
                         `<button type="button" class="g-pan-chip-plus">+</button>` +
                         `<button type="button" class="g-pan-chip-remove" title="Remove this pan">✕</button>` +
                         `</span>`;
                 }
-                return `<span class="g-pan-chip ${t}" data-id="${f.id}" data-loc="${loc}" data-idx="${idx}" data-amt="${r2(amt)}" data-key="${key}">` +
+                return `<span class="g-pan-chip ${t}${swapCls}" data-id="${f.id}" data-loc="${loc}" data-idx="${idx}" data-amt="${r2(amt)}" data-key="${key}">` +
+                    swapBadge +
                     `<button type="button" class="g-pan-chip-amt" title="Adjust amount">${r2(amt)}</button>` +
                     `<button type="button" class="g-pan-chip-remove" title="Remove this pan">✕</button>` +
                     `</span>`;

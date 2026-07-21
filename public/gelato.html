@@ -274,6 +274,11 @@
     <!-- Right-click context menu: case pans + freezer pan chips -->
     <div id="g-ctx-menu" class="g-ctx-menu" hidden></div>
 
+    <!-- Floating quick-nav: only shown once the top nav (.g-topbar) scrolls out of view -->
+    <nav id="g-floatnav" class="g-floatnav" aria-label="Jump to section">
+        <div class="g-floatnav-links"></div>
+    </nav>
+
     <script>
         document.getElementById('back-to-admin').addEventListener('click', () => {
             window.location.href = 'admin.html';

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="admin-style.css">
+<link rel="stylesheet" href="gelato-style.css">
+</head>
+<body>
+<main>
+  <div class="g-topbar">
+    <div class="g-viewmode" role="group">
+      <button id="mode-visual" class="g-mode-btn active" type="button">Visual</button>
+      <button id="mode-stats" class="g-mode-btn" type="button">Stat Mode</button>
+      <button id="mode-mobile" class="g-mode-btn" type="button">Mobile</button>
+    </div>
+  </div>
+  <section class="g-section visual-only"><h2>The Case</h2></section>
+  <section class="g-section"><h2>Move History</h2></section>
+</main>
+<nav id="g-floatnav" class="g-floatnav" aria-label="Jump to section"><div class="g-floatnav-links"></div></nav>
+<script>
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+let viewMode = 'visual';
+
+// Minimal stand-in for the real pickMode/setMode wiring on the top-bar buttons:
+// same behaviour that matters here — updates viewMode, toggles active, persists.
+function setMode(mode){
+  viewMode = mode;
+  [['mode-visual','visual'],['mode-stats','stats'],['mode-mobile','mobile']].forEach(([id,m])=>{
+    const b=document.getElementById(id); if(b) b.classList.toggle('active', mode===m);
+  });
+  document.querySelectorAll('.visual-only').forEach(el=>{ el.hidden = mode!=='visual'; });
+}
+const pickMode = m => { localStorage.setItem('gelatoViewMode', m); setMode(m); };
+document.getElementById('mode-visual').addEventListener('click', ()=>pickMode('visual'));
+document.getElementById('mode-stats').addEventListener('click', ()=>pickMode('stats'));
+document.getElementById('mode-mobile').addEventListener('click', ()=>pickMode('mobile'));
+
+// ---- EXACT copy of buildLinks from gelato.js ----
+const nav = document.getElementById('g-floatnav');
+const linksWrap = nav.querySelector('.g-floatnav-links');
+function buildLinks() {
+    const sections = [...document.querySelectorAll('main > section.g-section')].filter(s => s.getClientRects().length > 0);
+    const modes = [['visual','Visual'],['stats','Stat'],['mobile','Mobile']];
+    let html = '<div class="g-floatnav-modes" role="group" aria-label="View mode">' +
+        modes.map(([m, label]) =>
+            `<button type="button" class="g-mode-btn g-floatnav-mode${viewMode === m ? ' active' : ''}" data-mode="${m}">${label}</button>`
+        ).join('') + '</div>';
+    html += '<button type="button" class="g-floatnav-link g-floatnav-top" data-target="__top" title="Back to top">↑ Top</button>';
+    html += sections.map((s, i) => {
+        if (!s.id) s.id = `g-sec-${i}`;
+        const h = s.querySelector('h2');
+        let label = h ? ((h.childNodes[0] && h.childNodes[0].textContent) || h.textContent) : `Section ${i + 1}`;
+        label = label.replace(/\s*\(.*$/, '').trim() || `Section ${i + 1}`;
+        return `<button type="button" class="g-floatnav-link" data-target="${s.id}" title="${esc(label)}">${esc(label)}</button>`;
+    }).join('');
+    linksWrap.innerHTML = html;
+    linksWrap.querySelectorAll('.g-floatnav-mode').forEach(b => b.addEventListener('click', () => {
+        const topBtn = document.getElementById('mode-' + b.dataset.mode);
+        if (topBtn) topBtn.click();
+        buildLinks();
+    }));
+    linksWrap.querySelectorAll('.g-floatnav-link').forEach(b => b.addEventListener('click', () => {
+        const t = b.dataset.target;
+        if (t === '__top') { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+        const el = document.getElementById(t);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
+}
+buildLinks();
+
+window.__probe = function() {
+  const modeBtns = () => [...linksWrap.querySelectorAll('.g-floatnav-mode')];
+  const cs = el => getComputedStyle(el);
+  const activeLabel = () => (modeBtns().find(b => b.classList.contains('active')) || {}).textContent;
+  const out = { order: modeBtns().map(b=>b.textContent) };
+
+  // initial: Visual active; check styling (active has gradient bg, inactive transparent)
+  out.initialActive = activeLabel();
+  const act0 = modeBtns().find(b=>b.classList.contains('active'));
+  const inact0 = modeBtns().find(b=>!b.classList.contains('active'));
+  out.activeBgIsGradient = cs(act0).backgroundImage.includes('gradient');
+  out.inactiveBgTransparent = cs(inact0).backgroundColor === 'rgba(0, 0, 0, 0)' || cs(inact0).backgroundColor === 'transparent';
+
+  // click floating "Stat" -> should switch mode, top-bar reflects it, floating rebuilds w/ Stat active
+  modeBtns().find(b=>b.dataset.mode==='stats').click();
+  out.afterStatClick = {
+    viewMode,
+    topbarActive: (document.querySelector('.g-topbar .g-mode-btn.active')||{}).id,
+    floatingActive: activeLabel(),
+    localStorage: localStorage.getItem('gelatoViewMode'),
+    visualSectionHidden: document.querySelector('.visual-only').hidden
+  };
+
+  // click floating "Mobile"
+  modeBtns().find(b=>b.dataset.mode==='mobile').click();
+  out.afterMobileClick = { viewMode, topbarActive:(document.querySelector('.g-topbar .g-mode-btn.active')||{}).id, floatingActive: activeLabel() };
+
+  // back to Visual
+  modeBtns().find(b=>b.dataset.mode==='visual').click();
+  out.afterVisualClick = { viewMode, floatingActive: activeLabel(), visualSectionHidden: document.querySelector('.visual-only').hidden };
+  return out;
+};
+</script>
+</body>
+</html>

@@ -138,6 +138,14 @@
     animation: gPulse 1.7s ease-in-out infinite;
 }
 
+/* Low-but-not-staged pan: identical border/glow/pulse to .g-pan.low, recolored
+   to the house amber (#f0a92b). Staged pans keep the red .g-pan.low treatment. */
+.g-pan.low-warn {
+    border-color: #f0a92b;
+    box-shadow: 0 0 0 1px #f0a92b inset, 0 0 16px #f0a92b44;
+    animation: gPulseWarn 1.7s ease-in-out infinite;
+}
+
 @keyframes gPulse {
 
     0%,
@@ -147,6 +155,18 @@
 
     50% {
         box-shadow: 0 0 0 1px var(--red) inset, 0 0 20px #ff4d4f99;
+    }
+}
+
+@keyframes gPulseWarn {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 1px #f0a92b inset, 0 0 8px #f0a92b33;
+    }
+
+    50% {
+        box-shadow: 0 0 0 1px #f0a92b inset, 0 0 20px #f0a92b99;
     }
 }
 
@@ -163,6 +183,15 @@
     font-weight: 800;
 }
 
+/* pan number picks up the accent: red when a swap is staged, amber when low */
+.g-pan.low .g-pan-num {
+    color: var(--red);
+}
+
+.g-pan.low-warn .g-pan-num {
+    color: #f0a92b;
+}
+
 .g-pan-flag {
     font-size: .6rem;
     font-weight: 900;
@@ -171,6 +200,13 @@
     background: var(--red);
     padding: 1px 6px;
     border-radius: 999px;
+}
+
+/* LOW pill: same size/shape/effects as .g-pan-flag, yellow scheme instead of
+   red (SWAP keeps the red base). Dark text for legibility on the amber. */
+.g-pan-flag--low {
+    background: #f0a92b;
+    color: #3a2a00;
 }
 
 /* the stainless pan + the gelato inside it */
@@ -221,6 +257,10 @@
 
 .g-pan.low .g-gelato {
     background: linear-gradient(180deg, #ff8a8c, #ff4d4f 70%, #c92d30);
+}
+
+.g-pan.low-warn .g-gelato {
+    background: linear-gradient(180deg, #ffd06b, #f0a92b 70%, #c98514);
 }
 
 /* rounded gelato surface (the scooped top) */
@@ -279,6 +319,10 @@
     background: linear-gradient(90deg, #ff8a8c, #ff4d4f);
 }
 
+.g-pan.low-warn .g-pan-meter span {
+    background: linear-gradient(90deg, #ffd86b, #f0a92b);
+}
+
 .g-pan-amt {
     font-size: .72rem;
     color: var(--muted);
@@ -298,6 +342,11 @@
 .g-pan.low .g-pan-qty,
 .g-pan.low .g-pan-pct {
     color: #ff7a7c;
+}
+
+.g-pan.low-warn .g-pan-qty,
+.g-pan.low-warn .g-pan-pct {
+    color: #ffc74d;
 }
 
 .g-pan-use {
@@ -647,6 +696,24 @@
 .g-pan-chip.green { border-color: #1db954; color: #8ff0b6; }
 .g-pan-chip.red   { border-color: #4a90d9; color: #9fc8ff; }
 .g-pan-chip.is-open { border-style: dashed; }
+
+/* short-term pan reserved as the source of a staged swap — red accent + tag,
+   consistent with the case's red SWAP pill */
+.g-pan-chip.is-swap-src {
+    border-color: var(--red);
+    box-shadow: 0 0 0 1px var(--red) inset, 0 0 8px #ff4d4f55;
+}
+
+.g-pan-chip-swap {
+    font-size: .52rem;
+    font-weight: 900;
+    letter-spacing: .04em;
+    color: #fff;
+    background: var(--red);
+    border-radius: 999px;
+    padding: 0 4px;
+    margin-right: 1px;
+}
 
 /* shared base for all inline buttons inside a chip */
 .g-pan-chip button {
@@ -2358,4 +2425,114 @@ body.g-mobile main {
     .g-button-hit { animation: none !important; }
     .g-action-fx, .g-fx-scene, .g-fx-ring, .g-fx-pan, .g-fx-gelato,
     .g-fx-pan span, .g-fx-particle, .g-fx-copy { animation-duration: .01ms !important; animation-delay: 0ms !important; }
+}
+
+/* ====================== FLOATING SECTION NAV ====================== */
+/* Right-edge (desktop) / bottom (mobile) jump-to-section overlay. Hidden by
+   default; JS adds .is-visible only while the top nav is scrolled off screen. */
+.g-floatnav {
+    position: fixed;
+    right: 12px;
+    top: 50%;
+    transform: translate(16px, -50%);
+    z-index: 80;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s ease, transform .25s ease;
+}
+
+.g-floatnav.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(0, -50%);
+}
+
+.g-floatnav-links {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    max-height: 82vh;
+    overflow-y: auto;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: rgba(16, 20, 27, .92);
+    box-shadow: var(--shadow-lg);
+    backdrop-filter: blur(6px);
+}
+
+/* view-mode toggle at the top of the floating nav — compact segmented control
+   mirroring the top-bar .g-viewmode / .g-mode-btn look (active gradient reused) */
+.g-floatnav-modes {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, .04);
+}
+
+.g-floatnav-modes .g-mode-btn {
+    flex: 1;
+    padding: 6px 8px;
+    font-size: .72rem;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.g-floatnav-link {
+    max-width: 160px;
+    padding: 7px 12px;
+    border: 1px solid #2f3a4f;
+    border-radius: 999px;
+    background: #1b2130;
+    color: #dbe3f2;
+    font-size: .74rem;
+    font-weight: 700;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease;
+}
+
+.g-floatnav-link:hover {
+    background: #243049;
+    border-color: #38a3ff;
+}
+
+.g-floatnav-top {
+    background-image: linear-gradient(#1a2030, #1a2030), var(--grad-flow);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    color: #fff;
+    text-align: center;
+}
+
+@media (max-width: 760px) {
+    .g-floatnav {
+        right: 0;
+        left: 0;
+        top: auto;
+        bottom: 0;
+        transform: translateY(16px);
+    }
+
+    .g-floatnav.is-visible {
+        transform: translateY(0);
+    }
+
+    .g-floatnav-links {
+        flex-direction: row;
+        max-height: none;
+        overflow-x: auto;
+        overflow-y: hidden;
+        border-radius: 14px 14px 0 0;
+        padding: 8px 10px;
+    }
+
+    .g-floatnav-link {
+        flex: 0 0 auto;
+    }
 }
