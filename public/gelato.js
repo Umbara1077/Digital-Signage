@@ -1051,11 +1051,13 @@
                 const lvl = Math.max(0, Math.min(1, f.active || 0));
                 const pct = Math.round(lvl * 100);
                 const low = (f.active || 0) <= SWAP_THRESHOLD + EPS;
+                const staged = queue.some(q => q.pan === pan);   // an actual swap staged for this pan
+                const flag = staged ? 'SWAP' : (low ? 'LOW' : '');  // SWAP only when truly queued, else fall back to LOW
                 const img = flavorImage(f);
                 const swatch = img ? `style="background-image:url('${img}')"` : '';
                 html += `
                 <div class="g-pan ${low ? 'low' : ''}" data-id="${f.id}">
-                    <div class="g-pan-head"><span class="g-pan-num">PAN ${pan}</span>${low ? '<span class="g-pan-flag">SWAP</span>' : ''}</div>
+                    <div class="g-pan-head"><span class="g-pan-num">PAN ${pan}</span>${flag ? `<span class="g-pan-flag">${flag}</span>` : ''}</div>
                     <div class="g-tub">
                         <div class="g-tub-rim"></div>
                         <div class="g-gelato" style="height:${pct}%"><div class="g-gelato-top"></div></div>
