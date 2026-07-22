@@ -198,6 +198,14 @@
             animation: morphBlob9 7.2s ease-in-out infinite, floatBtn 4s ease-in-out infinite -8s, holographic 8s linear infinite !important;
         }
 
+        .hero-btn.tv-manager-btn {
+            background: linear-gradient(135deg, rgba(212, 175, 55, 0.34), rgba(26, 92, 42, 0.28), rgba(139, 26, 26, 0.26));
+            background-size: 400% 400%;
+            box-shadow: 0 0 25px rgba(212, 175, 55, 0.72), 0 0 60px rgba(26, 92, 42, 0.46);
+            border-color: rgba(243, 226, 169, 0.68);
+            animation: morphBlob4 8.2s ease-in-out infinite, floatBtn 4.2s ease-in-out infinite -9s, holographic 9s linear infinite -3s !important;
+        }
+
         /* .hero-btn is overflow: visible (so the NEW badge can sit outside its
            corner) so the shimmer can no longer rely on the button's own
            overflow to stay contained. This inner wrapper fills the button,
@@ -255,7 +263,11 @@
             animation-delay: 8s;
         }
 
-        /* "NEW" badge, floating on the top-right corner of buttons 2, 4, 5, 6, 7, 8, 9 */
+        .hero-btn.tv-manager-btn .blob-clip::before {
+            animation-delay: 9s;
+        }
+
+        /* "NEW" badge, floating on the top-right corner of linked tool buttons. */
         .new-badge {
             position: absolute;
             top: -10px;
@@ -522,6 +534,7 @@
             <a href="./coming-soon.html" class="btn hero-btn"><span class="blob-clip"></span>Marketing Hub<span class="new-badge badge-soon">🚧 COMING SOON</span></a>
             <a href="https://coffeemanagment.web.app/analysis.html" target="_blank" rel="noopener noreferrer" class="btn hero-btn"><span class="blob-clip"></span>Mobile Order Sales<span class="new-badge badge-dev">🚧 DEV</span></a>
             <a href="https://coffeemanagment.web.app/index.html" target="_blank" rel="noopener noreferrer" class="btn hero-btn"><span class="blob-clip"></span>Mobile Orders<span class="new-badge">✨ NEW</span></a>
+            <a href="https://tvqueue-b6329.web.app/admin.html" target="_blank" rel="noopener noreferrer" class="btn hero-btn tv-manager-btn"><span class="blob-clip"></span>TV Manager<span class="new-badge">✨ NEW</span></a>
         </div>
 
         <section>
