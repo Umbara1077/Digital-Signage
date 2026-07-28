@@ -549,6 +549,7 @@
     function wireUi() {
         wireCaseButtonEffects();
         wireFloatingNav();
+        wireDragDrop();
         document.getElementById('sync-flavors').addEventListener('click', async () => {
             status('Syncing flavors from menu…');
             await seedMissingFromMenu();
@@ -1116,7 +1117,7 @@
                 const img = flavorImage(f);
                 const swatch = img ? `style="background-image:url('${img}')"` : '';
                 html += `
-                <div class="g-pan ${staged ? 'low' : (low ? 'low-warn' : '')}" data-id="${f.id}">
+                <div class="g-pan ${staged ? 'low' : (low ? 'low-warn' : '')}" data-id="${f.id}" data-case-pan="${pan}" data-amt="${r2(f.active)}" draggable="true" title="Drag to Short-Term or Long-Term">
                     <div class="g-pan-head"><span class="g-pan-num">PAN ${pan}</span>${flag ? `<span class="g-pan-flag${flag === 'LOW' ? ' g-pan-flag--low' : ''}">${flag}</span>` : ''}</div>
                     <div class="g-tub">
                         <div class="g-tub-rim"></div>
@@ -1141,7 +1142,7 @@
                 </div>`;
             } else {
                 html += `
-                <div class="g-pan empty">
+                <div class="g-pan empty" data-drop-pan="${pan}">
                     <div class="g-pan-head"><span class="g-pan-num">PAN ${pan}</span></div>
                     <div class="g-tub empty"><span>empty</span></div>
                     <button type="button" class="g-assign-btn" data-pan="${pan}">+ Add flavor</button>
@@ -1183,6 +1184,7 @@
                     { label: 'Discard pan (trash, not counted)', danger: true, action: () => discardPan(id) }
                 ]);
             });
+            attachCasePanDrag(panEl);
         });
     }
 
@@ -1255,7 +1257,7 @@
                 const swapCls = swapAlloc.has(idx) ? ' is-swap-src' : '';
                 const swapBadge = swapAlloc.has(idx) ? '<span class="g-pan-chip-swap" title="Reserved for a staged swap">SWAP</span>' : '';
                 if (openPanChips.has(key)) {
-                    return `<span class="g-pan-chip ${t} is-open${swapCls}" data-id="${f.id}" data-loc="${loc}" data-idx="${idx}" data-amt="${r2(amt)}" data-key="${key}">` +
+                    return `<span class="g-pan-chip ${t} is-open${swapCls}" data-id="${f.id}" data-loc="${loc}" data-idx="${idx}" data-amt="${r2(amt)}" data-key="${key}" draggable="true" title="Drag to Case or the other freezer">` +
                         swapBadge +
                         `<button type="button" class="g-pan-chip-minus">−</button>` +
                         `<span class="g-pan-chip-val">${r2(amt)}</span>` +
@@ -1263,7 +1265,7 @@
                         `<button type="button" class="g-pan-chip-remove" title="Remove this pan">✕</button>` +
                         `</span>`;
                 }
-                return `<span class="g-pan-chip ${t}${swapCls}" data-id="${f.id}" data-loc="${loc}" data-idx="${idx}" data-amt="${r2(amt)}" data-key="${key}">` +
+                return `<span class="g-pan-chip ${t}${swapCls}" data-id="${f.id}" data-loc="${loc}" data-idx="${idx}" data-amt="${r2(amt)}" data-key="${key}" draggable="true" title="Drag to Case or the other freezer">` +
                     swapBadge +
                     `<button type="button" class="g-pan-chip-amt" title="Adjust amount">${r2(amt)}</button>` +
                     `<button type="button" class="g-pan-chip-remove" title="Remove this pan">✕</button>` +
@@ -1369,6 +1371,7 @@
                 if (chipLoc === 'longTerm') items.push({ divider: true }, { label: '+ Add Dummy Pan', action: addDummyPan });
                 showContextMenu(e.clientX, e.clientY, items);
             });
+            if (!chip.classList.contains('dummy')) attachFreezerChipDrag(chip);
         });
 
         // right-click empty freezer background (Long-Term only) to create a
@@ -1624,12 +1627,237 @@
         if (menu) menu.hidden = true;
     }
 
+    /* ----- Visual drag-and-drop (case ↔ short ↔ long) --------------------
+     * Drag a filled case pan or a freezer chip onto another zone. On drop, a
+     * modal asks what to do; actions call the same helpers as the buttons /
+     * right-click menus (caseToShort, caseToLong, moveSpecificPan). No stock
+     * rules are changed — the case still fills from short-term only. */
+    let dragPayload = null;       // live payload while a drag is in progress
+    let dragDropWired = false;
+
+    function clearDropHover() {
+        document.querySelectorAll('.g-drop-hover').forEach(el => el.classList.remove('g-drop-hover'));
+    }
+
+    function endDrag() {
+        document.querySelectorAll('.g-dragging').forEach(el => el.classList.remove('g-dragging'));
+        clearDropHover();
+        dragPayload = null;
+    }
+
+    function isInteractiveDragTarget(el) {
+        return !!(el && el.closest && el.closest('button, select, input, textarea, a, label, .g-dummy-label'));
+    }
+
+    function attachCasePanDrag(panEl) {
+        panEl.addEventListener('dragstart', e => {
+            if (isInteractiveDragTarget(e.target)) { e.preventDefault(); return; }
+            const id = panEl.dataset.id;
+            const f = byId(id);
+            if (!f || f.isDummy) { e.preventDefault(); return; }
+            dragPayload = {
+                kind: 'case',
+                id,
+                loc: 'active',
+                amt: r2(f.active || 0),
+                casePan: Number(panEl.dataset.casePan) || f.casePan,
+                name: f.name || ''
+            };
+            panEl.classList.add('g-dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            try { e.dataTransfer.setData('text/plain', id); } catch (_) { /* IE / some embeds */ }
+            hideContextMenu();
+        });
+        panEl.addEventListener('dragend', endDrag);
+    }
+
+    function attachFreezerChipDrag(chip) {
+        chip.addEventListener('dragstart', e => {
+            if (isInteractiveDragTarget(e.target)) { e.preventDefault(); return; }
+            const id = chip.dataset.id;
+            const f = byId(id);
+            if (!f || f.isDummy) { e.preventDefault(); return; }
+            dragPayload = {
+                kind: 'freezer',
+                id,
+                loc: chip.dataset.loc,
+                idx: Number(chip.dataset.idx),
+                amt: r2(Number(chip.dataset.amt)),
+                name: f.name || ''
+            };
+            chip.classList.add('g-dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            try { e.dataTransfer.setData('text/plain', id); } catch (_) { /* IE / some embeds */ }
+            hideContextMenu();
+        });
+        chip.addEventListener('dragend', endDrag);
+    }
+
+    function wireDropZone(el, dest) {
+        if (!el || el.dataset.dndZone) return;
+        el.dataset.dndZone = dest;
+        el.addEventListener('dragover', e => {
+            if (!dragPayload) return;
+            // same-zone drops are ignored (case→case, short→short, long→long)
+            if (dragPayload.loc === dest) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            el.classList.add('g-drop-hover');
+            const empty = e.target.closest('.g-pan.empty[data-drop-pan]');
+            document.querySelectorAll('.g-pan.empty.g-drop-slot').forEach(p => {
+                if (p !== empty) p.classList.remove('g-drop-slot');
+            });
+            if (dest === 'active' && empty) empty.classList.add('g-drop-slot');
+        });
+        el.addEventListener('dragleave', e => {
+            if (!el.contains(e.relatedTarget)) {
+                el.classList.remove('g-drop-hover');
+                el.querySelectorAll('.g-drop-slot').forEach(p => p.classList.remove('g-drop-slot'));
+            }
+        });
+        el.addEventListener('drop', e => {
+            if (!dragPayload) return;
+            if (dragPayload.loc === dest) { endDrag(); return; }
+            e.preventDefault();
+            const payload = { ...dragPayload };
+            let preferredPan = null;
+            if (dest === 'active') {
+                const empty = e.target.closest('.g-pan.empty[data-drop-pan]');
+                if (empty) preferredPan = Number(empty.dataset.dropPan);
+            }
+            clearDropHover();
+            document.querySelectorAll('.g-drop-slot').forEach(p => p.classList.remove('g-drop-slot'));
+            dragPayload = null;
+            document.querySelectorAll('.g-dragging').forEach(el2 => el2.classList.remove('g-dragging'));
+            openDragDropModal(payload, dest, preferredPan);
+        });
+    }
+
+    function wireDragDrop() {
+        if (dragDropWired) return;
+        dragDropWired = true;
+        wireDropZone(document.getElementById('case-visual'), 'active');
+        wireDropZone(document.getElementById('short-visual'), 'shortTerm');
+        wireDropZone(document.getElementById('long-visual'), 'longTerm');
+    }
+
+    /* Popup after a successful drop — options mirror existing case/freezer
+     * actions so stock rules stay identical to buttons and right-click menus. */
+    function openDragDropModal(src, dest, preferredPan) {
+        const f = byId(src.id);
+        if (!f) { status('Flavor no longer available.'); return; }
+
+        const fromLabel = src.kind === 'case'
+            ? `Case (Pan ${src.casePan})`
+            : LOCATION_LABELS[src.loc];
+        const toLabel = LOCATION_LABELS[dest];
+        const amt = r2(src.amt || 0);
+
+        document.getElementById('g-modal-title').textContent = `Move ${f.name}`;
+        const body = document.getElementById('g-modal-body');
+        const actions = [];
+
+        const addBtn = (id, label, cls = 'g-modal-go') => {
+            actions.push(`<button type="button" class="${cls}" id="${id}">${label}</button>`);
+        };
+
+        if (src.kind === 'case') {
+            if (dest === 'shortTerm') {
+                body.innerHTML = `
+                    <p class="g-modal-hint">You dragged <strong>${esc(f.name)}</strong> from ${fromLabel}
+                        (${amt} pan) onto <strong>${toLabel}</strong>.</p>
+                    <p class="g-modal-hint">What should happen?</p>
+                    <div class="g-modal-actions g-topup-actions" id="dnd-actions"></div>`;
+                addBtn('dnd-go', `Send remainder (${amt}) to Short-Term`);
+                addBtn('dnd-cancel', 'Cancel', 'g-modal-cancel');
+                document.getElementById('dnd-actions').innerHTML = actions.join('');
+                showModal();
+                document.getElementById('dnd-go').addEventListener('click', () => { closeModal(); caseToShort(src.id); });
+                document.getElementById('dnd-cancel').addEventListener('click', closeModal);
+                return;
+            }
+            if (dest === 'longTerm') {
+                body.innerHTML = `
+                    <p class="g-modal-hint">You dragged <strong>${esc(f.name)}</strong> from ${fromLabel}
+                        (${amt} pan) onto <strong>${toLabel}</strong>.</p>
+                    <p class="g-modal-hint">What should happen?</p>
+                    <div class="g-modal-actions g-topup-actions" id="dnd-actions"></div>`;
+                addBtn('dnd-go', `Send remainder (${amt}) to Long-Term`);
+                addBtn('dnd-cancel', 'Cancel', 'g-modal-cancel');
+                document.getElementById('dnd-actions').innerHTML = actions.join('');
+                showModal();
+                document.getElementById('dnd-go').addEventListener('click', () => { closeModal(); caseToLong(src.id); });
+                document.getElementById('dnd-cancel').addEventListener('click', closeModal);
+                return;
+            }
+            status('Drop a case pan onto Short-Term or Long-Term.');
+            return;
+        }
+
+        // freezer chip → somewhere else
+        if (dest === 'active') {
+            if (src.loc !== 'shortTerm') {
+                body.innerHTML = `
+                    <p class="g-modal-hint">The case can only be filled from <strong>short-term</strong> storage.
+                        <strong>${esc(f.name)}</strong> is in ${fromLabel}.</p>
+                    <p class="g-modal-hint">What should happen?</p>
+                    <div class="g-modal-actions g-topup-actions" id="dnd-actions"></div>`;
+                addBtn('dnd-go', `Move this ${amt} pan to Short-Term first`);
+                addBtn('dnd-cancel', 'Cancel', 'g-modal-cancel');
+                document.getElementById('dnd-actions').innerHTML = actions.join('');
+                showModal();
+                document.getElementById('dnd-go').addEventListener('click', () => {
+                    closeModal();
+                    moveSpecificPan(src.id, src.loc, src.idx, src.amt, 'shortTerm');
+                });
+                document.getElementById('dnd-cancel').addEventListener('click', closeModal);
+                return;
+            }
+            const slotNote = preferredPan
+                ? ` into empty Pan ${preferredPan}`
+                : (f.casePan ? ` (tops up Pan ${f.casePan})` : ' into the next free case slot');
+            body.innerHTML = `
+                <p class="g-modal-hint">You dragged <strong>${esc(f.name)}</strong> (${amt} pan) from
+                    ${fromLabel} onto <strong>the Case</strong>${preferredPan ? ` (Pan ${preferredPan})` : ''}.</p>
+                <p class="g-modal-hint">What should happen?</p>
+                <div class="g-modal-actions g-topup-actions" id="dnd-actions"></div>`;
+            addBtn('dnd-go', `Move this ${amt} pan into the Case${slotNote}`);
+            addBtn('dnd-cancel', 'Cancel', 'g-modal-cancel');
+            document.getElementById('dnd-actions').innerHTML = actions.join('');
+            showModal();
+            document.getElementById('dnd-go').addEventListener('click', () => {
+                closeModal();
+                moveSpecificPan(src.id, src.loc, src.idx, src.amt, 'active', preferredPan);
+            });
+            document.getElementById('dnd-cancel').addEventListener('click', closeModal);
+            return;
+        }
+
+        // freezer → other freezer
+        body.innerHTML = `
+            <p class="g-modal-hint">You dragged <strong>${esc(f.name)}</strong> (${amt} pan) from
+                ${fromLabel} onto <strong>${toLabel}</strong>.</p>
+            <p class="g-modal-hint">What should happen?</p>
+            <div class="g-modal-actions g-topup-actions" id="dnd-actions"></div>`;
+        addBtn('dnd-go', `Move this ${amt} pan to ${toLabel}`);
+        addBtn('dnd-cancel', 'Cancel', 'g-modal-cancel');
+        document.getElementById('dnd-actions').innerHTML = actions.join('');
+        showModal();
+        document.getElementById('dnd-go').addEventListener('click', () => {
+            closeModal();
+            moveSpecificPan(src.id, src.loc, src.idx, src.amt, dest);
+        });
+        document.getElementById('dnd-cancel').addEventListener('click', closeModal);
+    }
+
     /* Move ONE specific physical pan (identified by its exact index in the
      * flavor's pan list, not just an aggregate amount) from a freezer to
      * another location. Same destinations as the Transfer form/onTransfer,
      * but pinned to the exact pan a right-click was made on — critical when
-     * a flavor has more than one pan sitting in the same freezer. */
-    async function moveSpecificPan(id, loc, idx, expectedAmt, dest) {
+     * a flavor has more than one pan sitting in the same freezer.
+     * preferredPan (optional): when creating a new case slot, use this pan
+     * number if it is still empty (Visual drag onto an empty case slot). */
+    async function moveSpecificPan(id, loc, idx, expectedAmt, dest, preferredPan) {
         const f = byId(id);
         if (!f || f.isDummy) return;  // dummy pans use their own menu (edit label / remove)
         const arr = pansOf(f, loc);
@@ -1647,7 +1875,12 @@
             if (newActive > 1 + EPS) { status(`A case pan holds max 1.0 — this ${r2(amt)} pan would push ${f.name} to ${newActive}.`); return; }
             const next = arr.slice(); next.splice(idx, 1);
             const update = setPans({ active: newActive, updatedAt: stamp() }, loc, next);
-            if (!f.casePan) update.casePan = firstFreePan();
+            if (!f.casePan) {
+                const want = Number(preferredPan);
+                update.casePan = (want >= 1 && want <= CASE_SLOTS && !casePans().some(p => p.casePan === want))
+                    ? want
+                    : firstFreePan();
+            }
             await doc(id).update(update);
             logMove('transfer', `${r2(amt)} ${f.name}: ${LOCATION_LABELS[loc]} → Case (Pan ${update.casePan || f.casePan})`);
             status(`Moved ${r2(amt)} pan of ${f.name} into the case.`, true);
@@ -2204,6 +2437,25 @@
         logMove('transfer', `${amt} ${f.name}: Case (Pan ${pan}) → Short-Term`);
         status(`Sent ${amt} of ${f.name} back to short-term.`, true);
         caseActionFx('transfer', f.name, `Pan ${pan} \u2192 Short-Term`, pan);
+    }
+
+    /* Same rules as caseToShort, but into long-term — used by Visual drag-and-drop
+     * (and mirrors what the Transfer form already allows for Case → Long-Term). */
+    async function caseToLong(id) {
+        const f = byId(id);
+        if (!f) return;
+        const amt = r2(f.active || 0);
+        if (amt <= 0) { status('Nothing to send back.'); return; }
+        const newArr = addPans(pansOf(f, 'longTerm'), amt);
+        if (slotsAfter('longTerm', f.id, newArr) > LONG_CAP) {
+            status(`Long-term freezer is full — ${slotsOpen('longTerm')} slot(s) open.`); return;
+        }
+        const pan = f.casePan;
+        await doc(id).update(setPans(
+            { active: 0, casePan: null, updatedAt: stamp() }, 'longTerm', newArr));
+        logMove('transfer', `${amt} ${f.name}: Case (Pan ${pan}) → Long-Term`);
+        status(`Sent ${amt} of ${f.name} back to long-term.`, true);
+        caseActionFx('transfer', f.name, `Pan ${pan} \u2192 Long-Term`, pan);
     }
 
     async function emptyPan(id) {
