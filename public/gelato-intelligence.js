@@ -1,16 +1,19 @@
 /* ===========================================================================
- * Dolce Vita · Gelato Intelligence
+ * Dolce Vita · DVG Intelligence
  * ---------------------------------------------------------------------------
- * Advanced oversight layer for the gelato management panel.
+ * Advanced oversight layer for the gelato management panel. Shown to staff as
+ * "DVG Intelligence"; the code, CSS prefix (`gi-`) and Firestore collections
+ * keep their original `gelatoIntelligence*` names so stored data stays valid.
  *
  * - Logs structured shop events to Firestore (`gelatoIntelligenceEvents`)
  *   alongside daily rollups (`gelatoIntelligenceDaily`) and chat turns
  *   (`gelatoIntelligenceChat`) so Gemini can learn production patterns,
  *   pricing, and profit once enabled in the Firebase project.
- * - Renders a Gemini/Copilot-style intelligence banner with Sewell, NJ weather,
- *   live shop chips, and an in-panel chat.
- * - Until Gemini is enabled / enough history exists, the banner stays useful
- *   with live inventory insights and a clear "still collecting data" state.
+ * - Renders a Gemini/Copilot-style intelligence panel with Sewell, NJ weather,
+ *   a live insight deck, and an in-panel chat.
+ * - Until Gemini is enabled / enough history exists, the panel stays useful
+ *   with live inventory insights and a clear "still gathering information"
+ *   state; tiles with no data yet read "Learning".
  *
  * Does not change gelato stock / move logic — it only observes and advises.
  * ========================================================================= */
@@ -245,12 +248,11 @@
                 snowy,
                 fetchedAt: Date.now()
             };
-            updateWeatherUi();
             updateBanner();
         } catch (e) {
             console.warn('GelatoIntelligence weather', e);
             weather = null;
-            updateWeatherUi();
+            updateBanner();
         }
     }
 
@@ -263,26 +265,12 @@
         return 'Mild & dry';
     }
 
-    function updateWeatherUi() {
-        const value = document.getElementById('gi-wx-value');
-        const card = document.getElementById('gi-metric-weather');
-        if (!value) return;
-        if (!weather) {
-            value.textContent = '—';
-            if (card) card.classList.remove('is-wet');
-            return;
-        }
-        value.textContent = weather.wet
-            ? `${weather.tempF}° rain`
-            : `${weather.tempF}°`;
-        if (card) card.classList.toggle('is-wet', !!weather.wet);
-    }
-
     function heroMessage(shop) {
         if (isCollecting()) {
             return {
-                text: 'Still collecting shop data',
-                sub: 'Shop AI for what to make, daily profit, and Sewell demand — learning from every pan.'
+                text: 'Still gathering information',
+                sub: 'Soon it will read every pan, price, and Sewell forecast to tell you exactly what to make '
+                    + 'and what it earns you.'
             };
         }
         const t = (shop && shop.totals) || {};
@@ -332,14 +320,13 @@
     function setChatOpen(open) {
         const panel = document.getElementById('gi-chat');
         const toggle = document.getElementById('gi-chat-toggle');
+        const label = document.getElementById('gi-chat-toggle-label');
         const input = document.getElementById('gi-chat-input');
         if (!panel) return;
         if (open) panel.removeAttribute('hidden');
         else panel.setAttribute('hidden', '');
-        if (toggle) {
-            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-            toggle.textContent = open ? 'Close' : 'Chat';
-        }
+        if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (label) label.textContent = open ? 'Close chat' : 'Chat with DVG Intelligence';
         if (open && input) input.focus();
     }
 
@@ -347,8 +334,9 @@
         const root = document.getElementById('gelato-intelligence');
         if (!root) return;
         const shop = getSnapshot() || {};
-        root.classList.toggle('gi-collecting', isCollecting());
-        root.classList.toggle('gi-ready', !isCollecting());
+        const collecting = isCollecting();
+        root.classList.toggle('gi-collecting', collecting);
+        root.classList.toggle('gi-ready', !collecting);
 
         const hero = heroMessage(shop);
         const lead = document.getElementById('gi-lead');
@@ -358,22 +346,158 @@
         if (sub) sub.textContent = hero.sub;
         if (collapsedMsg) collapsedMsg.textContent = hero.text;
 
-        const t = shop.totals || {};
-        const used = (shop.usage && shop.usage.usedPans) || 0;
-        const cost = (shop.pricing && shop.pricing.costPerPan) || 0;
-        const profitToday = r2Money(used * cost);
+        const label = document.getElementById('gi-progress-label');
+        if (label) {
+            label.textContent = collecting
+                ? `Gathering · ${Math.min(eventCount, MIN_EVENTS_FOR_READY)}/${MIN_EVENTS_FOR_READY} shop signals`
+                : 'Trained on your shop';
+        }
 
-        const profitVal = document.getElementById('gi-profit-value');
-        if (profitVal) profitVal.textContent = used > 0 ? money(profitToday) : '$0';
+        const note = document.getElementById('gi-insights-note');
+        if (note) {
+            note.textContent = collecting
+                ? 'Live tiles update now · the rest unlock as data builds'
+                : 'Live from today’s shop data';
+        }
 
-        const stockVal = document.getElementById('gi-stock-value');
-        if (stockVal) stockVal.textContent = t.totalValue != null ? money(t.totalValue) : '—';
-
-        updateWeatherUi();
+        renderInsights(shop);
     }
 
-    function r2Money(n) {
-        return Math.round((Number(n) || 0) * 100) / 100;
+    /* ----- Insight deck --------------------------------------------------
+     * Every tile either shows a real number from today's shop or says
+     * "Learning" — never a blank or a fake figure. Tiles that have no data
+     * at all get the `soon` chip + `is-soon` treatment; tiles with partial
+     * data get the `learning` chip. Both read "Learning" to the user. */
+    const MOVE_TYPE_LABEL = {
+        use: 'serving pans', empty: 'emptying pans', transfer: 'transfers',
+        swap: 'swaps', intake: 'production intake', assign: 'case assignments',
+        adjust: 'pan adjustments', discard: 'discards', close: 'closing the case',
+        snapshot: 'snapshots', reload: 'case reloads', 'auto-stage': 'auto-staged refills'
+    };
+
+    const pans = n => (Math.round((Number(n) || 0) * 10) / 10);
+    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+    function weatherCard() {
+        if (!weather) {
+            return {
+                icon: '☁', label: 'Sewell weather', chip: ['Learning', 'soon'], soon: true,
+                value: 'Learning', sub: 'Reconnecting to the Sewell, NJ forecast'
+            };
+        }
+        const bits = [weather.dayLabel, weatherDemandNote()];
+        if (weather.precipChance) bits.push(`${weather.precipChance}% rain chance`);
+        return {
+            icon: weather.wet ? '☂' : '☀',
+            label: 'Sewell weather',
+            chip: ['Live', 'live'],
+            cls: weather.wet ? 'is-wet' : '',
+            value: `${weather.tempF}°F`,
+            sub: bits.filter(Boolean).join(' · ')
+        };
+    }
+
+    function movementCard(mv) {
+        const total = Number(mv.movesToday || 0);
+        if (!total) {
+            return {
+                icon: '⇄', label: 'Movement today', chip: ['Live', 'live'],
+                value: 'Quiet so far', sub: 'Every case, freezer, and swap move is logged here'
+            };
+        }
+        const top = mv.topType && MOVE_TYPE_LABEL[mv.topType]
+            ? `Mostly ${MOVE_TYPE_LABEL[mv.topType]} (${mv.topTypeCount})`
+            : 'Case and freezer activity logged today';
+        return {
+            icon: '⇄', label: 'Movement today', chip: ['Live', 'live'],
+            value: plural(total, 'move'), sub: top
+        };
+    }
+
+    function popularCard(mv) {
+        const top = mv.topFlavor;
+        if (!top || !top.name) {
+            return {
+                icon: '♥', label: 'Most popular flavor', chip: ['Learning', 'soon'], soon: true,
+                value: 'Learning', sub: 'Ranks your best sellers once a few days of pans are logged'
+            };
+        }
+        return {
+            icon: '♥', label: 'Most popular flavor', chip: ['Learning', 'learning'],
+            value: top.name,
+            sub: `${plural(top.touches, 'move')} today · full ranking builds as history grows`
+        };
+    }
+
+    function buildInsights(shop) {
+        const t = shop.totals || {};
+        const usage = shop.usage || {};
+        const mv = shop.movement || {};
+        const low = Array.isArray(shop.lowPans) ? shop.lowPans : [];
+        const cost = (shop.pricing && shop.pricing.costPerPan) || 0;
+        const used = Number(usage.usedPans || 0);
+        const wasted = Number(usage.wastedPans || 0);
+
+        return [
+            {
+                icon: '$', label: 'Price today', chip: ['Live', 'live'],
+                value: money(used * cost),
+                sub: used > 0
+                    ? `${plural(pans(used), 'pan')} out of the case so far`
+                    : 'Nothing served from the case yet today'
+            },
+            {
+                icon: '∑', label: 'Total price', chip: ['Learning', 'learning'],
+                value: t.totalValue != null ? money(t.totalValue) : 'Learning',
+                soon: t.totalValue == null,
+                sub: t.totalValue != null
+                    ? `${plural(pans(t.totalPans), 'pan')} on hand · needs more history for a true total`
+                    : 'Waiting on inventory to load'
+            },
+            weatherCard(),
+            movementCard(mv),
+            popularCard(mv),
+            {
+                icon: '◈', label: 'Case health', chip: low.length ? ['Action', 'learning'] : ['Live', 'live'],
+                cls: low.length ? 'is-alert' : '',
+                value: low.length ? `${plural(low.length, 'pan')} low` : 'All pans healthy',
+                sub: low.length
+                    ? low.slice(0, 3).map(p => p.name).filter(Boolean).join(', ') || 'Refill from short-term'
+                    : `${t.caseSlots || 0} of ${t.caseSlotsMax || 0} case slots filled`
+            },
+            {
+                icon: '⊘', label: 'Waste today', chip: ['Live', 'live'],
+                value: money(wasted * cost),
+                sub: wasted > 0
+                    ? `${plural(pans(wasted), 'pan')} emptied or discarded`
+                    : 'No waste logged today'
+            },
+            {
+                icon: '%', label: 'Profit & margin', chip: ['Learning', 'soon'], soon: true,
+                value: 'Learning', sub: 'Unlocks when register sales are matched against pan cost'
+            },
+            {
+                icon: '✦', label: 'Tomorrow’s make list', chip: ['Learning', 'soon'], soon: true,
+                value: 'Learning', sub: 'An AI production plan from weather, history, and what is running low'
+            }
+        ];
+    }
+
+    function renderInsights(shop) {
+        const box = document.getElementById('gi-insights');
+        if (!box) return;
+        box.innerHTML = buildInsights(shop).map((c, i) => {
+            const cls = ['gi-card', c.soon ? 'is-soon' : '', c.cls || ''].filter(Boolean).join(' ');
+            return `<article class="${cls}" style="animation-delay:${i * 35}ms">
+                <div class="gi-card-top">
+                    <span class="gi-card-icon" aria-hidden="true">${esc(c.icon)}</span>
+                    <span class="gi-chip gi-chip-${c.chip[1]}">${esc(c.chip[0])}</span>
+                </div>
+                <div class="gi-card-label">${esc(c.label)}</div>
+                <div class="gi-card-value">${esc(c.value)}</div>
+                <div class="gi-card-sub">${esc(c.sub)}</div>
+            </article>`;
+        }).join('');
     }
 
     /* ----- Chat ---------------------------------------------------------- */
@@ -417,20 +541,12 @@
         chatCol().orderBy('at', 'desc').limit(40).onSnapshot(snap => {
             if (snap.empty) {
                 box.innerHTML = `<div class="gi-msg gi-msg-ai"><div class="gi-msg-bubble">
-                    <strong>Gelato Intelligence</strong>
-                    <p>Ask about today’s profit, stock, weather, or what to make — I’m learning from your shop as data collects.</p>
+                    <strong>DVG Intelligence</strong>
+                    <p>Ask about today’s price, stock, Sewell weather, or what to make — I’m still gathering information, so answers get sharper every day.</p>
                 </div></div>`;
                 return;
             }
-            const docs = snap.docs.slice().reverse();
-            box.innerHTML = docs.map(d => {
-                const m = d.data();
-                const role = m.role === 'user' ? 'user' : 'ai';
-                return `<div class="gi-msg gi-msg-${role}"><div class="gi-msg-bubble">
-                    <strong>${role === 'user' ? 'You' : 'Gelato Intelligence'}</strong>
-                    <p>${esc(m.text)}</p>
-                </div></div>`;
-            }).join('');
+            box.innerHTML = chatBubbles(snap.docs.slice().reverse());
             box.scrollTop = box.scrollHeight;
         }, err => {
             console.warn('chat listen', err);
@@ -440,17 +556,21 @@
                     const tb = (b.data().at && b.data().at.toMillis) ? b.data().at.toMillis() : 0;
                     return ta - tb;
                 });
-                box.innerHTML = docs.map(d => {
-                    const m = d.data();
-                    const role = m.role === 'user' ? 'user' : 'ai';
-                    return `<div class="gi-msg gi-msg-${role}"><div class="gi-msg-bubble">
-                        <strong>${role === 'user' ? 'You' : 'Gelato Intelligence'}</strong>
-                        <p>${esc(m.text)}</p>
-                    </div></div>`;
-                }).join('');
+                box.innerHTML = chatBubbles(docs);
                 box.scrollTop = box.scrollHeight;
             });
         });
+    }
+
+    function chatBubbles(docs) {
+        return docs.map(d => {
+            const m = d.data();
+            const role = m.role === 'user' ? 'user' : 'ai';
+            return `<div class="gi-msg gi-msg-${role}"><div class="gi-msg-bubble">
+                <strong>${role === 'user' ? 'You' : 'DVG Intelligence'}</strong>
+                <p>${esc(m.text)}</p>
+            </div></div>`;
+        }).join('');
     }
 
     async function sendChat(text) {
@@ -522,7 +642,7 @@
         const low = (shop && shop.lowPans) || [];
         const used = (shop && shop.usage && shop.usage.usedPans) || 0;
         const note = isCollecting()
-            ? '\n\nStill collecting shop data — deeper insights unlock as history builds.'
+            ? '\n\nStill gathering information — deeper insights unlock as history builds.'
             : '';
 
         if (/weather|sewell|hot|cold|rain|temp|scoop/.test(q)) {

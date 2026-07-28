@@ -2,6 +2,7 @@
 <html>
 
 <head>
+    <meta charset="utf-8">
     <title>Gelato Inventory</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" type="text/css" href="admin-style.css">
@@ -58,78 +59,79 @@
 
         <p id="g-status" class="g-status" aria-live="polite"></p>
 
-        <!-- ===================== GELATO INTELLIGENCE ===================== -->
-        <section class="gi-banner gi-collecting" id="gelato-intelligence" aria-label="Dolce Vita Gelato Intelligence">
+        <!-- ===================== DVG INTELLIGENCE ===================== -->
+        <section class="gi-banner gi-collecting" id="gelato-intelligence" aria-label="DVG Intelligence">
             <button type="button" class="gi-collapsed-bar" id="gi-expand" hidden>
                 <svg class="gi-star-mini" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2l1.7 6.2L20 12l-6.3 1.6L12 21.8l-1.7-8.2L4 12l6.3-3.6L12 2.2z"/></svg>
-                <strong>Gelato Intelligence</strong>
-                <span class="gi-collapsed-msg" id="gi-collapsed-msg">Still collecting shop data</span>
+                <strong>DVG Intelligence</strong>
+                <span class="gi-collapsed-msg" id="gi-collapsed-msg">Still gathering information</span>
                 <span class="gi-expand-cta">Open</span>
             </button>
 
             <div class="gi-body" id="gi-body">
                 <div class="gi-wash" aria-hidden="true"></div>
+                <div class="gi-sheen" aria-hidden="true"></div>
                 <div class="gi-blob gi-blob-a" aria-hidden="true"></div>
                 <div class="gi-blob gi-blob-b" aria-hidden="true"></div>
                 <div class="gi-blob gi-blob-c" aria-hidden="true"></div>
 
-                <button type="button" class="gi-icon-btn gi-minimize" id="gi-minimize" title="Minimize" aria-label="Minimize Gelato Intelligence">−</button>
+                <button type="button" class="gi-icon-btn gi-minimize" id="gi-minimize" title="Minimize" aria-label="Minimize DVG Intelligence">−</button>
 
                 <div class="gi-hero">
-                    <div class="gi-star-wrap" aria-hidden="true">
-                        <svg class="gi-star" viewBox="0 0 64 64">
-                            <path d="M32 4l5.8 20.2L58 32l-20.2 5.8L32 60l-5.8-22.2L6 32l20.2-7.8L32 4z"/>
-                        </svg>
-                        <svg class="gi-star gi-star-sm" viewBox="0 0 64 64">
-                            <path d="M32 4l5.8 20.2L58 32l-20.2 5.8L32 60l-5.8-22.2L6 32l20.2-7.8L32 4z"/>
-                        </svg>
+                    <div class="gi-badge-row">
+                        <span class="gi-badge">Brand new</span>
+                        <span class="gi-eyebrow">Dolce Vita Gelateria · Sewell, NJ</span>
                     </div>
 
-                    <p class="gi-eyebrow">Dolce Vita · NEW</p>
-                    <h2 class="gi-title">Gelato Intelligence</h2>
-                    <h3 class="gi-headline" id="gi-lead">Still collecting shop data</h3>
+                    <div class="gi-title-row">
+                        <h2 class="gi-title">DVG Intelligence</h2>
+                        <span class="gi-star-wrap" aria-hidden="true">
+                            <svg class="gi-star" viewBox="0 0 64 64">
+                                <path d="M32 4l5.8 20.2L58 32l-20.2 5.8L32 60l-5.8-22.2L6 32l20.2-7.8L32 4z"/>
+                            </svg>
+                            <svg class="gi-star gi-star-sm" viewBox="0 0 64 64">
+                                <path d="M32 4l5.8 20.2L58 32l-20.2 5.8L32 60l-5.8-22.2L6 32l20.2-7.8L32 4z"/>
+                            </svg>
+                        </span>
+                    </div>
+
+                    <h3 class="gi-headline">
+                        <span class="gi-dot" aria-hidden="true"></span>
+                        <span id="gi-lead">Still gathering information</span>
+                    </h3>
                     <p class="gi-sub" id="gi-sub">
-                        Shop AI for what to make, daily profit, and Sewell demand — learning from every pan.
+                        Soon it will read every pan, price, and Sewell forecast to tell you exactly what to make and what
+                        it earns you.
                     </p>
 
-                    <button type="button" class="gi-chat-btn" id="gi-chat-toggle" aria-expanded="false" aria-controls="gi-chat">Chat</button>
-                </div>
+                    <div class="gi-progress" id="gi-progress">
+                        <div class="gi-progress-track"><span class="gi-progress-fill" id="gi-progress-fill"></span></div>
+                        <span class="gi-progress-label" id="gi-progress-label">Learning your shop</span>
+                    </div>
 
-                <div class="gi-stats" aria-label="Live stats">
-                    <div class="gi-stat" id="gi-metric-profit">
-                        <span class="gi-stat-icon" aria-hidden="true">$</span>
-                        <div>
-                            <div class="gi-stat-label">Profit today</div>
-                            <div class="gi-stat-value" id="gi-profit-value">—</div>
-                        </div>
-                    </div>
-                    <div class="gi-stat" id="gi-metric-stock">
-                        <span class="gi-stat-icon" aria-hidden="true">◈</span>
-                        <div>
-                            <div class="gi-stat-label">Stock today</div>
-                            <div class="gi-stat-value" id="gi-stock-value">—</div>
-                        </div>
-                    </div>
-                    <div class="gi-stat" id="gi-metric-weather">
-                        <span class="gi-stat-icon" aria-hidden="true">◎</span>
-                        <div>
-                            <div class="gi-stat-label">Sewell</div>
-                            <div class="gi-stat-value" id="gi-wx-value">—</div>
-                        </div>
-                    </div>
+                    <button type="button" class="gi-chat-btn" id="gi-chat-toggle" aria-expanded="false" aria-controls="gi-chat">
+                        <svg class="gi-btn-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2l1.7 6.2L20 12l-6.3 1.6L12 21.8l-1.7-8.2L4 12l6.3-3.6L12 2.2z"/></svg>
+                        <span id="gi-chat-toggle-label">Chat with DVG Intelligence</span>
+                    </button>
                 </div>
 
                 <div class="gi-chat" id="gi-chat" hidden>
                     <div class="gi-chat-head">
-                        <strong>Chat</strong>
+                        <strong>DVG Intelligence</strong>
                         <button type="button" class="gi-icon-btn" id="gi-chat-close" title="Close chat" aria-label="Close chat">✕</button>
                     </div>
                     <div class="gi-chat-log" id="gi-chat-log" role="log" aria-live="polite"></div>
                     <form class="gi-chat-form" id="gi-chat-form">
-                        <input type="text" id="gi-chat-input" maxlength="500" placeholder="Ask about profit, stock, weather, what to make…" autocomplete="off" aria-label="Message Gelato Intelligence">
-                        <button type="submit" class="gi-chat-btn">Send</button>
+                        <input type="text" id="gi-chat-input" maxlength="500" placeholder="Ask about profit, stock, weather, what to make…" autocomplete="off" aria-label="Message DVG Intelligence">
+                        <button type="submit" class="gi-chat-btn gi-chat-send">Send</button>
                     </form>
                 </div>
+
+                <div class="gi-insights-head">
+                    <h4>Insights</h4>
+                    <span class="gi-insights-note" id="gi-insights-note">Live now · more unlock as data builds</span>
+                </div>
+                <div class="gi-insights" id="gi-insights" aria-label="DVG Intelligence insights"></div>
             </div>
         </section>
 

@@ -194,6 +194,9 @@
         db.collection('gelatoMoves').orderBy('at', 'desc').limit(60).onSnapshot(snap => {
             moves = snap.docs.map(d => ({ ...d.data(), id: d.id }));
             renderLog();
+            if (window.GelatoIntelligence && typeof GelatoIntelligence.refreshBanner === 'function') {
+                GelatoIntelligence.refreshBanner();
+            }
             if (viewMode === 'mobile') renderMobilePanel();
         }, err => console.error('moves snapshot error', err));
 
@@ -894,7 +897,46 @@
                 wastedPans: r2(usageToday.wastedPans || 0),
                 date: todayStr()
             },
+            movement: todaysMovement(),
             queueLength: Array.isArray(queue) ? queue.length : 0
+        };
+    }
+
+    /* Roll today's move log into simple counts plus the flavor the case touched
+     * most, so Intelligence can show real numbers before Gemini history exists.
+     * Flavor is matched against live inventory names, so free-text log lines
+     * that mention no known flavor are simply skipped. */
+    function todaysMovement() {
+        const today = todayStr();
+        const named = inventory
+            .map(f => ({ id: f.id, name: nameById(f.id) || f.name || '' }))
+            .filter(f => f.name);
+        const byType = {};
+        const byFlavor = {};
+        let count = 0;
+
+        moves.forEach(m => {
+            const at = (m.at && typeof m.at.toDate === 'function') ? m.at.toDate() : null;
+            if (!at || at.toLocaleDateString('en-CA') !== today) return;
+            count++;
+            const type = m.type || 'other';
+            byType[type] = (byType[type] || 0) + 1;
+            if (type !== 'use' && type !== 'empty' && type !== 'swap' && type !== 'transfer') return;
+            const text = String(m.text || '').toLowerCase();
+            const hit = named.find(f => text.includes(f.name.toLowerCase()));
+            if (hit) byFlavor[hit.name] = (byFlavor[hit.name] || 0) + 1;
+        });
+
+        const topType = Object.keys(byType).sort((a, b) => byType[b] - byType[a])[0] || null;
+        const topFlavor = Object.keys(byFlavor).sort((a, b) => byFlavor[b] - byFlavor[a])[0] || null;
+        return {
+            movesToday: count,
+            logDepth: moves.length,
+            byType,
+            topType,
+            topTypeCount: topType ? byType[topType] : 0,
+            flavorsTouched: Object.keys(byFlavor).length,
+            topFlavor: topFlavor ? { name: topFlavor, touches: byFlavor[topFlavor] } : null
         };
     }
 

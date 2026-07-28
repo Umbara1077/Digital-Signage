@@ -2568,190 +2568,258 @@ body.g-mobile main {
 }
 
 /* ===========================================================================
- * Dolce Vita · Gelato Intelligence — pink/white Copilot-style AI card
+ * Dolce Vita · DVG Intelligence — compact AI panel (`gi-` prefix retained)
+ * Soft rose / lavender / peach / mint gradient, left-aligned, with a live
+ * insight deck along the bottom. Purely presentational: the panel observes
+ * the gelato data, it never writes stock.
  * ========================================================================= */
 
 .gi-banner {
-    --gi-pink: #ff4fa3;
-    --gi-pink-soft: #ff8ec8;
-    --gi-blush: #ffe0f0;
-    --gi-ink: #2a1430;
-    --gi-muted: #7a5a6e;
+    --gi-rose: #e2568f;
+    --gi-violet: #9575d8;
+    --gi-peach: #f0956b;
+    --gi-mint: #62c3ab;
+    --gi-ink: #3a2a44;
+    --gi-muted: #7d6b88;
     position: relative;
+    /* admin-style.css centres every <section> as a flex column — opt out so
+     * the panel body can use the full card width and align left */
+    display: block;
+    text-align: left;
     width: min(100%, 1180px);
-    margin: 12px auto 28px;
-    border-radius: 32px;
+    margin: 12px auto 22px;
+    border-radius: 20px;
     overflow: hidden;
     color: var(--gi-ink);
     background:
-        linear-gradient(145deg, #ffffff 0%, #fff7fb 28%, #ffe4f2 62%, #ffffff 100%);
-    border: 1px solid rgba(255, 79, 163, 0.22);
+        linear-gradient(115deg,
+            #fffdfb 0%,
+            #fff5f8 20%,
+            #fdecf4 38%,
+            #f4edfd 58%,
+            #eef7f5 78%,
+            #fffdfb 100%);
+    background-size: 180% 180%;
+    border: 1px solid rgba(149, 117, 216, 0.18);
     box-shadow:
-        0 28px 70px rgba(255, 79, 163, 0.22),
-        0 8px 24px rgba(42, 20, 48, 0.08),
+        0 14px 34px rgba(120, 92, 160, 0.13),
+        0 2px 8px rgba(58, 42, 68, 0.05),
         inset 0 1px 0 rgba(255, 255, 255, 0.9);
-    animation: giCardIn 0.7s cubic-bezier(.2,.85,.2,1) both;
+    animation:
+        giCardIn 0.6s cubic-bezier(.2,.85,.2,1) both,
+        giCardDrift 26s ease-in-out infinite;
 }
 
 @keyframes giCardIn {
-    from { opacity: 0; transform: translateY(16px) scale(0.985); }
+    from { opacity: 0; transform: translateY(10px) scale(0.99); }
     to { opacity: 1; transform: none; }
+}
+
+@keyframes giCardDrift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
 }
 
 .gi-body {
     position: relative;
     z-index: 1;
-    padding: 36px 40px 28px;
+    width: 100%;
+    padding: 20px 24px 18px;
 }
 
 .gi-wash {
     position: absolute;
     inset: -30%;
     z-index: 0;
-    background: conic-gradient(from 180deg at 40% 30%,
-        rgba(255, 79, 163, 0.18),
-        rgba(255, 255, 255, 0.5),
-        rgba(255, 142, 200, 0.22),
-        rgba(255, 255, 255, 0.55),
-        rgba(255, 79, 163, 0.18));
-    filter: blur(40px);
-    animation: giWash 16s linear infinite;
+    background: conic-gradient(from 200deg at 35% 40%,
+        rgba(226, 86, 143, 0.10),
+        rgba(255, 255, 255, 0.4),
+        rgba(149, 117, 216, 0.12),
+        rgba(98, 195, 171, 0.08),
+        rgba(240, 149, 107, 0.10),
+        rgba(226, 86, 143, 0.10));
+    filter: blur(46px);
+    animation: giWash 30s linear infinite;
     pointer-events: none;
 }
 
 @keyframes giWash { to { transform: rotate(360deg); } }
 
+/* Slow, faint light sweep — a hint of shine, not a strobe */
+.gi-sheen {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: linear-gradient(102deg,
+        transparent 42%,
+        rgba(255, 255, 255, 0.5) 50%,
+        transparent 58%);
+    background-size: 300% 100%;
+    animation: giSheen 11s ease-in-out infinite;
+}
+
+@keyframes giSheen {
+    0% { background-position: 150% 0; }
+    60%, 100% { background-position: -50% 0; }
+}
+
 .gi-blob {
     position: absolute;
     border-radius: 50%;
-    filter: blur(28px);
+    filter: blur(34px);
     z-index: 0;
     pointer-events: none;
-    animation: giBlob 8s ease-in-out infinite;
+    animation: giBlob 12s ease-in-out infinite;
 }
 .gi-blob-a {
-    width: 280px; height: 280px; top: -80px; right: -40px;
-    background: radial-gradient(circle, rgba(255, 79, 163, 0.45), transparent 70%);
+    width: 200px; height: 200px; top: -80px; right: 12%;
+    background: radial-gradient(circle, rgba(226, 86, 143, 0.20), transparent 70%);
 }
 .gi-blob-b {
-    width: 240px; height: 240px; bottom: -90px; left: -50px;
-    background: radial-gradient(circle, rgba(255, 180, 220, 0.55), transparent 70%);
-    animation-delay: -2s;
+    width: 180px; height: 180px; bottom: -80px; left: -30px;
+    background: radial-gradient(circle, rgba(149, 117, 216, 0.20), transparent 70%);
+    animation-delay: -3s;
 }
 .gi-blob-c {
-    width: 160px; height: 160px; top: 40%; left: 50%;
-    background: radial-gradient(circle, rgba(255, 255, 255, 0.8), transparent 70%);
-    animation-delay: -4s;
+    width: 150px; height: 150px; top: 30%; right: -40px;
+    background: radial-gradient(circle, rgba(240, 149, 107, 0.16), transparent 70%);
+    animation-delay: -6s;
 }
 
 @keyframes giBlob {
     0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(12px, -10px) scale(1.08); }
+    50% { transform: translate(10px, -8px) scale(1.06); }
 }
 
+/* Content is left-aligned, so the minimize control sits top-right */
 .gi-minimize {
     position: absolute;
-    top: 18px;
-    right: 18px;
+    top: 14px;
+    right: 14px;
     z-index: 3;
 }
 
 .gi-icon-btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 79, 163, 0.2);
-    background: rgba(255, 255, 255, 0.7);
-    color: var(--gi-ink);
-    font-size: 1.2rem;
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+    border: 1px solid rgba(149, 117, 216, 0.22);
+    background: rgba(255, 255, 255, 0.72);
+    color: var(--gi-muted);
+    font-size: 0.95rem;
     font-weight: 700;
     line-height: 1;
     cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 }
 .gi-icon-btn:hover {
     background: #fff;
-    border-color: rgba(255, 79, 163, 0.4);
+    color: var(--gi-ink);
+    border-color: rgba(149, 117, 216, 0.45);
 }
 
+/* ----- Hero ----------------------------------------------------------- */
 .gi-hero {
     position: relative;
     z-index: 1;
-    text-align: center;
-    max-width: 820px;
-    margin: 0 auto;
-    padding-top: 8px;
+    text-align: left;
+    max-width: 46rem;
+    padding-right: 40px;
+}
+
+.gi-badge-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 9px;
+}
+
+/* "Brand new" pill — the attention grabber, gently */
+.gi-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 0.58rem;
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #fff;
+    background: linear-gradient(105deg, #e2568f, #9575d8 55%, #62c3ab);
+    background-size: 200% auto;
+    box-shadow: 0 4px 12px rgba(149, 117, 216, 0.3);
+    animation: giTitleShift 7s ease infinite;
+}
+
+.gi-eyebrow {
+    margin: 0;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gi-muted);
+}
+
+.gi-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 9px;
+    margin-top: 6px;
 }
 
 .gi-star-wrap {
     position: relative;
-    width: 72px;
-    height: 72px;
-    margin: 0 auto 18px;
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 auto;
+    order: -1;
 }
 
 .gi-star {
-    width: 64px;
-    height: 64px;
-    fill: url(#none);
-    fill: #ff4fa3;
-    filter: drop-shadow(0 8px 20px rgba(255, 79, 163, 0.45));
-    animation: giStarPulse 2.4s ease-in-out infinite;
+    width: 24px;
+    height: 24px;
+    filter: drop-shadow(0 3px 8px rgba(226, 86, 143, 0.35));
+    animation: giStarPulse 3.2s ease-in-out infinite;
 }
 
-.gi-star path {
-    fill: url(#giStarGrad);
-    fill: #ff4fa3;
-}
-
-/* paint gemini-like 4-point star with pink→white */
-.gi-star {
-    background: none;
-}
-.gi-star path {
-    fill: #ff4fa3;
-}
+.gi-star path { fill: #e2568f; }
 
 .gi-star-sm {
     position: absolute;
-    width: 22px;
-    height: 22px;
-    top: -2px;
-    right: -8px;
+    width: 10px;
+    height: 10px;
+    top: -3px;
+    right: -4px;
     opacity: 0.85;
-    animation: giStarTwinkle 1.8s ease-in-out infinite;
+    animation: giStarTwinkle 2.4s ease-in-out infinite;
 }
-.gi-star-sm path { fill: #ff8ec8; }
+.gi-star-sm path { fill: #9575d8; }
 
 @keyframes giStarPulse {
     0%, 100% { transform: scale(1) rotate(0deg); }
-    50% { transform: scale(1.08) rotate(8deg); }
+    50% { transform: scale(1.07) rotate(6deg); }
 }
 @keyframes giStarTwinkle {
-    0%, 100% { transform: scale(0.85); opacity: 0.55; }
-    50% { transform: scale(1.15); opacity: 1; }
-}
-
-.gi-eyebrow {
-    margin: 0 0 10px;
-    font-size: 0.9rem;
-    font-weight: 800;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--gi-pink);
+    0%, 100% { transform: scale(0.85); opacity: 0.5; }
+    50% { transform: scale(1.12); opacity: 1; }
 }
 
 .gi-title {
     margin: 0;
-    font-size: clamp(2.8rem, 7vw, 4.4rem);
+    font-size: clamp(1.45rem, 2.6vw, 1.85rem);
     font-weight: 900;
-    letter-spacing: -0.04em;
-    line-height: 0.98;
-    background: linear-gradient(110deg, #ff2f8f 0%, #ff4fa3 35%, #ff8ec8 65%, #ffffff 100%);
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+    background: linear-gradient(100deg, #d94d88 0%, #a35fd0 38%, #cd699e 66%, #cf7145 100%);
     background-size: 200% auto;
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-    animation: giTitleShift 5s ease infinite;
+    animation: giTitleShift 9s ease infinite;
     text-shadow: none;
 }
 
@@ -2761,112 +2829,304 @@ body.g-mobile main {
 }
 
 .gi-headline {
-    margin: 18px 0 0;
-    font-size: clamp(1.85rem, 4.2vw, 2.75rem);
-    font-weight: 900;
-    letter-spacing: -0.03em;
-    line-height: 1.12;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    margin: 8px 0 0;
+    font-size: 0.98rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
     color: var(--gi-ink);
 }
 
+/* Live "working on it" dot next to the status line */
+.gi-dot {
+    width: 8px;
+    height: 8px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: #e2568f;
+    animation: giDot 2.4s ease-out infinite;
+}
+
+@keyframes giDot {
+    0% { box-shadow: 0 0 0 0 rgba(226, 86, 143, 0.45); }
+    70% { box-shadow: 0 0 0 9px rgba(226, 86, 143, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(226, 86, 143, 0); }
+}
+
 .gi-sub {
-    margin: 14px auto 0;
-    max-width: 34rem;
+    margin: 5px 0 0;
+    max-width: 42rem;
     color: var(--gi-muted);
-    font-size: 1.12rem;
+    font-size: 0.85rem;
     font-weight: 600;
     line-height: 1.45;
 }
 
-.gi-chat-btn {
-    margin-top: 22px;
-    border: none;
-    border-radius: 999px;
-    padding: 14px 28px;
-    font-weight: 900;
-    font-size: 1.05rem;
-    cursor: pointer;
-    color: #fff;
-    background: linear-gradient(110deg, #ff2f8f, #ff4fa3 45%, #ff8ec8);
-    background-size: 200% 200%;
-    animation: giTitleShift 5s ease infinite;
-    box-shadow: 0 12px 30px rgba(255, 79, 163, 0.35);
-    transition: transform 0.15s ease, box-shadow 0.2s ease;
-}
-.gi-chat-btn:hover {
-    transform: translateY(-2px) scale(1.03);
-    box-shadow: 0 16px 36px rgba(255, 79, 163, 0.45);
-}
-
-/* Small live stats as icon row at bottom */
-.gi-stats {
-    position: relative;
-    z-index: 1;
+/* Indeterminate "gathering" bar */
+.gi-progress {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px 14px;
-    margin-top: 28px;
-    padding-top: 22px;
-    border-top: 1px solid rgba(255, 79, 163, 0.14);
-}
-
-.gi-stat {
-    display: inline-flex;
     align-items: center;
+    justify-content: flex-start;
     gap: 10px;
-    min-width: 140px;
-    padding: 10px 14px;
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.72);
-    border: 1px solid rgba(255, 79, 163, 0.14);
-    box-shadow: 0 4px 14px rgba(255, 79, 163, 0.08);
-    backdrop-filter: blur(8px);
+    margin-top: 12px;
 }
 
-.gi-stat.is-wet {
-    border-color: rgba(100, 160, 230, 0.35);
-    background: rgba(235, 245, 255, 0.85);
+.gi-progress-track {
+    position: relative;
+    width: min(190px, 45%);
+    height: 5px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(149, 117, 216, 0.16);
 }
 
-.gi-stat-icon {
-    width: 34px;
-    height: 34px;
-    border-radius: 12px;
-    display: grid;
-    place-items: center;
-    font-weight: 900;
-    font-size: 0.95rem;
-    color: #fff;
-    background: linear-gradient(135deg, #ff2f8f, #ff8ec8);
-    box-shadow: 0 6px 14px rgba(255, 79, 163, 0.3);
-    flex: 0 0 auto;
+.gi-progress-fill {
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(226, 86, 143, 0), #e2568f 40%, #9575d8 70%, rgba(98, 195, 171, 0));
+    background-size: 45% 100%;
+    background-repeat: no-repeat;
+    animation: giScan 2.8s ease-in-out infinite;
 }
 
-.gi-stat-label {
-    font-size: 0.7rem;
+@keyframes giScan {
+    0% { background-position: -50% 0; }
+    100% { background-position: 150% 0; }
+}
+
+.gi-banner.gi-ready .gi-progress-fill {
+    background: linear-gradient(90deg, #e2568f, #9575d8 60%, #62c3ab);
+    background-size: 100% 100%;
+    animation: none;
+}
+
+.gi-progress-label {
+    font-size: 0.62rem;
     font-weight: 800;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--gi-muted);
 }
 
-.gi-stat-value {
+.gi-chat-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 13px;
+    border: none;
+    border-radius: 999px;
+    padding: 9px 17px;
+    font-weight: 800;
+    font-size: 0.84rem;
+    cursor: pointer;
+    color: #fff;
+    background: linear-gradient(105deg, #e2568f, #a86fd4 55%, #f0956b);
+    background-size: 200% 200%;
+    animation: giTitleShift 9s ease infinite;
+    box-shadow: 0 7px 18px rgba(168, 111, 212, 0.3);
+    transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+.gi-chat-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 22px rgba(168, 111, 212, 0.4);
+}
+
+.gi-btn-star {
+    width: 13px;
+    height: 13px;
+    flex: 0 0 auto;
+}
+.gi-btn-star path { fill: #fff; }
+
+/* ----- Insight deck at the bottom of the panel ------------------------ */
+.gi-insights-head {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 18px;
+    padding-top: 13px;
+    border-top: 1px solid rgba(149, 117, 216, 0.16);
+}
+
+.gi-insights-head h4 {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    color: var(--gi-ink);
+}
+
+.gi-insights-note {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--gi-muted);
+}
+
+.gi-insights {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(178px, 1fr));
+    gap: 9px;
+    margin-top: 10px;
+}
+
+.gi-card {
+    position: relative;
+    overflow: hidden;
+    text-align: left;
+    padding: 9px 11px 10px;
+    border-radius: 13px;
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.9), rgba(250, 240, 250, 0.55));
+    border: 1px solid rgba(149, 117, 216, 0.16);
+    box-shadow: 0 3px 10px rgba(120, 92, 160, 0.07);
+    transition: transform 0.18s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    animation: giCardPop 0.4s cubic-bezier(.2,.85,.2,1) both;
+}
+
+.gi-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(149, 117, 216, 0.34);
+    box-shadow: 0 8px 18px rgba(120, 92, 160, 0.14);
+}
+
+@keyframes giCardPop {
+    from { opacity: 0; transform: translateY(7px); }
+    to { opacity: 1; transform: none; }
+}
+
+.gi-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 7px;
+    margin-bottom: 7px;
+}
+
+.gi-card-icon {
+    width: 21px;
+    height: 21px;
+    border-radius: 7px;
+    display: grid;
+    place-items: center;
+    font-weight: 900;
+    font-size: 0.68rem;
+    color: #fff;
+    background: linear-gradient(135deg, #e2568f, #a86fd4);
+    box-shadow: 0 3px 7px rgba(168, 111, 212, 0.28);
+    flex: 0 0 auto;
+}
+
+.gi-chip {
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 0.52rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.gi-chip-live {
+    color: #3f9b86;
+    background: rgba(98, 195, 171, 0.14);
+    border: 1px solid rgba(98, 195, 171, 0.3);
+}
+
+.gi-chip-learning {
+    color: #c07a45;
+    background: rgba(240, 149, 107, 0.14);
+    border: 1px solid rgba(240, 149, 107, 0.32);
+}
+
+.gi-chip-soon {
+    color: #fff;
+    border: 1px solid transparent;
+    background: linear-gradient(105deg, #bd93e2, #dc85b0 50%, #bd93e2);
+    background-size: 220% auto;
+    animation: giTitleShift 6s ease infinite;
+}
+
+.gi-card-label {
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--gi-muted);
+}
+
+.gi-card-value {
     margin-top: 2px;
-    font-size: 1.15rem;
+    font-size: 1rem;
     font-weight: 900;
     color: var(--gi-ink);
     letter-spacing: -0.02em;
-    line-height: 1.1;
+    line-height: 1.2;
 }
 
-/* Collapsed strip */
+.gi-card-sub {
+    margin-top: 3px;
+    font-size: 0.66rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--gi-muted);
+}
+
+/* Not-yet-ready tiles read as a teaser, not as broken data */
+.gi-card.is-soon {
+    border-style: dashed;
+    border-color: rgba(168, 111, 212, 0.32);
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.7), rgba(244, 237, 253, 0.5));
+}
+
+.gi-card.is-soon .gi-card-value {
+    background: linear-gradient(105deg, #9a6fcc, #d1699e 55%, #9a6fcc);
+    background-size: 220% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: giTitleShift 6s ease infinite;
+}
+
+.gi-card.is-soon .gi-card-icon {
+    background: linear-gradient(135deg, #c9a9ea, #f0dcf5);
+    color: #8e5cc4;
+}
+
+.gi-card.is-wet {
+    border-color: rgba(110, 160, 215, 0.36);
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.9), rgba(228, 240, 252, 0.62));
+}
+.gi-card.is-wet .gi-card-icon {
+    background: linear-gradient(135deg, #6ba3d8, #a8cdee);
+    box-shadow: 0 3px 7px rgba(107, 163, 216, 0.3);
+}
+
+.gi-card.is-alert {
+    border-color: rgba(230, 130, 120, 0.38);
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.9), rgba(255, 235, 230, 0.62));
+}
+.gi-card.is-alert .gi-card-icon {
+    background: linear-gradient(135deg, #e0796e, #f6b4a4);
+    box-shadow: 0 3px 7px rgba(224, 121, 110, 0.3);
+}
+
+/* ----- Collapsed strip ------------------------------------------------ */
 .gi-collapsed-bar {
     display: none;
     width: 100%;
     align-items: center;
-    gap: 12px;
-    padding: 16px 22px;
+    gap: 10px;
+    padding: 11px 16px;
     border: none;
     background: transparent;
     color: var(--gi-ink);
@@ -2878,16 +3138,16 @@ body.g-mobile main {
 .gi-banner.is-collapsed .gi-body { display: none; }
 
 .gi-star-mini {
-    width: 22px;
-    height: 22px;
+    width: 16px;
+    height: 16px;
     flex: 0 0 auto;
 }
-.gi-star-mini path { fill: #ff4fa3; }
+.gi-star-mini path { fill: #e2568f; }
 
 .gi-collapsed-bar strong {
-    font-size: 1.05rem;
+    font-size: 0.9rem;
     font-weight: 900;
-    background: linear-gradient(90deg, #ff2f8f, #ff8ec8);
+    background: linear-gradient(100deg, #e2568f, #a86fd4 60%, #f0956b);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -2896,6 +3156,7 @@ body.g-mobile main {
     flex: 1;
     min-width: 0;
     color: var(--gi-muted);
+    font-size: 0.8rem;
     font-weight: 700;
     white-space: nowrap;
     overflow: hidden;
@@ -2903,107 +3164,147 @@ body.g-mobile main {
 }
 .gi-expand-cta {
     margin-left: auto;
-    padding: 8px 14px;
+    padding: 5px 11px;
     border-radius: 999px;
-    background: linear-gradient(110deg, #ff2f8f, #ff8ec8);
+    background: linear-gradient(105deg, #e2568f, #a86fd4);
     color: #fff;
     font-weight: 900;
-    font-size: 0.82rem;
+    font-size: 0.66rem;
 }
 
-/* Chat panel */
+/* ----- Chat panel ----------------------------------------------------- */
 .gi-chat {
     position: relative;
     z-index: 1;
-    margin-top: 22px;
-    padding: 16px;
-    border-radius: 22px;
-    background: rgba(255, 255, 255, 0.78);
-    border: 1px solid rgba(255, 79, 163, 0.16);
-    backdrop-filter: blur(12px);
+    max-width: 46rem;
+    margin: 13px 0 0;
+    padding: 12px;
+    border-radius: 15px;
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid rgba(149, 117, 216, 0.18);
+    box-shadow: 0 6px 18px rgba(120, 92, 160, 0.1);
+    animation: giCardPop 0.3s cubic-bezier(.2,.85,.2,1) both;
 }
 .gi-chat-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 12px;
+    margin-bottom: 9px;
 }
 .gi-chat-head strong {
-    font-size: 0.95rem;
+    font-size: 0.78rem;
     font-weight: 900;
+    letter-spacing: 0.02em;
     color: var(--gi-ink);
 }
 .gi-chat-log {
-    max-height: 240px;
+    max-height: 190px;
     overflow: auto;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    margin-bottom: 12px;
+    gap: 8px;
+    margin-bottom: 10px;
 }
 .gi-msg { display: flex; }
 .gi-msg-user { justify-content: flex-end; }
 .gi-msg-ai { justify-content: flex-start; }
 .gi-msg-bubble {
-    max-width: min(100%, 520px);
-    padding: 10px 12px;
-    border-radius: 16px;
-    background: rgba(255, 224, 240, 0.65);
-    border: 1px solid rgba(255, 79, 163, 0.12);
+    max-width: min(100%, 480px);
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(244, 237, 253, 0.75);
+    border: 1px solid rgba(149, 117, 216, 0.14);
 }
 .gi-msg-user .gi-msg-bubble {
-    background: linear-gradient(135deg, rgba(255, 79, 163, 0.16), rgba(255, 255, 255, 0.7));
+    background: linear-gradient(135deg, rgba(226, 86, 143, 0.13), rgba(255, 255, 255, 0.7));
 }
 .gi-msg-bubble strong {
     display: block;
-    font-size: 0.68rem;
+    font-size: 0.58rem;
+    font-weight: 900;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--gi-pink);
-    margin-bottom: 4px;
+    color: var(--gi-violet);
+    margin-bottom: 3px;
 }
 .gi-msg-bubble p {
     margin: 0;
     color: var(--gi-ink);
-    font-size: 0.92rem;
+    font-size: 0.8rem;
     line-height: 1.45;
     white-space: pre-wrap;
 }
-.gi-chat-form { display: flex; gap: 8px; }
-.gi-chat-form input {
+
+/* The page-wide admin `form` styling is dark and animated — neutralise it
+ * so the chat row stays a flat, light input + button pair. */
+.gi-chat-form {
+    display: flex;
+    gap: 7px;
+    width: auto;
+    margin: 0;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    animation: none;
+    overflow: visible;
+    grid-template-columns: none;
+}
+.gi-chat-form::before { content: none; }
+
+.gi-chat-form input[type="text"] {
     flex: 1;
+    width: auto;
     min-width: 0;
-    padding: 12px 14px;
-    border-radius: 14px;
-    border: 1px solid rgba(255, 79, 163, 0.2);
+    padding: 9px 12px;
+    border-radius: 11px;
+    border: 1px solid rgba(149, 117, 216, 0.24);
     background: #fff;
     color: var(--gi-ink);
-    font-size: 0.95rem;
+    font-size: 0.82rem;
     font-weight: 600;
+    transform: none;
 }
-.gi-chat-form input::placeholder { color: #b08aa0; }
-.gi-chat-form input:focus {
+.gi-chat-form input[type="text"]::placeholder { color: #a898b2; }
+.gi-chat-form input[type="text"]:hover {
+    border-color: rgba(149, 117, 216, 0.4);
+}
+.gi-chat-form input[type="text"]:focus {
     outline: none;
-    border-color: rgba(255, 79, 163, 0.55);
-    box-shadow: 0 0 0 3px rgba(255, 79, 163, 0.15);
+    border-color: rgba(168, 111, 212, 0.6);
+    box-shadow: 0 0 0 3px rgba(168, 111, 212, 0.16);
+    transform: none;
 }
 .gi-chat-form .gi-chat-btn {
+    grid-column: auto;
+    justify-self: auto;
     margin-top: 0;
-    padding: 12px 18px;
-    font-size: 0.92rem;
+    padding: 9px 15px;
+    font-size: 0.8rem;
+    border-radius: 999px;
 }
 
-@media (max-width: 640px) {
-    .gi-body { padding: 28px 20px 22px; }
-    .gi-title { font-size: 2.5rem; }
-    .gi-headline { font-size: 1.6rem; }
-    .gi-stats { gap: 8px; }
-    .gi-stat { min-width: calc(50% - 8px); flex: 1 1 140px; }
+@media (max-width: 760px) {
+    .gi-body { padding: 16px 14px 14px; }
+    .gi-minimize { top: 10px; right: 10px; }
+    .gi-hero { padding-right: 34px; }
+    .gi-title { font-size: 1.35rem; }
+    .gi-headline { font-size: 0.92rem; }
+    .gi-sub { font-size: 0.8rem; }
+    .gi-progress { flex-wrap: wrap; gap: 6px; }
+    .gi-progress-track { width: 100%; }
+    .gi-insights { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 7px; }
+    .gi-card { padding: 8px 9px 9px; }
+    .gi-card-value { font-size: 0.9rem; }
     .gi-collapsed-msg { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .gi-banner, .gi-wash, .gi-blob, .gi-star, .gi-star-sm, .gi-title, .gi-chat-btn {
+    .gi-banner, .gi-wash, .gi-sheen, .gi-blob, .gi-star, .gi-star-sm, .gi-title,
+    .gi-chat-btn, .gi-badge, .gi-dot, .gi-progress-fill, .gi-card, .gi-chat,
+    .gi-chip-soon, .gi-card.is-soon .gi-card-value, .gi-collapsed-bar strong {
         animation: none !important;
     }
 }
