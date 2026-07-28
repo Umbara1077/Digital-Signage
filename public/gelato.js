@@ -154,6 +154,7 @@
 
     async function start() {
         await seedMissingFromMenu();
+        initGelatoIntelligence();
 
         db.collection('menuItems').onSnapshot(snap => {
             menuIds = new Set(snap.docs.map(d => d.id));
@@ -235,10 +236,19 @@
         if (statMode) renderStatTable();
     }
 
-    /* Append a human-readable entry to the move-history log in the DB. */
+    /* Append a human-readable entry to the move-history log in the DB.
+     * Also mirrors a structured event into Gelato Intelligence so Gemini can
+     * learn pricing, pans, and shop rhythm without changing move logic. */
     function logMove(type, text) {
         db.collection('gelatoMoves').add({ type, text, at: stamp() })
             .catch(err => console.error('logMove failed', err));
+        try {
+            if (window.GelatoIntelligence && typeof GelatoIntelligence.recordEvent === 'function') {
+                GelatoIntelligence.recordEvent({ type, text });
+            }
+        } catch (e) {
+            console.warn('intelligence mirror failed', e);
+        }
     }
 
     /* Accumulate today's case usage so it isn't lost when a pan is served down
@@ -840,6 +850,60 @@
         refreshTransferHint();
         refreshStockHint();
         autoStageLowPans();
+        if (window.GelatoIntelligence && typeof GelatoIntelligence.refreshBanner === 'function') {
+            GelatoIntelligence.refreshBanner();
+        }
+    }
+
+    /* Snapshot of live shop state for Gelato Intelligence / Gemini logging.
+     * Read-only view of existing inventory — never writes stock itself. */
+    function buildIntelligenceSnapshot() {
+        const caseList = casePans().slice().sort((a, b) => a.casePan - b.casePan).map(f => ({
+            id: f.id,
+            name: f.name || '',
+            pan: f.casePan,
+            active: r2(f.active || 0)
+        }));
+        const lowPans = caseList.filter(p => p.active <= SWAP_THRESHOLD + EPS);
+        const caseAmt = activePans();
+        const shortAmt = sumLoc('shortTerm');
+        const longAmt = sumLocGelato('longTerm');
+        const totalAmt = r2(caseAmt + shortAmt + longAmt);
+        return {
+            pricing: {
+                pricePerGram: PRICE_PER_GRAM,
+                costPerPan: COST_PER_PAN,
+                gramsPerPan: GRAMS_PER_PAN
+            },
+            totals: {
+                casePans: caseAmt,
+                caseSlots: caseList.length,
+                caseSlotsMax: CASE_SLOTS,
+                shortPans: shortAmt,
+                longPans: longAmt,
+                totalPans: totalAmt,
+                caseValue: r2(caseAmt * COST_PER_PAN),
+                shortValue: r2(shortAmt * COST_PER_PAN),
+                longValue: r2(longAmt * COST_PER_PAN),
+                totalValue: r2(totalAmt * COST_PER_PAN)
+            },
+            case: caseList,
+            lowPans,
+            usage: {
+                usedPans: r2(usageToday.usedPans || 0),
+                wastedPans: r2(usageToday.wastedPans || 0),
+                date: todayStr()
+            },
+            queueLength: Array.isArray(queue) ? queue.length : 0
+        };
+    }
+
+    function initGelatoIntelligence() {
+        if (!window.GelatoIntelligence || typeof GelatoIntelligence.init !== 'function') return;
+        GelatoIntelligence.init({
+            db,
+            getSnapshot: buildIntelligenceSnapshot
+        });
     }
 
     // ----- Pricing / value overview ---------------------------------------
