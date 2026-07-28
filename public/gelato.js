@@ -1196,7 +1196,17 @@
 
     function renderFreezer(prefix, loc, cap) {
         const wrap = document.getElementById(`${prefix}-visual`);
-        const items = withAmt(loc);
+        // Long-Term: real gelato flavors first, dummy pans (cones/packaging) after —
+        // display order only; stock totals and capacity are unchanged.
+        let items = withAmt(loc);
+        if (loc === 'longTerm') {
+            items = items.slice().sort((a, b) => {
+                const da = a.isDummy ? 1 : 0;
+                const db = b.isDummy ? 1 : 0;
+                if (da !== db) return da - db;
+                return (b[loc] || 0) - (a[loc] || 0);
+            });
+        }
         const used = slotsUsed(loc);
         const open = cap - used;
         const overPct = Math.min(100, (used / cap) * 100);
@@ -1806,9 +1816,10 @@
                 addBtn('dnd-cancel', 'Cancel', 'g-modal-cancel');
                 document.getElementById('dnd-actions').innerHTML = actions.join('');
                 showModal();
-                document.getElementById('dnd-go').addEventListener('click', () => {
+                document.getElementById('dnd-go').addEventListener('click', async () => {
                     closeModal();
-                    moveSpecificPan(src.id, src.loc, src.idx, src.amt, 'shortTerm');
+                    const ok = await moveSpecificPan(src.id, src.loc, src.idx, src.amt, 'shortTerm');
+                    if (ok) caseActionFx('transfer', f.name, `${amt} pan · ${fromLabel} \u2192 Short-Term`);
                 });
                 document.getElementById('dnd-cancel').addEventListener('click', closeModal);
                 return;
@@ -1825,9 +1836,13 @@
             addBtn('dnd-cancel', 'Cancel', 'g-modal-cancel');
             document.getElementById('dnd-actions').innerHTML = actions.join('');
             showModal();
-            document.getElementById('dnd-go').addEventListener('click', () => {
+            document.getElementById('dnd-go').addEventListener('click', async () => {
                 closeModal();
-                moveSpecificPan(src.id, src.loc, src.idx, src.amt, 'active', preferredPan);
+                const ok = await moveSpecificPan(src.id, src.loc, src.idx, src.amt, 'active', preferredPan);
+                if (ok) {
+                    const slot = preferredPan || f.casePan || '';
+                    caseActionFx('transfer', f.name, `${amt} pan · ${fromLabel} \u2192 Case${slot ? ` (Pan ${slot})` : ''}`, slot || undefined);
+                }
             });
             document.getElementById('dnd-cancel').addEventListener('click', closeModal);
             return;
@@ -1843,9 +1858,10 @@
         addBtn('dnd-cancel', 'Cancel', 'g-modal-cancel');
         document.getElementById('dnd-actions').innerHTML = actions.join('');
         showModal();
-        document.getElementById('dnd-go').addEventListener('click', () => {
+        document.getElementById('dnd-go').addEventListener('click', async () => {
             closeModal();
-            moveSpecificPan(src.id, src.loc, src.idx, src.amt, dest);
+            const ok = await moveSpecificPan(src.id, src.loc, src.idx, src.amt, dest);
+            if (ok) caseActionFx('transfer', f.name, `${amt} pan · ${fromLabel} \u2192 ${toLabel}`);
         });
         document.getElementById('dnd-cancel').addEventListener('click', closeModal);
     }
@@ -1859,20 +1875,20 @@
      * number if it is still empty (Visual drag onto an empty case slot). */
     async function moveSpecificPan(id, loc, idx, expectedAmt, dest, preferredPan) {
         const f = byId(id);
-        if (!f || f.isDummy) return;  // dummy pans use their own menu (edit label / remove)
+        if (!f || f.isDummy) return false;  // dummy pans use their own menu (edit label / remove)
         const arr = pansOf(f, loc);
         const amt = arr[idx];
         if (amt == null || Math.abs(r2(amt) - r2(expectedAmt)) > EPS) {
             status('Pan data changed — please wait for the page to refresh.');
-            return;
+            return false;
         }
-        if (dest === loc) return;
+        if (dest === loc) return false;
 
         if (dest === 'active') {
-            if (loc !== 'shortTerm') { status('The case can only be filled from short-term storage.'); return; }
-            if (!f.casePan && casePans().length >= CASE_SLOTS) { status(`The case is full (${CASE_SLOTS} pans).`); return; }
+            if (loc !== 'shortTerm') { status('The case can only be filled from short-term storage.'); return false; }
+            if (!f.casePan && casePans().length >= CASE_SLOTS) { status(`The case is full (${CASE_SLOTS} pans).`); return false; }
             const newActive = r2((f.active || 0) + amt);
-            if (newActive > 1 + EPS) { status(`A case pan holds max 1.0 — this ${r2(amt)} pan would push ${f.name} to ${newActive}.`); return; }
+            if (newActive > 1 + EPS) { status(`A case pan holds max 1.0 — this ${r2(amt)} pan would push ${f.name} to ${newActive}.`); return false; }
             const next = arr.slice(); next.splice(idx, 1);
             const update = setPans({ active: newActive, updatedAt: stamp() }, loc, next);
             if (!f.casePan) {
@@ -1884,7 +1900,7 @@
             await doc(id).update(update);
             logMove('transfer', `${r2(amt)} ${f.name}: ${LOCATION_LABELS[loc]} → Case (Pan ${update.casePan || f.casePan})`);
             status(`Moved ${r2(amt)} pan of ${f.name} into the case.`, true);
-            return;
+            return true;
         }
 
         if (dest === 'use') {
@@ -1893,14 +1909,14 @@
             addUsage('usedPans', amt);
             logMove('use', `Used a ${r2(amt)} pan of ${f.name} directly from ${LOCATION_LABELS[loc]}`);
             status(`Used ${r2(amt)} of ${f.name} from ${LOCATION_LABELS[loc]}.`, true);
-            return;
+            return true;
         }
 
         // freezer -> freezer (shortTerm <-> longTerm)
         const cap = dest === 'shortTerm' ? SHORT_CAP : LONG_CAP;
         const destArr = addPans(pansOf(f, dest), amt);
         if (slotsAfter(dest, id, destArr) > cap) {
-            status(`${LOCATION_LABELS[dest]} freezer is full — ${slotsOpen(dest)} slot(s) open.`); return;
+            status(`${LOCATION_LABELS[dest]} freezer is full — ${slotsOpen(dest)} slot(s) open.`); return false;
         }
         const next = arr.slice(); next.splice(idx, 1);
         const update = { updatedAt: stamp() };
@@ -1909,6 +1925,7 @@
         await doc(id).update(update);
         logMove('transfer', `${r2(amt)} ${f.name}: ${LOCATION_LABELS[loc]} → ${LOCATION_LABELS[dest]}`);
         status(`Moved ${r2(amt)} pan of ${f.name}: ${LOCATION_LABELS[loc]} → ${LOCATION_LABELS[dest]}.`, true);
+        return true;
     }
 
     const maxVal = loc => flavors.reduce((m, f) => Math.max(m, f[loc] || 0), 0) || 1;
