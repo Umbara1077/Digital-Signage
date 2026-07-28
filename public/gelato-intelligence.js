@@ -249,8 +249,8 @@
             updateBanner();
         } catch (e) {
             console.warn('GelatoIntelligence weather', e);
-            const el = document.getElementById('gi-weather');
-            if (el) el.innerHTML = `<span class="gi-weather-fallback">Sewell, NJ · weather unavailable</span>`;
+            weather = null;
+            updateWeatherUi();
         }
     }
 
@@ -264,48 +264,61 @@
     }
 
     function updateWeatherUi() {
-        const el = document.getElementById('gi-weather');
-        if (!el || !weather) return;
-        const rainLine = weather.wet
-            ? (weather.precipChance
-                ? `${weather.dayLabel} · ${weather.precipChance}% chance of rain`
-                : `${weather.dayLabel}`)
-            : weather.dayLabel;
-        el.innerHTML = `
-            <div class="gi-weather-card${weather.wet ? ' is-wet' : ''}">
-                <div class="gi-weather-temp">${weather.tempF}°</div>
-                <div class="gi-weather-meta">
-                    <strong>Sewell, NJ</strong>
-                    <span>${esc(rainLine)}</span>
-                    <span>${esc(weatherDemandNote())}</span>
-                </div>
-            </div>`;
+        const value = document.getElementById('gi-wx-value');
+        const note = document.getElementById('gi-wx-note');
+        const card = document.getElementById('gi-metric-weather');
+        if (!value || !note) return;
+        if (!weather) {
+            value.textContent = '—';
+            note.textContent = 'Unavailable';
+            if (card) card.classList.remove('is-wet');
+            return;
+        }
+        value.textContent = `${weather.tempF}°`;
+        note.textContent = weather.wet
+            ? `${weather.dayLabel} · scoop demand soft`
+            : `${weather.dayLabel} · ${weatherDemandNote()}`;
+        if (card) card.classList.toggle('is-wet', !!weather.wet);
     }
 
-    /* ----- Big middle hero: collecting OR today's pulse -------------------- */
+    /* Headline: collecting OR a short "what's going on today" */
     function heroMessage(shop) {
-        // While Gemini isn't online / still collecting — middle is ONLY this.
         if (isCollecting()) {
-            return { kicker: 'Status', text: 'Still collecting shop data' };
+            return {
+                text: 'Still collecting shop data',
+                sub: 'Every scoop, swap, and stock move is being saved. Gemini insights come online once enough history is in Firebase.'
+            };
         }
-
         const t = (shop && shop.totals) || {};
         const low = (shop && shop.lowPans) || [];
         const used = (shop && shop.usage && shop.usage.usedPans) || 0;
-        const parts = [];
-
-        if (weather) {
-            if (weather.wet) parts.push(`Rainy in Sewell (${weather.tempF}°)`);
-            else parts.push(`${weather.tempF}° in Sewell`);
+        if (weather && weather.wet && low.length) {
+            return {
+                text: `Rainy day · ${low.length} pan${low.length === 1 ? '' : 's'} running low`,
+                sub: 'Sewell weather is wet — expect softer walk-up traffic. Refill the red pans from short-term when you can.'
+            };
         }
-        if (used > 0) parts.push(`served ${used} pans`);
-        if (low.length) parts.push(`${low.length} low in case`);
-        else if (t.caseSlots != null) parts.push(`case steady (${t.caseSlots} pans)`);
-        if (t.totalValue) parts.push(`on-hand ~${money(t.totalValue)}`);
-
+        if (weather && weather.wet) {
+            return {
+                text: 'Rainy in Sewell — quieter scoop day',
+                sub: 'Case and freezers are tracked live. Ask Intelligence if you want a production read for today.'
+            };
+        }
+        if (low.length) {
+            return {
+                text: `${low.length} case pan${low.length === 1 ? '' : 's'} need attention`,
+                sub: `Low now: ${low.slice(0, 4).map(p => p.name).join(', ')}. Pull from short-term to keep the case healthy.`
+            };
+        }
+        if (used > 0) {
+            return {
+                text: `Served ${used} pans so far today`,
+                sub: `Case holds ${t.caseSlots || 0} pans · on-hand about ${money(t.totalValue || 0)}. Shop pulse looks steady.`
+            };
+        }
         return {
-            kicker: 'Today',
-            text: parts.length ? parts.join(' · ') : 'Shop pulse is live — ask for details'
+            text: 'Shop pulse looks healthy',
+            sub: `Case ${t.caseSlots || 0} pans · on-hand about ${money(t.totalValue || 0)}. Ask for production or profit details anytime.`
         };
     }
 
@@ -318,9 +331,9 @@
 
         const hero = heroMessage(shop);
         const lead = document.getElementById('gi-lead');
-        const kicker = document.getElementById('gi-hero-kicker');
+        const sub = document.getElementById('gi-sub');
         if (lead) lead.textContent = hero.text;
-        if (kicker) kicker.textContent = hero.kicker;
+        if (sub) sub.textContent = hero.sub;
 
         const badge = document.getElementById('gi-collect-badge');
         if (badge) {
@@ -334,6 +347,27 @@
                 badge.textContent = 'Gemini live';
                 badge.className = 'gi-badge is-ready';
             }
+        }
+
+        const t = shop.totals || {};
+        const caseVal = document.getElementById('gi-case-value');
+        const caseNote = document.getElementById('gi-case-note');
+        if (caseVal) caseVal.textContent = t.caseSlots != null ? String(t.caseSlots) : '—';
+        if (caseNote) {
+            const used = (shop.usage && shop.usage.usedPans) || 0;
+            const low = (shop.lowPans || []).length;
+            if (low) caseNote.textContent = `${low} low · ${used} served`;
+            else if (used) caseNote.textContent = `${used} pans served today`;
+            else caseNote.textContent = t.totalValue ? `~${money(t.totalValue)} on hand` : 'Live inventory';
+        }
+
+        const learnVal = document.getElementById('gi-learn-value');
+        const learnNote = document.getElementById('gi-learn-note');
+        if (learnVal) learnVal.textContent = String(eventCount);
+        if (learnNote) {
+            learnNote.textContent = settings.geminiReady
+                ? (eventCount >= MIN_EVENTS_FOR_READY ? 'Ready for Gemini' : `Need ${Math.max(0, MIN_EVENTS_FOR_READY - eventCount)} more`)
+                : 'Saved for Gemini';
         }
 
         updateWeatherUi();

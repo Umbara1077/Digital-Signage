@@ -60,44 +60,48 @@
 
         <!-- ===================== GELATO INTELLIGENCE ===================== -->
         <section class="gi-banner gi-collecting" id="gelato-intelligence" aria-label="Dolce Vita Gelato Intelligence">
-            <div class="gi-aurora" aria-hidden="true"></div>
-            <div class="gi-orb gi-orb-a" aria-hidden="true"></div>
-            <div class="gi-orb gi-orb-b" aria-hidden="true"></div>
-            <div class="gi-shine" aria-hidden="true"></div>
-
             <div class="gi-inner">
-                <div class="gi-top">
-                    <div class="gi-brand">
-                        <div class="gi-spark" aria-hidden="true"><span></span></div>
-                        <div class="gi-brand-copy">
-                            <p class="gi-eyebrow">Dolce Vita</p>
-                            <h2>Gelato Intelligence</h2>
-                            <p class="gi-tagline">AI oversight for your case, production &amp; Sewell shop</p>
-                        </div>
+                <div class="gi-main">
+                    <div class="gi-pill">
+                        <span class="gi-pill-dot" aria-hidden="true"></span>
+                        Gelato Intelligence
                     </div>
-                    <div class="gi-weather" id="gi-weather" aria-live="polite">
-                        <span class="gi-weather-fallback">Sewell, NJ · loading…</span>
+                    <h2 class="gi-headline" id="gi-lead">Still collecting shop data</h2>
+                    <p class="gi-sub" id="gi-sub">
+                        AI oversight for case levels, production, profit, and Sewell weather — learning from every move.
+                    </p>
+                    <div class="gi-actions">
+                        <span class="gi-badge is-collecting" id="gi-collect-badge">Gemini not connected</span>
+                        <button type="button" class="gi-ask" id="gi-chat-toggle" aria-expanded="false" aria-controls="gi-chat">Ask</button>
                     </div>
                 </div>
 
-                <div class="gi-hero" id="gi-hero" aria-live="polite">
-                    <p class="gi-hero-kicker" id="gi-hero-kicker">Today</p>
-                    <p class="gi-hero-text" id="gi-lead">Still collecting shop data</p>
+                <div class="gi-metrics" aria-label="Shop pulse">
+                    <div class="gi-metric" id="gi-metric-weather">
+                        <div class="gi-metric-label">Sewell weather</div>
+                        <div class="gi-metric-value" id="gi-wx-value">—</div>
+                        <div class="gi-metric-note" id="gi-wx-note">Loading…</div>
+                    </div>
+                    <div class="gi-metric" id="gi-metric-case">
+                        <div class="gi-metric-label">Case today</div>
+                        <div class="gi-metric-value" id="gi-case-value">—</div>
+                        <div class="gi-metric-note" id="gi-case-note">Live inventory</div>
+                    </div>
+                    <div class="gi-metric" id="gi-metric-status">
+                        <div class="gi-metric-label">Learning</div>
+                        <div class="gi-metric-value" id="gi-learn-value">—</div>
+                        <div class="gi-metric-note" id="gi-learn-note">Events saved</div>
+                    </div>
                 </div>
+            </div>
 
-                <div class="gi-toolbar">
-                    <span class="gi-badge is-collecting" id="gi-collect-badge">Gemini not connected</span>
-                    <button type="button" class="gi-ask" id="gi-chat-toggle" aria-expanded="false" aria-controls="gi-chat">Ask</button>
-                </div>
-
-                <div class="gi-chat" id="gi-chat" hidden>
-                    <div class="gi-chat-log" id="gi-chat-log" role="log" aria-live="polite"></div>
-                    <form class="gi-chat-form" id="gi-chat-form">
-                        <input type="text" id="gi-chat-input" maxlength="500" placeholder="Ask about today…" autocomplete="off" aria-label="Message Gelato Intelligence">
-                        <button type="submit" class="gi-ask">Send</button>
-                    </form>
-                    <p class="gi-chat-note">Gemini is not connected yet — replies are a live shop pulse while data collects in Firebase.</p>
-                </div>
+            <div class="gi-chat" id="gi-chat" hidden>
+                <div class="gi-chat-log" id="gi-chat-log" role="log" aria-live="polite"></div>
+                <form class="gi-chat-form" id="gi-chat-form">
+                    <input type="text" id="gi-chat-input" maxlength="500" placeholder="Ask about today…" autocomplete="off" aria-label="Message Gelato Intelligence">
+                    <button type="submit" class="gi-ask">Send</button>
+                </form>
+                <p class="gi-chat-note">Gemini is not connected yet — replies are a live shop pulse while data collects in Firebase.</p>
             </div>
         </section>
 
