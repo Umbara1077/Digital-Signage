@@ -196,102 +196,130 @@
         }
     }
 
+    function isWetCode(code) {
+        const c = Number(code);
+        // WMO: drizzle, rain, freezing rain, showers, thunderstorm
+        return (c >= 51 && c <= 67) || (c >= 80 && c <= 82) || (c >= 95 && c <= 99);
+    }
+
+    function isSnowCode(code) {
+        const c = Number(code);
+        return (c >= 71 && c <= 77) || c === 85 || c === 86;
+    }
+
     /* ----- Weather (Sewell, NJ via Open-Meteo — no API key) -------------- */
     async function refreshWeather() {
         const url = 'https://api.open-meteo.com/v1/forecast'
             + `?latitude=${SHOP.lat}&longitude=${SHOP.lon}`
-            + '&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,apparent_temperature'
-            + '&temperature_unit=fahrenheit&wind_speed_unit=mph'
+            + '&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,apparent_temperature,precipitation'
+            + '&daily=weather_code,precipitation_sum,precipitation_probability_max'
+            + '&forecast_days=1'
+            + '&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch'
             + `&timezone=${encodeURIComponent(SHOP.timezone)}`;
         try {
             const res = await fetch(url);
             if (!res.ok) throw new Error('weather http ' + res.status);
             const data = await res.json();
             const c = data.current || {};
+            const d = data.daily || {};
+            const dayCode = Array.isArray(d.weather_code) ? d.weather_code[0] : c.weather_code;
+            const precipIn = Number(c.precipitation || 0);
+            const dayPrecipIn = Array.isArray(d.precipitation_sum) ? Number(d.precipitation_sum[0] || 0) : 0;
+            const precipChance = Array.isArray(d.precipitation_probability_max)
+                ? Number(d.precipitation_probability_max[0] || 0) : 0;
+            const wet = isWetCode(c.weather_code) || isWetCode(dayCode) || precipIn > 0.01 || dayPrecipIn > 0.05 || precipChance >= 60;
+            const snowy = isSnowCode(c.weather_code) || isSnowCode(dayCode);
             weather = {
                 tempF: Math.round(c.temperature_2m),
                 feelsF: Math.round(c.apparent_temperature),
                 humidity: Math.round(c.relative_humidity_2m),
                 windMph: Math.round(c.wind_speed_10m),
                 code: c.weather_code,
+                dayCode,
                 label: WMO[c.weather_code] || 'Local weather',
+                dayLabel: WMO[dayCode] || WMO[c.weather_code] || 'Local weather',
+                precipIn: Math.round(precipIn * 100) / 100,
+                dayPrecipIn: Math.round(dayPrecipIn * 100) / 100,
+                precipChance,
+                wet,
+                snowy,
                 fetchedAt: Date.now()
             };
             updateWeatherUi();
             updateBanner();
         } catch (e) {
             console.warn('GelatoIntelligence weather', e);
-            const el = document.getElementById('gi-weather');
-            if (el) el.innerHTML = `<span class="gi-weather-fallback">Sewell, NJ · weather unavailable</span>`;
+            weather = null;
+            updateWeatherUi();
         }
+    }
+
+    function weatherDemandNote() {
+        if (!weather) return '';
+        if (weather.snowy) return 'Snowy — expect slower walk-up traffic';
+        if (weather.wet) return 'Rainy — scoop demand usually soft';
+        if (weather.tempF >= 80) return 'Warm & dry — scoops often pick up';
+        if (weather.tempF <= 40) return 'Cold — quieter walk-ups likely';
+        return 'Mild & dry';
     }
 
     function updateWeatherUi() {
-        const el = document.getElementById('gi-weather');
-        if (!el || !weather) return;
-        el.innerHTML = `
-            <div class="gi-weather-card">
-                <div class="gi-weather-temp">${weather.tempF}°</div>
-                <div class="gi-weather-meta">
-                    <strong>Sewell, NJ</strong>
-                    <span>${esc(weather.label)} · feels ${weather.feelsF}°</span>
-                    <span>Humidity ${weather.humidity}% · Wind ${weather.windMph} mph</span>
-                </div>
-            </div>`;
+        const value = document.getElementById('gi-wx-value');
+        const note = document.getElementById('gi-wx-note');
+        const card = document.getElementById('gi-metric-weather');
+        if (!value || !note) return;
+        if (!weather) {
+            value.textContent = '—';
+            note.textContent = 'Unavailable';
+            if (card) card.classList.remove('is-wet');
+            return;
+        }
+        value.textContent = `${weather.tempF}°`;
+        note.textContent = weather.wet
+            ? `${weather.dayLabel} · scoop demand soft`
+            : `${weather.dayLabel} · ${weatherDemandNote()}`;
+        if (card) card.classList.toggle('is-wet', !!weather.wet);
     }
 
-    /* ----- Banner + live insight chips ----------------------------------- */
-    function buildLocalInsights(shop) {
-        const chips = [];
-        if (!shop || !shop.totals) {
-            chips.push({ tone: 'soon', label: 'Waiting on live inventory…' });
-            return chips;
-        }
-        const t = shop.totals;
-        const low = shop.lowPans || [];
-        chips.push({ tone: 'value', label: `On-hand ≈ ${money(t.totalValue)}` });
-        chips.push({ tone: 'case', label: `Case ${t.casePans || 0} pans · ${t.caseSlots || 0} slots` });
-        if (low.length) {
-            chips.push({ tone: 'warn', label: `${low.length} low pan${low.length === 1 ? '' : 's'} ≤ 0.5` });
-        } else {
-            chips.push({ tone: 'ok', label: 'Case levels look healthy' });
-        }
-        if (shop.usage && shop.usage.usedPans > 0) {
-            chips.push({ tone: 'usage', label: `Today served ${shop.usage.usedPans} pans` });
-        }
-        if (weather) {
-            const hot = weather.tempF >= 80;
-            const cold = weather.tempF <= 40;
-            chips.push({
-                tone: hot ? 'hot' : (cold ? 'cold' : 'wx'),
-                label: hot
-                    ? 'Warm Sewell day — expect scoop demand ↑'
-                    : cold
-                        ? 'Chilly outside — watch indoor traffic'
-                        : `${weather.tempF}° in Sewell · good gelato weather`
-            });
-        }
+    /* Headline: collecting OR a short "what's going on today" */
+    function heroMessage(shop) {
         if (isCollecting()) {
-            chips.push({ tone: 'soon', label: 'Gemini learning from every move' });
-        } else {
-            chips.push({ tone: 'ready', label: 'Deep insights ready' });
+            return {
+                text: 'Still collecting shop data',
+                sub: 'Every scoop, swap, and stock move is being saved. Gemini insights come online once enough history is in Firebase.'
+            };
         }
-        return chips;
-    }
-
-    function leadMessage(shop) {
-        if (isCollecting()) {
-            const left = Math.max(0, MIN_EVENTS_FOR_READY - eventCount);
-            if (eventCount === 0) {
-                return 'Still collecting shop data — every scoop, swap, and stock move is being saved for Gelato Intelligence. Insights & Gemini chat coming soon.';
-            }
-            return `Still collecting shop data · ${eventCount} event${eventCount === 1 ? '' : 's'} logged · ~${left} more before deep Gemini oversight unlocks. Live shop pulse is already on — full production intelligence coming soon.`;
-        }
+        const t = (shop && shop.totals) || {};
         const low = (shop && shop.lowPans) || [];
-        if (low.length) {
-            return `Intelligence is live. ${low.length} case pan${low.length === 1 ? '' : 's'} running low — ask me what to produce next for Sewell.`;
+        const used = (shop && shop.usage && shop.usage.usedPans) || 0;
+        if (weather && weather.wet && low.length) {
+            return {
+                text: `Rainy day · ${low.length} pan${low.length === 1 ? '' : 's'} running low`,
+                sub: 'Sewell weather is wet — expect softer walk-up traffic. Refill the red pans from short-term when you can.'
+            };
         }
-        return 'Gelato Intelligence is live. Ask about production for today, profit on the case, or what Sewell weather means for scoops.';
+        if (weather && weather.wet) {
+            return {
+                text: 'Rainy in Sewell — quieter scoop day',
+                sub: 'Case and freezers are tracked live. Ask Intelligence if you want a production read for today.'
+            };
+        }
+        if (low.length) {
+            return {
+                text: `${low.length} case pan${low.length === 1 ? '' : 's'} need attention`,
+                sub: `Low now: ${low.slice(0, 4).map(p => p.name).join(', ')}. Pull from short-term to keep the case healthy.`
+            };
+        }
+        if (used > 0) {
+            return {
+                text: `Served ${used} pans so far today`,
+                sub: `Case holds ${t.caseSlots || 0} pans · on-hand about ${money(t.totalValue || 0)}. Shop pulse looks steady.`
+            };
+        }
+        return {
+            text: 'Shop pulse looks healthy',
+            sub: `Case ${t.caseSlots || 0} pans · on-hand about ${money(t.totalValue || 0)}. Ask for production or profit details anytime.`
+        };
     }
 
     function updateBanner() {
@@ -301,24 +329,45 @@
         root.classList.toggle('gi-collecting', isCollecting());
         root.classList.toggle('gi-ready', !isCollecting());
 
+        const hero = heroMessage(shop);
         const lead = document.getElementById('gi-lead');
-        if (lead) lead.textContent = leadMessage(shop);
+        const sub = document.getElementById('gi-sub');
+        if (lead) lead.textContent = hero.text;
+        if (sub) sub.textContent = hero.sub;
 
         const badge = document.getElementById('gi-collect-badge');
         if (badge) {
-            badge.textContent = isCollecting() ? 'Collecting data' : 'Intelligence live';
-            badge.className = 'gi-badge ' + (isCollecting() ? 'is-collecting' : 'is-ready');
+            if (!settings.geminiReady) {
+                badge.textContent = 'Gemini not connected';
+                badge.className = 'gi-badge is-collecting';
+            } else if (eventCount < MIN_EVENTS_FOR_READY) {
+                badge.textContent = 'Collecting data';
+                badge.className = 'gi-badge is-collecting';
+            } else {
+                badge.textContent = 'Gemini live';
+                badge.className = 'gi-badge is-ready';
+            }
         }
 
-        const count = document.getElementById('gi-event-count');
-        if (count) {
-            count.textContent = `${eventCount} event${eventCount === 1 ? '' : 's'} stored for Gemini`;
+        const t = shop.totals || {};
+        const caseVal = document.getElementById('gi-case-value');
+        const caseNote = document.getElementById('gi-case-note');
+        if (caseVal) caseVal.textContent = t.caseSlots != null ? String(t.caseSlots) : '—';
+        if (caseNote) {
+            const used = (shop.usage && shop.usage.usedPans) || 0;
+            const low = (shop.lowPans || []).length;
+            if (low) caseNote.textContent = `${low} low · ${used} served`;
+            else if (used) caseNote.textContent = `${used} pans served today`;
+            else caseNote.textContent = t.totalValue ? `~${money(t.totalValue)} on hand` : 'Live inventory';
         }
 
-        const chips = document.getElementById('gi-chips');
-        if (chips) {
-            chips.innerHTML = buildLocalInsights(shop).map(c =>
-                `<span class="gi-chip gi-chip-${c.tone}">${esc(c.label)}</span>`).join('');
+        const learnVal = document.getElementById('gi-learn-value');
+        const learnNote = document.getElementById('gi-learn-note');
+        if (learnVal) learnVal.textContent = String(eventCount);
+        if (learnNote) {
+            learnNote.textContent = settings.geminiReady
+                ? (eventCount >= MIN_EVENTS_FOR_READY ? 'Ready for Gemini' : `Need ${Math.max(0, MIN_EVENTS_FOR_READY - eventCount)} more`)
+                : 'Saved for Gemini';
         }
 
         updateWeatherUi();
@@ -336,7 +385,7 @@
                 if (open) panel.removeAttribute('hidden');
                 else panel.setAttribute('hidden', '');
                 toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-                toggle.textContent = open ? 'Hide chat' : 'Ask Intelligence';
+                toggle.textContent = open ? 'Close' : 'Ask';
                 if (open && input) input.focus();
             });
         }
@@ -349,9 +398,6 @@
                 sendChat(text);
             });
         }
-        document.querySelectorAll('[data-gi-prompt]').forEach(btn => {
-            btn.addEventListener('click', () => sendChat(btn.getAttribute('data-gi-prompt')));
-        });
     }
 
     function listenChat() {
@@ -361,7 +407,7 @@
             if (snap.empty) {
                 box.innerHTML = `<div class="gi-msg gi-msg-ai"><div class="gi-msg-bubble">
                     <strong>Gelato Intelligence</strong>
-                    <p>Hi — I’m learning Dolce Vita’s Sewell shop. Ask about today’s case, what to make, or the weather. While Gemini finishes warming up, I’ll share live pulse insights from your inventory.</p>
+                    <p>Gemini isn’t connected yet. I can still answer from today’s case, usage, and Sewell weather while shop data collects.</p>
                 </div></div>`;
                 return;
             }
@@ -376,7 +422,6 @@
             }).join('');
             box.scrollTop = box.scrollHeight;
         }, err => {
-            // Missing index — fall back to unordered recent
             console.warn('chat listen', err);
             chatCol().limit(40).onSnapshot(snap => {
                 const docs = snap.docs.slice().sort((a, b) => {
@@ -465,48 +510,45 @@
         const t = (shop && shop.totals) || {};
         const low = (shop && shop.lowPans) || [];
         const used = (shop && shop.usage && shop.usage.usedPans) || 0;
-        const collectingBlurb = isCollecting()
-            ? `\n\n📡 Still collecting data for full Gemini oversight (${eventCount}/${MIN_EVENTS_FOR_READY} events). Keep running the shop normally — every move trains Gelato Intelligence. Coming soon: day-by-day make lists, profit estimates, and weather-aware production.`
-            : '';
+        const note = !settings.geminiReady
+            ? '\n\nGemini isn’t connected yet — this is a live shop pulse while data collects.'
+            : (isCollecting() ? '\n\nStill collecting history for deeper insights.' : '');
 
-        if (/weather|sewell|hot|cold|rain|temp/.test(q)) {
-            if (!weather) {
-                return 'I couldn’t reach Sewell weather just now. Try again in a moment.' + collectingBlurb;
-            }
-            return `Sewell, NJ is ${weather.tempF}°F (${weather.label}), feels like ${weather.feelsF}°, humidity ${weather.humidity}%, wind ${weather.windMph} mph.`
-                + (weather.tempF >= 80
-                    ? ' Warm days usually lift scoop traffic — keep short-term backed up on top sellers.'
-                    : weather.tempF <= 40
-                        ? ' Colder days can slow walk-ups; lean the case toward proven favorites and watch waste.'
-                        : ' Mild gelato weather — a balanced case should move steadily.')
-                + collectingBlurb;
+        if (/weather|sewell|hot|cold|rain|temp|scoop/.test(q)) {
+            if (!weather) return 'Sewell weather unavailable right now.' + note;
+            let demand = weatherDemandNote();
+            return `Sewell: ${weather.tempF}°F, ${weather.dayLabel}`
+                + (weather.precipChance ? ` (${weather.precipChance}% rain chance today)` : '')
+                + `. ${demand}.`
+                + note;
         }
 
         if (/profit|value|price|money|\$/.test(q)) {
-            return `Live inventory pulse: case ≈ ${money(t.caseValue || 0)}, short-term ≈ ${money(t.shortValue || 0)}, long-term ≈ ${money(t.longValue || 0)}, on-hand total ≈ ${money(t.totalValue || 0)} at your current $${(shop.pricing && shop.pricing.pricePerGram) || '—'} /g.`
-                + (used ? ` Today you’ve served about ${used} pans from the case.` : '')
-                + collectingBlurb;
+            return `Case ~${money(t.caseValue || 0)} · storage ~${money((t.shortValue || 0) + (t.longValue || 0))} · total ~${money(t.totalValue || 0)}.`
+                + (used ? ` Served ${used} pans today.` : '')
+                + note;
         }
 
         if (/make|produc|order|batch|what should/.test(q)) {
-            if (low.length) {
-                const names = low.slice(0, 5).map(p => `${p.name} (Pan ${p.pan}, ${p.active})`).join('; ');
-                return `Based on the live case, prioritize refills for: ${names}. Pull from short-term when you can — that’s how this shop feeds the case.`
-                    + collectingBlurb;
+            if (weather && weather.wet) {
+                return (low.length
+                    ? `Rainy Sewell day — expect softer scoop traffic. Still refill lows: ${low.slice(0, 4).map(p => p.name).join(', ')}.`
+                    : 'Rainy Sewell day — scoop demand usually soft. Keep the case tidy; don’t over-produce.')
+                    + note;
             }
-            return `No pans are in the red right now. Case holds ${t.casePans || 0} pans across ${t.caseSlots || 0} slots. Keep short-term stocked on your best movers; Gemini will sharpen day-of make lists once more history lands.`
-                + collectingBlurb;
+            if (low.length) {
+                return `Refill first: ${low.slice(0, 5).map(p => p.name).join(', ')}.` + note;
+            }
+            return `Case looks steady (${t.caseSlots || 0} pans). No red pans right now.` + note;
         }
 
         if (/case|inventory|stock|freezer|short|long/.test(q)) {
-            return `Case ${t.casePans || 0} pans · Short-Term ${t.shortPans || 0} · Long-Term ${t.longPans || 0} · Queue ${shop.queueLength || 0}.`
-                + (low.length ? ` Low now: ${low.map(p => p.name).join(', ')}.` : ' Levels look steady.')
-                + collectingBlurb;
+            return `Case ${t.casePans || 0} · Short ${t.shortPans || 0} · Long ${t.longPans || 0}.`
+                + (low.length ? ` Low: ${low.map(p => p.name).join(', ')}.` : '')
+                + note;
         }
 
-        return `I’m Dolce Vita Gelato Intelligence for the Sewell shop. I can talk weather, case value, low pans, and production hints from live inventory while Gemini learns from every move you log.`
-            + `\n\nTry: “What’s the weather?”, “What should we make?”, or “How’s our profit on the case?”`
-            + collectingBlurb;
+        return 'Ask about weather, what to make, or case value. Gemini isn’t connected yet — answers use today’s live shop data.' + note;
     }
 
     // Public API used by gelato.js

@@ -2568,456 +2568,212 @@ body.g-mobile main {
 }
 
 /* ===========================================================================
- * Dolce Vita · Gelato Intelligence banner (Gemini / Copilot-inspired)
+ * Dolce Vita · Gelato Intelligence banner
+ * Overview-style status banner (inviting gradient, clear hierarchy)
  * ========================================================================= */
 
 .gi-banner {
-    --gi-pink: #ff6bcb;
-    --gi-violet: #8b5cff;
-    --gi-cyan: #4dc9ff;
-    --gi-blue: #4f7cff;
-    --gi-mint: #5dffc2;
+    --gi-pink: #ff7ac8;
+    --gi-violet: #8b6cff;
+    --gi-cyan: #5ad0ff;
+    --gi-mint: #6dffc8;
     position: relative;
     width: min(100%, 1100px);
     margin: 10px auto 22px;
-    padding: 22px 22px 18px;
+    padding: 26px 28px 24px;
     border-radius: 28px;
     overflow: hidden;
-    isolation: isolate;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: #fff;
     background:
-        linear-gradient(135deg, rgba(18, 14, 40, 0.92), rgba(10, 16, 36, 0.88));
+        radial-gradient(900px 280px at 12% -20%, rgba(255, 122, 200, 0.28), transparent 55%),
+        radial-gradient(700px 260px at 92% 10%, rgba(90, 208, 255, 0.22), transparent 50%),
+        linear-gradient(118deg, #16352f 0%, #1a3d4a 28%, #24315f 62%, #3a2a6a 100%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     box-shadow:
-        0 24px 60px rgba(40, 20, 90, 0.45),
-        inset 0 1px 0 rgba(255, 255, 255, 0.12);
-    animation: giBannerIn 0.9s cubic-bezier(.2, .8, .2, 1) both;
-}
-
-@keyframes giBannerIn {
-    from { opacity: 0; transform: translateY(14px) scale(0.985); }
-    to { opacity: 1; transform: none; }
-}
-
-.gi-aurora {
-    position: absolute;
-    inset: -40%;
-    z-index: 0;
-    background:
-        conic-gradient(from 120deg at 50% 50%,
-            rgba(255, 107, 203, 0.35),
-            rgba(139, 92, 255, 0.4),
-            rgba(77, 201, 255, 0.35),
-            rgba(93, 255, 194, 0.25),
-            rgba(255, 107, 203, 0.35));
-    filter: blur(40px) saturate(1.2);
-    animation: giAuroraSpin 18s linear infinite;
-    opacity: 0.55;
-}
-
-@keyframes giAuroraSpin {
-    to { transform: rotate(360deg); }
-}
-
-.gi-orb {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(18px);
-    z-index: 0;
-    pointer-events: none;
-}
-
-.gi-orb-a {
-    width: 220px;
-    height: 220px;
-    top: -60px;
-    right: -40px;
-    background: radial-gradient(circle, rgba(255, 107, 203, 0.7), transparent 70%);
-    animation: giOrbFloat 7s ease-in-out infinite;
-}
-
-.gi-orb-b {
-    width: 260px;
-    height: 260px;
-    bottom: -100px;
-    left: -50px;
-    background: radial-gradient(circle, rgba(77, 201, 255, 0.55), transparent 70%);
-    animation: giOrbFloat 9s ease-in-out infinite reverse;
-}
-
-.gi-orb-c {
-    width: 160px;
-    height: 160px;
-    top: 40%;
-    left: 42%;
-    background: radial-gradient(circle, rgba(139, 92, 255, 0.45), transparent 70%);
-    animation: giOrbFloat 11s ease-in-out infinite;
-}
-
-@keyframes giOrbFloat {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(18px, -14px) scale(1.08); }
-}
-
-.gi-shine {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    background: linear-gradient(120deg,
-        transparent 20%,
-        rgba(255, 255, 255, 0.14) 40%,
-        transparent 60%);
-    transform: translateX(-120%);
-    animation: giShine 5.5s ease-in-out infinite;
-    pointer-events: none;
-}
-
-@keyframes giShine {
-    0%, 55% { transform: translateX(-120%); }
-    75%, 100% { transform: translateX(120%); }
+        0 22px 50px rgba(18, 28, 55, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
 .gi-inner {
     position: relative;
-    z-index: 2;
-}
-
-.gi-top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 18px;
-    flex-wrap: wrap;
-}
-
-.gi-brand {
-    display: flex;
-    gap: 14px;
-    align-items: flex-start;
-    min-width: 0;
-}
-
-.gi-spark {
-    position: relative;
-    width: 52px;
-    height: 52px;
-    flex: 0 0 auto;
-    border-radius: 18px;
-    background: linear-gradient(135deg, var(--gi-pink), var(--gi-violet), var(--gi-cyan));
-    background-size: 200% 200%;
-    animation: giGradShift 6s ease infinite;
-    box-shadow: 0 10px 30px rgba(139, 92, 255, 0.45);
-}
-
-.gi-spark span {
-    position: absolute;
-    inset: 0;
-    margin: auto;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 0 16px #fff;
-}
-
-.gi-spark span:nth-child(1) {
-    width: 18px;
-    height: 18px;
-    animation: giPulse 2.2s ease-in-out infinite;
-}
-
-.gi-spark span:nth-child(2) {
-    width: 6px;
-    height: 6px;
-    transform: translate(14px, -12px);
-    opacity: 0.85;
-}
-
-.gi-spark span:nth-child(3) {
-    width: 5px;
-    height: 5px;
-    transform: translate(-14px, 12px);
-    opacity: 0.7;
-}
-
-@keyframes giPulse {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.25); opacity: 0.75; }
-}
-
-@keyframes giGradShift {
-    0%, 100% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-}
-
-.gi-eyebrow {
-    margin: 0 0 4px;
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    background: linear-gradient(90deg, #ffc2ea, #cbb6ff, #9fe9ff);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-}
-
-.gi-brand-copy h2 {
-    margin: 0;
-    font-size: clamp(1.55rem, 3.2vw, 2.15rem);
-    font-weight: 900;
-    letter-spacing: -0.02em;
-    color: #f7f4ff;
-    line-height: 1.1;
-}
-
-.gi-brand-copy h2 span {
-    background: linear-gradient(90deg, var(--gi-pink), var(--gi-violet) 45%, var(--gi-cyan));
-    background-size: 200% auto;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    animation: giGradShift 5s ease infinite;
-}
-
-.gi-tagline {
-    margin: 6px 0 0;
-    color: #c9d2ef;
-    font-size: 0.92rem;
-    font-weight: 600;
-    max-width: 36rem;
-}
-
-.gi-weather {
-    flex: 0 1 240px;
-}
-
-.gi-weather-card {
-    display: flex;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.95fr);
+    gap: 22px 28px;
     align-items: center;
-    gap: 12px;
-    padding: 12px 14px;
-    border-radius: 18px;
-    background: linear-gradient(145deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04));
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    backdrop-filter: blur(10px);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
-.gi-weather-temp {
-    font-size: 1.85rem;
-    font-weight: 900;
-    background: linear-gradient(180deg, #fff, #b8e4ff);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    line-height: 1;
-}
-
-.gi-weather-meta {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+.gi-main {
     min-width: 0;
 }
 
-.gi-weather-meta strong {
+.gi-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 14px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #f3f7ff;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+
+.gi-pill-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--gi-mint), var(--gi-cyan));
+    box-shadow: 0 0 10px rgba(109, 255, 200, 0.7);
+}
+
+.gi-headline {
+    margin: 0;
+    font-size: clamp(1.85rem, 4vw, 2.55rem);
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    line-height: 1.12;
     color: #fff;
-    font-size: 0.86rem;
 }
 
-.gi-weather-meta span {
-    color: #c5d0ea;
-    font-size: 0.72rem;
+.gi-sub {
+    margin: 12px 0 0;
+    max-width: 36rem;
+    color: rgba(232, 238, 255, 0.82);
+    font-size: 1.02rem;
     font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.gi-weather-fallback {
-    display: inline-block;
-    padding: 10px 12px;
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.08);
-    color: #d5def5;
-    font-size: 0.82rem;
-    font-weight: 700;
-}
-
-.gi-lead {
-    margin: 16px 0 12px;
-    padding: 12px 14px;
-    border-radius: 16px;
-    background: linear-gradient(90deg,
-        rgba(255, 107, 203, 0.12),
-        rgba(139, 92, 255, 0.14),
-        rgba(77, 201, 255, 0.12));
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #eef2ff;
-    font-size: 0.95rem;
-    font-weight: 650;
     line-height: 1.45;
 }
 
-.gi-banner.gi-collecting .gi-lead {
-    background: linear-gradient(90deg,
-        rgba(139, 92, 255, 0.16),
-        rgba(77, 201, 255, 0.12),
-        rgba(93, 255, 194, 0.1));
-}
-
-.gi-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 14px;
-}
-
-.gi-chip {
-    display: inline-flex;
-    align-items: center;
-    padding: 7px 12px;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 800;
-    letter-spacing: 0.01em;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(8, 10, 22, 0.35);
-    color: #e7ecff;
-}
-
-.gi-chip-value { border-color: rgba(93, 255, 194, 0.35); color: #b8ffe0; }
-.gi-chip-case { border-color: rgba(77, 201, 255, 0.4); color: #b7e9ff; }
-.gi-chip-warn { border-color: rgba(255, 170, 80, 0.45); color: #ffd3a1; }
-.gi-chip-ok { border-color: rgba(93, 255, 194, 0.35); color: #b8ffe0; }
-.gi-chip-usage { border-color: rgba(255, 107, 203, 0.4); color: #ffc3e8; }
-.gi-chip-hot { border-color: rgba(255, 120, 80, 0.5); color: #ffc2a8; }
-.gi-chip-cold { border-color: rgba(140, 190, 255, 0.5); color: #c7e0ff; }
-.gi-chip-wx { border-color: rgba(180, 160, 255, 0.45); color: #ddd0ff; }
-.gi-chip-soon {
-    border: none;
-    background: linear-gradient(90deg, rgba(255, 107, 203, 0.25), rgba(139, 92, 255, 0.3), rgba(77, 201, 255, 0.25));
-    color: #fff;
-}
-.gi-chip-ready {
-    border: none;
-    background: linear-gradient(90deg, #5dffc2, #4dc9ff);
-    color: #081018;
-}
-
-.gi-toolbar {
+.gi-actions {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 10px 12px;
+    gap: 10px;
+    margin-top: 18px;
 }
 
 .gi-badge {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 7px 12px;
+    padding: 8px 12px;
     border-radius: 999px;
-    font-size: 0.72rem;
+    font-size: 0.74rem;
     font-weight: 900;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
+    border: 1px solid transparent;
 }
 
 .gi-badge::before {
     content: '';
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     background: currentColor;
-    box-shadow: 0 0 10px currentColor;
-    animation: giPulse 1.6s ease-in-out infinite;
+    box-shadow: 0 0 8px currentColor;
 }
 
 .gi-badge.is-collecting {
-    color: #ffe3a8;
-    background: rgba(255, 190, 80, 0.12);
-    border: 1px solid rgba(255, 190, 80, 0.28);
+    color: #ffe2a6;
+    background: rgba(255, 196, 90, 0.12);
+    border-color: rgba(255, 196, 90, 0.28);
 }
 
 .gi-badge.is-ready {
-    color: #b8ffe0;
-    background: rgba(93, 255, 194, 0.12);
-    border: 1px solid rgba(93, 255, 194, 0.28);
-}
-
-.gi-event-count {
-    color: #b7c2e4;
-    font-size: 0.78rem;
-    font-weight: 700;
-}
-
-.gi-toolbar-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-left: auto;
-}
-
-.gi-prompt,
-.gi-ask {
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 999px;
-    padding: 9px 14px;
-    font-weight: 800;
-    font-size: 0.78rem;
-    cursor: pointer;
-    transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-}
-
-.gi-prompt {
-    background: rgba(255, 255, 255, 0.06);
-    color: #e8eeff;
-}
-
-.gi-prompt:hover {
-    border-color: rgba(255, 255, 255, 0.28);
-    transform: translateY(-1px);
+    color: #b9ffe0;
+    background: rgba(109, 255, 200, 0.12);
+    border-color: rgba(109, 255, 200, 0.28);
 }
 
 .gi-ask {
-    color: #0b1020;
-    background: linear-gradient(110deg, var(--gi-pink), var(--gi-violet), var(--gi-cyan));
-    background-size: 200% 200%;
-    animation: giGradShift 5s ease infinite;
     border: none;
-    box-shadow: 0 8px 24px rgba(139, 92, 255, 0.35);
+    border-radius: 999px;
+    padding: 10px 18px;
+    font-weight: 900;
+    font-size: 0.9rem;
+    cursor: pointer;
+    color: #102018;
+    background: linear-gradient(110deg, #fff 0%, #d9fff0 40%, #c9e8ff 100%);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+    transition: transform 0.15s ease, box-shadow 0.2s ease;
 }
 
 .gi-ask:hover {
-    transform: translateY(-1px) scale(1.02);
-    box-shadow: 0 12px 28px rgba(139, 92, 255, 0.45);
+    transform: translateY(-1px);
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.22);
+}
+
+.gi-metrics {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+
+.gi-metric {
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(10px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.gi-metric.is-wet {
+    background: rgba(90, 160, 230, 0.16);
+    border-color: rgba(150, 200, 255, 0.28);
+}
+
+.gi-metric-label {
+    color: rgba(230, 236, 255, 0.72);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.gi-metric-value {
+    margin-top: 4px;
+    font-size: 1.7rem;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    color: #fff;
+}
+
+.gi-metric-note {
+    margin-top: 4px;
+    color: rgba(220, 228, 250, 0.78);
+    font-size: 0.86rem;
+    font-weight: 650;
+    line-height: 1.3;
 }
 
 .gi-chat {
+    position: relative;
+    z-index: 1;
     margin-top: 16px;
     padding: 14px;
     border-radius: 20px;
-    background: linear-gradient(180deg, rgba(8, 10, 24, 0.72), rgba(12, 14, 30, 0.55));
+    background: rgba(6, 12, 24, 0.42);
     border: 1px solid rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(12px);
-    animation: giBannerIn 0.35s ease both;
 }
 
 .gi-chat-log {
-    max-height: 260px;
+    max-height: 240px;
     overflow: auto;
     display: flex;
     flex-direction: column;
     gap: 10px;
-    padding-right: 4px;
     margin-bottom: 12px;
 }
 
-.gi-msg {
-    display: flex;
-}
-
+.gi-msg { display: flex; }
 .gi-msg-user { justify-content: flex-end; }
 .gi-msg-ai { justify-content: flex-start; }
 
@@ -3025,13 +2781,12 @@ body.g-mobile main {
     max-width: min(100%, 520px);
     padding: 10px 12px;
     border-radius: 16px;
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.07);
     border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .gi-msg-user .gi-msg-bubble {
-    background: linear-gradient(135deg, rgba(255, 107, 203, 0.22), rgba(139, 92, 255, 0.22));
-    border-color: rgba(255, 255, 255, 0.14);
+    background: linear-gradient(135deg, rgba(255, 122, 200, 0.2), rgba(139, 108, 255, 0.22));
 }
 
 .gi-msg-bubble strong {
@@ -3046,7 +2801,7 @@ body.g-mobile main {
 .gi-msg-bubble p {
     margin: 0;
     color: #eef2ff;
-    font-size: 0.9rem;
+    font-size: 0.92rem;
     line-height: 1.45;
     white-space: pre-wrap;
 }
@@ -3062,20 +2817,18 @@ body.g-mobile main {
     padding: 12px 14px;
     border-radius: 14px;
     border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.07);
     color: #f4f7ff;
     font-size: 0.92rem;
     font-weight: 600;
 }
 
-.gi-chat-form input::placeholder {
-    color: #9aa6c7;
-}
+.gi-chat-form input::placeholder { color: #9aa6c7; }
 
 .gi-chat-form input:focus {
     outline: none;
-    border-color: rgba(139, 92, 255, 0.7);
-    box-shadow: 0 0 0 3px rgba(139, 92, 255, 0.2);
+    border-color: rgba(139, 108, 255, 0.7);
+    box-shadow: 0 0 0 3px rgba(139, 108, 255, 0.2);
 }
 
 .gi-chat-note {
@@ -3085,26 +2838,27 @@ body.g-mobile main {
     font-weight: 600;
 }
 
-@media (max-width: 720px) {
-    .gi-banner {
-        padding: 16px;
-        border-radius: 22px;
-        margin-bottom: 16px;
+@media (max-width: 860px) {
+    .gi-inner {
+        grid-template-columns: 1fr;
     }
 
-    .gi-toolbar-actions {
-        margin-left: 0;
-        width: 100%;
-    }
-
-    .gi-weather {
-        flex-basis: 100%;
+    .gi-metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .gi-banner, .gi-aurora, .gi-orb, .gi-shine, .gi-spark,
-    .gi-spark span, .gi-ask, .gi-brand-copy h2 span {
-        animation: none !important;
+@media (max-width: 640px) {
+    .gi-banner {
+        padding: 20px 16px 18px;
+        border-radius: 22px;
+    }
+
+    .gi-metrics {
+        grid-template-columns: 1fr;
+    }
+
+    .gi-headline {
+        font-size: 1.7rem;
     }
 }
