@@ -286,7 +286,7 @@
         if (isCollecting()) {
             return {
                 text: 'Still collecting shop data',
-                sub: 'Gelato Intelligence will recommend what to make, estimate daily profit, and read Sewell demand from weather + history. Right now every scoop and stock move is being saved — insights unlock when Gemini is connected and enough data is in.'
+                sub: 'Your shop AI for what to make, daily profit, and Sewell demand — learning from every pan right now.'
             };
         }
         const t = (shop && shop.totals) || {};
@@ -301,7 +301,7 @@
         if (weather && weather.wet) {
             return {
                 text: 'Rainy in Sewell — quieter scoop day',
-                sub: 'Live case, profit, and stock are on the cards. Ask Intelligence for a production read anytime.'
+                sub: 'Profit and stock are live on the right. Ask Intelligence for a production read anytime.'
             };
         }
         if (low.length) {
@@ -313,12 +313,12 @@
         if (used > 0) {
             return {
                 text: `Served ${used} pans so far today`,
-                sub: `Case holds ${t.caseSlots || 0} pans · on-hand about ${money(t.totalValue || 0)}.`
+                sub: `On-hand about ${money(t.totalValue || 0)}. Ask for production or profit details anytime.`
             };
         }
         return {
             text: 'Shop pulse looks healthy',
-            sub: `Case ${t.caseSlots || 0} pans · on-hand about ${money(t.totalValue || 0)}. Ask for production or profit details anytime.`
+            sub: `On-hand about ${money(t.totalValue || 0)}. Ask for production or profit details anytime.`
         };
     }
 
@@ -362,17 +362,6 @@
         if (sub) sub.textContent = hero.sub;
         if (collapsedMsg) collapsedMsg.textContent = hero.text;
 
-        const badge = document.getElementById('gi-collect-badge');
-        if (badge) {
-            if (!settings.geminiReady || eventCount < MIN_EVENTS_FOR_READY) {
-                badge.textContent = 'Still collecting data';
-                badge.className = 'gi-badge is-collecting';
-            } else {
-                badge.textContent = 'Gemini live';
-                badge.className = 'gi-badge is-ready';
-            }
-        }
-
         const t = shop.totals || {};
         const used = (shop.usage && shop.usage.usedPans) || 0;
         const cost = (shop.pricing && shop.pricing.costPerPan) || 0;
@@ -389,19 +378,6 @@
         if (stockNote) {
             const pans = t.totalPans != null ? t.totalPans : '—';
             stockNote.textContent = `${pans} pans on hand`;
-        }
-
-        const caseVal = document.getElementById('gi-case-value');
-        const caseNote = document.getElementById('gi-case-note');
-        if (caseVal) {
-            const slots = t.caseSlots != null ? t.caseSlots : '—';
-            caseVal.textContent = `${slots}`;
-        }
-        if (caseNote) {
-            const low = (shop.lowPans || []).length;
-            caseNote.textContent = low
-                ? `${low} low · ${used} served`
-                : `${used} served today`;
         }
 
         updateWeatherUi();
@@ -422,10 +398,7 @@
         const expand = document.getElementById('gi-expand');
 
         if (toggle && panel) {
-            toggle.addEventListener('click', () => {
-                const open = panel.hasAttribute('hidden');
-                setChatOpen(open);
-            });
+            toggle.addEventListener('click', () => setChatOpen(panel.hasAttribute('hidden')));
         }
         if (closeChat) closeChat.addEventListener('click', () => setChatOpen(false));
         if (minimize) minimize.addEventListener('click', () => {
@@ -456,7 +429,7 @@
             if (snap.empty) {
                 box.innerHTML = `<div class="gi-msg gi-msg-ai"><div class="gi-msg-bubble">
                     <strong>Gelato Intelligence</strong>
-                    <p>Gemini isn’t connected yet. I can still answer from today’s case, usage, and Sewell weather while shop data collects.</p>
+                    <p>Ask about today’s profit, stock, weather, or what to make — I’m learning from your shop as data collects.</p>
                 </div></div>`;
                 return;
             }
@@ -559,9 +532,9 @@
         const t = (shop && shop.totals) || {};
         const low = (shop && shop.lowPans) || [];
         const used = (shop && shop.usage && shop.usage.usedPans) || 0;
-        const note = !settings.geminiReady
-            ? '\n\nGemini isn’t connected yet — this is a live shop pulse while data collects.'
-            : (isCollecting() ? '\n\nStill collecting history for deeper insights.' : '');
+        const note = isCollecting()
+            ? '\n\nStill collecting shop data — deeper insights unlock as history builds.'
+            : '';
 
         if (/weather|sewell|hot|cold|rain|temp|scoop/.test(q)) {
             if (!weather) return 'Sewell weather unavailable right now.' + note;
@@ -597,7 +570,7 @@
                 + note;
         }
 
-        return 'Ask about weather, what to make, or case value. Gemini isn’t connected yet — answers use today’s live shop data.' + note;
+        return 'Ask about weather, what to make, profit, or stock. Answers use today’s live shop data.' + note;
     }
 
     // Public API used by gelato.js

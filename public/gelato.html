@@ -60,7 +60,6 @@
 
         <!-- ===================== GELATO INTELLIGENCE ===================== -->
         <section class="gi-banner gi-collecting" id="gelato-intelligence" aria-label="Dolce Vita Gelato Intelligence">
-            <!-- Collapsed strip -->
             <button type="button" class="gi-collapsed-bar" id="gi-expand" hidden>
                 <span class="gi-pill-dot" aria-hidden="true"></span>
                 <strong>Gelato Intelligence</strong>
@@ -69,44 +68,45 @@
             </button>
 
             <div class="gi-body" id="gi-body">
+                <div class="gi-aurora" aria-hidden="true"></div>
+                <div class="gi-orb gi-orb-a" aria-hidden="true"></div>
+                <div class="gi-orb gi-orb-b" aria-hidden="true"></div>
+                <div class="gi-orb gi-orb-c" aria-hidden="true"></div>
+                <div class="gi-shine" aria-hidden="true"></div>
+
                 <div class="gi-inner">
                     <div class="gi-main">
                         <div class="gi-toprow">
-                            <div class="gi-pill">
-                                <span class="gi-pill-dot" aria-hidden="true"></span>
-                                <span class="gi-pill-new">NEW</span>
-                                Gelato Intelligence
+                            <div class="gi-brand">
+                                <div class="gi-spark" aria-hidden="true"><span></span></div>
+                                <div>
+                                    <p class="gi-eyebrow">Dolce Vita · NEW</p>
+                                    <h2 class="gi-title">Gelato <span>Intelligence</span></h2>
+                                </div>
                             </div>
-                            <button type="button" class="gi-icon-btn" id="gi-minimize" title="Minimize Gelato Intelligence" aria-label="Minimize Gelato Intelligence">−</button>
+                            <button type="button" class="gi-icon-btn" id="gi-minimize" title="Minimize" aria-label="Minimize Gelato Intelligence">−</button>
                         </div>
 
-                        <p class="gi-product">Dolce Vita AI for your shop</p>
-                        <h2 class="gi-headline" id="gi-lead">Still collecting shop data</h2>
+                        <h3 class="gi-headline" id="gi-lead">Still collecting shop data</h3>
                         <p class="gi-sub" id="gi-sub">
-                            Soon this will tell you what to make, estimate daily profit, and read Sewell demand from weather + history. Right now it’s saving every move.
+                            Your shop AI for what to make, daily profit, and Sewell demand — learning from every pan right now.
                         </p>
 
                         <div class="gi-actions">
-                            <span class="gi-badge is-collecting" id="gi-collect-badge">Still collecting data</span>
                             <button type="button" class="gi-ask" id="gi-chat-toggle" aria-expanded="false" aria-controls="gi-chat">Ask Intelligence</button>
                         </div>
                     </div>
 
                     <div class="gi-metrics" aria-label="Today at a glance">
-                        <div class="gi-metric" id="gi-metric-profit">
+                        <div class="gi-metric gi-metric-profit" id="gi-metric-profit">
                             <div class="gi-metric-label">Profit today</div>
                             <div class="gi-metric-value" id="gi-profit-value">—</div>
                             <div class="gi-metric-note" id="gi-profit-note">From pans served</div>
                         </div>
-                        <div class="gi-metric" id="gi-metric-stock">
+                        <div class="gi-metric gi-metric-stock" id="gi-metric-stock">
                             <div class="gi-metric-label">Stock today</div>
                             <div class="gi-metric-value" id="gi-stock-value">—</div>
                             <div class="gi-metric-note" id="gi-stock-note">On-hand value</div>
-                        </div>
-                        <div class="gi-metric" id="gi-metric-case">
-                            <div class="gi-metric-label">Case / served</div>
-                            <div class="gi-metric-value" id="gi-case-value">—</div>
-                            <div class="gi-metric-note" id="gi-case-note">Live inventory</div>
                         </div>
                         <div class="gi-metric" id="gi-metric-weather">
                             <div class="gi-metric-label">Sewell weather</div>
@@ -126,7 +126,6 @@
                         <input type="text" id="gi-chat-input" maxlength="500" placeholder="Ask about profit, stock, weather, what to make…" autocomplete="off" aria-label="Message Gelato Intelligence">
                         <button type="submit" class="gi-ask">Send</button>
                     </form>
-                    <p class="gi-chat-note">Gemini isn’t connected yet — answers use today’s live shop pulse while data collects.</p>
                 </div>
             </div>
         </section>
