@@ -2698,8 +2698,8 @@ body.g-mobile main {
 
 .gi-spark {
     position: relative;
-    width: 52px;
-    height: 52px;
+    width: 58px;
+    height: 58px;
     flex: 0 0 auto;
     border-radius: 18px;
     background: linear-gradient(135deg, var(--gi-pink), var(--gi-violet), var(--gi-cyan));
@@ -2712,31 +2712,12 @@ body.g-mobile main {
     position: absolute;
     inset: 0;
     margin: auto;
-    width: 10px;
-    height: 10px;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
     background: #fff;
     box-shadow: 0 0 16px #fff;
-}
-
-.gi-spark span:nth-child(1) {
-    width: 18px;
-    height: 18px;
     animation: giPulse 2.2s ease-in-out infinite;
-}
-
-.gi-spark span:nth-child(2) {
-    width: 6px;
-    height: 6px;
-    transform: translate(14px, -12px);
-    opacity: 0.85;
-}
-
-.gi-spark span:nth-child(3) {
-    width: 5px;
-    height: 5px;
-    transform: translate(-14px, 12px);
-    opacity: 0.7;
 }
 
 @keyframes giPulse {
@@ -2750,10 +2731,10 @@ body.g-mobile main {
 }
 
 .gi-eyebrow {
-    margin: 0 0 4px;
-    font-size: 0.72rem;
+    margin: 0 0 6px;
+    font-size: 0.9rem;
     font-weight: 800;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
     background: linear-gradient(90deg, #ffc2ea, #cbb6ff, #9fe9ff);
     -webkit-background-clip: text;
@@ -2763,15 +2744,11 @@ body.g-mobile main {
 
 .gi-brand-copy h2 {
     margin: 0;
-    font-size: clamp(1.55rem, 3.2vw, 2.15rem);
+    font-size: clamp(2rem, 4.5vw, 2.85rem);
     font-weight: 900;
-    letter-spacing: -0.02em;
-    color: #f7f4ff;
-    line-height: 1.1;
-}
-
-.gi-brand-copy h2 span {
-    background: linear-gradient(90deg, var(--gi-pink), var(--gi-violet) 45%, var(--gi-cyan));
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    background: linear-gradient(90deg, #fff 10%, #ffc2ea 40%, #cbb6ff 70%, #9fe9ff);
     background-size: 200% auto;
     -webkit-background-clip: text;
     background-clip: text;
@@ -2780,22 +2757,22 @@ body.g-mobile main {
 }
 
 .gi-tagline {
-    margin: 6px 0 0;
+    margin: 8px 0 0;
     color: #c9d2ef;
-    font-size: 0.92rem;
-    font-weight: 600;
-    max-width: 36rem;
+    font-size: 1.05rem;
+    font-weight: 650;
+    max-width: 28rem;
 }
 
 .gi-weather {
-    flex: 0 1 240px;
+    flex: 0 1 260px;
 }
 
 .gi-weather-card {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 14px;
+    padding: 14px 16px;
     border-radius: 18px;
     background: linear-gradient(145deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04));
     border: 1px solid rgba(255, 255, 255, 0.16);
@@ -2803,8 +2780,13 @@ body.g-mobile main {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
+.gi-weather-card.is-wet {
+    border-color: rgba(120, 180, 255, 0.45);
+    background: linear-gradient(145deg, rgba(80, 140, 220, 0.22), rgba(255, 255, 255, 0.04));
+}
+
 .gi-weather-temp {
-    font-size: 1.85rem;
+    font-size: 2.35rem;
     font-weight: 900;
     background: linear-gradient(180deg, #fff, #b8e4ff);
     -webkit-background-clip: text;
@@ -2816,22 +2798,20 @@ body.g-mobile main {
 .gi-weather-meta {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
     min-width: 0;
 }
 
 .gi-weather-meta strong {
     color: #fff;
-    font-size: 0.86rem;
+    font-size: 1rem;
 }
 
 .gi-weather-meta span {
     color: #c5d0ea;
-    font-size: 0.72rem;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: 0.86rem;
+    font-weight: 650;
+    line-height: 1.25;
 }
 
 .gi-weather-fallback {
@@ -2840,75 +2820,54 @@ body.g-mobile main {
     border-radius: 14px;
     background: rgba(255, 255, 255, 0.08);
     color: #d5def5;
-    font-size: 0.82rem;
+    font-size: 0.9rem;
     font-weight: 700;
 }
 
-.gi-lead {
-    margin: 16px 0 12px;
-    padding: 12px 14px;
-    border-radius: 16px;
-    background: linear-gradient(90deg,
-        rgba(255, 107, 203, 0.12),
-        rgba(139, 92, 255, 0.14),
-        rgba(77, 201, 255, 0.12));
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #eef2ff;
-    font-size: 0.95rem;
-    font-weight: 650;
-    line-height: 1.45;
+/* Big middle: one clear message only */
+.gi-hero {
+    margin: 22px 0 16px;
+    padding: 28px 22px;
+    border-radius: 22px;
+    text-align: center;
+    background: linear-gradient(120deg,
+        rgba(255, 107, 203, 0.14),
+        rgba(139, 92, 255, 0.16),
+        rgba(77, 201, 255, 0.14));
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
-.gi-banner.gi-collecting .gi-lead {
-    background: linear-gradient(90deg,
-        rgba(139, 92, 255, 0.16),
+.gi-banner.gi-collecting .gi-hero {
+    background: linear-gradient(120deg,
+        rgba(139, 92, 255, 0.18),
         rgba(77, 201, 255, 0.12),
         rgba(93, 255, 194, 0.1));
 }
 
-.gi-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 14px;
+.gi-hero-kicker {
+    margin: 0 0 10px;
+    font-size: 0.85rem;
+    font-weight: 900;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #b9c6ef;
 }
 
-.gi-chip {
-    display: inline-flex;
-    align-items: center;
-    padding: 7px 12px;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 800;
-    letter-spacing: 0.01em;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(8, 10, 22, 0.35);
-    color: #e7ecff;
-}
-
-.gi-chip-value { border-color: rgba(93, 255, 194, 0.35); color: #b8ffe0; }
-.gi-chip-case { border-color: rgba(77, 201, 255, 0.4); color: #b7e9ff; }
-.gi-chip-warn { border-color: rgba(255, 170, 80, 0.45); color: #ffd3a1; }
-.gi-chip-ok { border-color: rgba(93, 255, 194, 0.35); color: #b8ffe0; }
-.gi-chip-usage { border-color: rgba(255, 107, 203, 0.4); color: #ffc3e8; }
-.gi-chip-hot { border-color: rgba(255, 120, 80, 0.5); color: #ffc2a8; }
-.gi-chip-cold { border-color: rgba(140, 190, 255, 0.5); color: #c7e0ff; }
-.gi-chip-wx { border-color: rgba(180, 160, 255, 0.45); color: #ddd0ff; }
-.gi-chip-soon {
-    border: none;
-    background: linear-gradient(90deg, rgba(255, 107, 203, 0.25), rgba(139, 92, 255, 0.3), rgba(77, 201, 255, 0.25));
+.gi-hero-text {
+    margin: 0;
+    font-size: clamp(1.55rem, 3.8vw, 2.35rem);
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
     color: #fff;
-}
-.gi-chip-ready {
-    border: none;
-    background: linear-gradient(90deg, #5dffc2, #4dc9ff);
-    color: #081018;
 }
 
 .gi-toolbar {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
+    justify-content: space-between;
     gap: 10px 12px;
 }
 
@@ -2916,9 +2875,9 @@ body.g-mobile main {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 7px 12px;
+    padding: 8px 14px;
     border-radius: 999px;
-    font-size: 0.72rem;
+    font-size: 0.78rem;
     font-weight: 900;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -2946,47 +2905,19 @@ body.g-mobile main {
     border: 1px solid rgba(93, 255, 194, 0.28);
 }
 
-.gi-event-count {
-    color: #b7c2e4;
-    font-size: 0.78rem;
-    font-weight: 700;
-}
-
-.gi-toolbar-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-left: auto;
-}
-
-.gi-prompt,
 .gi-ask {
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    border: none;
     border-radius: 999px;
-    padding: 9px 14px;
-    font-weight: 800;
-    font-size: 0.78rem;
+    padding: 11px 20px;
+    font-weight: 900;
+    font-size: 0.92rem;
     cursor: pointer;
-    transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-}
-
-.gi-prompt {
-    background: rgba(255, 255, 255, 0.06);
-    color: #e8eeff;
-}
-
-.gi-prompt:hover {
-    border-color: rgba(255, 255, 255, 0.28);
-    transform: translateY(-1px);
-}
-
-.gi-ask {
     color: #0b1020;
     background: linear-gradient(110deg, var(--gi-pink), var(--gi-violet), var(--gi-cyan));
     background-size: 200% 200%;
     animation: giGradShift 5s ease infinite;
-    border: none;
     box-shadow: 0 8px 24px rgba(139, 92, 255, 0.35);
+    transition: transform 0.15s ease, box-shadow 0.2s ease;
 }
 
 .gi-ask:hover {
@@ -3092,9 +3023,8 @@ body.g-mobile main {
         margin-bottom: 16px;
     }
 
-    .gi-toolbar-actions {
-        margin-left: 0;
-        width: 100%;
+    .gi-hero {
+        padding: 22px 16px;
     }
 
     .gi-weather {
@@ -3104,7 +3034,7 @@ body.g-mobile main {
 
 @media (prefers-reduced-motion: reduce) {
     .gi-banner, .gi-aurora, .gi-orb, .gi-shine, .gi-spark,
-    .gi-spark span, .gi-ask, .gi-brand-copy h2 span {
+    .gi-spark span, .gi-ask, .gi-brand-copy h2 {
         animation: none !important;
     }
 }
