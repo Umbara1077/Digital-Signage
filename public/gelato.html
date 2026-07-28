@@ -75,6 +75,29 @@
             </div>
         </section>
 
+        <!-- ===================== SWAP QUEUE ===================== -->
+        <section class="g-section">
+            <h2>Swap Recommendations &amp; Queue</h2>
+            <div class="g-queue-wrap">
+                <div class="g-recos" id="swap-recos"></div>
+                <div class="g-queue">
+                    <div class="g-queue-head">
+                        <h3>Swap Queue</h3>
+                        <button type="button" id="queue-clear" class="btn g-btn-danger">Clear queue</button>
+                    </div>
+                    <p class="g-hint-line">Stage a replacement for any pan now — it waits here and turns
+                        <strong class="rdy">READY</strong> when that pan hits the red (&le; 0.5) — but you can execute any time.</p>
+                    <form id="stageForm" class="g-stage">
+                        <select id="stage-pan" required></select>
+                        <span class="g-stage-arrow">&larr; replace with</span>
+                        <select id="stage-flavor" required></select>
+                        <button type="submit">Stage swap</button>
+                    </form>
+                    <div id="swap-queue-list"></div>
+                </div>
+            </div>
+        </section>
+
         <!-- ===================== MOBILE MODE PANEL ===================== -->
         <section class="g-section mobile-only" id="mobile-panel" hidden>
             <h2>Mobile Overview <span class="g-cap">at a glance · tap to act</span></h2>
@@ -141,29 +164,6 @@
             </div>
             <p class="g-hint-line">Drag a filled pan to Short-Term or Long-Term — a popup asks what to do before anything moves.</p>
             <div class="g-case" id="case-visual"></div>
-        </section>
-
-        <!-- ===================== SWAP QUEUE ===================== -->
-        <section class="g-section">
-            <h2>Swap Recommendations &amp; Queue</h2>
-            <div class="g-queue-wrap">
-                <div class="g-recos" id="swap-recos"></div>
-                <div class="g-queue">
-                    <div class="g-queue-head">
-                        <h3>Swap Queue</h3>
-                        <button type="button" id="queue-clear" class="btn g-btn-danger">Clear queue</button>
-                    </div>
-                    <p class="g-hint-line">Stage a replacement for any pan now — it waits here and turns
-                        <strong class="rdy">READY</strong> when that pan hits the red (&le; 0.5) — but you can execute any time.</p>
-                    <form id="stageForm" class="g-stage">
-                        <select id="stage-pan" required></select>
-                        <span class="g-stage-arrow">&larr; replace with</span>
-                        <select id="stage-flavor" required></select>
-                        <button type="submit">Stage swap</button>
-                    </form>
-                    <div id="swap-queue-list"></div>
-                </div>
-            </div>
         </section>
 
         <!-- ===================== FREEZERS ===================== -->
