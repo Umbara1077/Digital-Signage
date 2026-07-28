@@ -265,28 +265,24 @@
 
     function updateWeatherUi() {
         const value = document.getElementById('gi-wx-value');
-        const note = document.getElementById('gi-wx-note');
         const card = document.getElementById('gi-metric-weather');
-        if (!value || !note) return;
+        if (!value) return;
         if (!weather) {
             value.textContent = '—';
-            note.textContent = 'Unavailable';
             if (card) card.classList.remove('is-wet');
             return;
         }
-        value.textContent = `${weather.tempF}°`;
-        note.textContent = weather.wet
-            ? `${weather.dayLabel} · scoop demand soft`
-            : `${weather.dayLabel} · ${weatherDemandNote()}`;
+        value.textContent = weather.wet
+            ? `${weather.tempF}° rain`
+            : `${weather.tempF}°`;
         if (card) card.classList.toggle('is-wet', !!weather.wet);
     }
 
-    /* Headline: collecting OR a short "what's going on today" */
     function heroMessage(shop) {
         if (isCollecting()) {
             return {
                 text: 'Still collecting shop data',
-                sub: 'Your shop AI for what to make, daily profit, and Sewell demand — learning from every pan right now.'
+                sub: 'Shop AI for what to make, daily profit, and Sewell demand — learning from every pan.'
             };
         }
         const t = (shop && shop.totals) || {};
@@ -294,31 +290,31 @@
         const used = (shop && shop.usage && shop.usage.usedPans) || 0;
         if (weather && weather.wet && low.length) {
             return {
-                text: `Rainy day · ${low.length} pan${low.length === 1 ? '' : 's'} running low`,
-                sub: 'Sewell is wet — expect softer walk-up traffic. Refill red pans from short-term when you can.'
+                text: `Rainy day · ${low.length} pan${low.length === 1 ? '' : 's'} low`,
+                sub: 'Sewell is wet — softer walk-up traffic. Refill red pans from short-term when you can.'
             };
         }
         if (weather && weather.wet) {
             return {
                 text: 'Rainy in Sewell — quieter scoop day',
-                sub: 'Profit and stock are live on the right. Ask Intelligence for a production read anytime.'
+                sub: 'Profit and stock are live below. Chat for a production read anytime.'
             };
         }
         if (low.length) {
             return {
                 text: `${low.length} case pan${low.length === 1 ? '' : 's'} need attention`,
-                sub: `Low now: ${low.slice(0, 4).map(p => p.name).join(', ')}. Pull from short-term to keep the case healthy.`
+                sub: `Low now: ${low.slice(0, 4).map(p => p.name).join(', ')}.`
             };
         }
         if (used > 0) {
             return {
                 text: `Served ${used} pans so far today`,
-                sub: `On-hand about ${money(t.totalValue || 0)}. Ask for production or profit details anytime.`
+                sub: `On-hand about ${money(t.totalValue || 0)}.`
             };
         }
         return {
             text: 'Shop pulse looks healthy',
-            sub: `On-hand about ${money(t.totalValue || 0)}. Ask for production or profit details anytime.`
+            sub: `On-hand about ${money(t.totalValue || 0)}. Chat for production or profit details.`
         };
     }
 
@@ -342,7 +338,7 @@
         else panel.setAttribute('hidden', '');
         if (toggle) {
             toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-            toggle.textContent = open ? 'Close chat' : 'Ask Intelligence';
+            toggle.textContent = open ? 'Close' : 'Chat';
         }
         if (open && input) input.focus();
     }
@@ -368,17 +364,10 @@
         const profitToday = r2Money(used * cost);
 
         const profitVal = document.getElementById('gi-profit-value');
-        const profitNote = document.getElementById('gi-profit-note');
         if (profitVal) profitVal.textContent = used > 0 ? money(profitToday) : '$0';
-        if (profitNote) profitNote.textContent = used > 0 ? `${used} pans served today` : 'No pans served yet';
 
         const stockVal = document.getElementById('gi-stock-value');
-        const stockNote = document.getElementById('gi-stock-note');
         if (stockVal) stockVal.textContent = t.totalValue != null ? money(t.totalValue) : '—';
-        if (stockNote) {
-            const pans = t.totalPans != null ? t.totalPans : '—';
-            stockNote.textContent = `${pans} pans on hand`;
-        }
 
         updateWeatherUi();
     }
