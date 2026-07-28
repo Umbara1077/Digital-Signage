@@ -286,7 +286,7 @@
         if (isCollecting()) {
             return {
                 text: 'Still collecting shop data',
-                sub: 'Every scoop, swap, and stock move is being saved. Gemini insights come online once enough history is in Firebase.'
+                sub: 'Gelato Intelligence will recommend what to make, estimate daily profit, and read Sewell demand from weather + history. Right now every scoop and stock move is being saved — insights unlock when Gemini is connected and enough data is in.'
             };
         }
         const t = (shop && shop.totals) || {};
@@ -295,13 +295,13 @@
         if (weather && weather.wet && low.length) {
             return {
                 text: `Rainy day · ${low.length} pan${low.length === 1 ? '' : 's'} running low`,
-                sub: 'Sewell weather is wet — expect softer walk-up traffic. Refill the red pans from short-term when you can.'
+                sub: 'Sewell is wet — expect softer walk-up traffic. Refill red pans from short-term when you can.'
             };
         }
         if (weather && weather.wet) {
             return {
                 text: 'Rainy in Sewell — quieter scoop day',
-                sub: 'Case and freezers are tracked live. Ask Intelligence if you want a production read for today.'
+                sub: 'Live case, profit, and stock are on the cards. Ask Intelligence for a production read anytime.'
             };
         }
         if (low.length) {
@@ -313,13 +313,38 @@
         if (used > 0) {
             return {
                 text: `Served ${used} pans so far today`,
-                sub: `Case holds ${t.caseSlots || 0} pans · on-hand about ${money(t.totalValue || 0)}. Shop pulse looks steady.`
+                sub: `Case holds ${t.caseSlots || 0} pans · on-hand about ${money(t.totalValue || 0)}.`
             };
         }
         return {
             text: 'Shop pulse looks healthy',
             sub: `Case ${t.caseSlots || 0} pans · on-hand about ${money(t.totalValue || 0)}. Ask for production or profit details anytime.`
         };
+    }
+
+    function setCollapsed(collapsed) {
+        const root = document.getElementById('gelato-intelligence');
+        const body = document.getElementById('gi-body');
+        const strip = document.getElementById('gi-expand');
+        if (!root || !body || !strip) return;
+        root.classList.toggle('is-collapsed', collapsed);
+        body.hidden = !!collapsed;
+        strip.hidden = !collapsed;
+        try { localStorage.setItem('giCollapsed', collapsed ? '1' : '0'); } catch (_) { /* ignore */ }
+    }
+
+    function setChatOpen(open) {
+        const panel = document.getElementById('gi-chat');
+        const toggle = document.getElementById('gi-chat-toggle');
+        const input = document.getElementById('gi-chat-input');
+        if (!panel) return;
+        if (open) panel.removeAttribute('hidden');
+        else panel.setAttribute('hidden', '');
+        if (toggle) {
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            toggle.textContent = open ? 'Close chat' : 'Ask Intelligence';
+        }
+        if (open && input) input.focus();
     }
 
     function updateBanner() {
@@ -332,16 +357,15 @@
         const hero = heroMessage(shop);
         const lead = document.getElementById('gi-lead');
         const sub = document.getElementById('gi-sub');
+        const collapsedMsg = document.getElementById('gi-collapsed-msg');
         if (lead) lead.textContent = hero.text;
         if (sub) sub.textContent = hero.sub;
+        if (collapsedMsg) collapsedMsg.textContent = hero.text;
 
         const badge = document.getElementById('gi-collect-badge');
         if (badge) {
-            if (!settings.geminiReady) {
-                badge.textContent = 'Gemini not connected';
-                badge.className = 'gi-badge is-collecting';
-            } else if (eventCount < MIN_EVENTS_FOR_READY) {
-                badge.textContent = 'Collecting data';
+            if (!settings.geminiReady || eventCount < MIN_EVENTS_FOR_READY) {
+                badge.textContent = 'Still collecting data';
                 badge.className = 'gi-badge is-collecting';
             } else {
                 badge.textContent = 'Gemini live';
@@ -350,45 +374,70 @@
         }
 
         const t = shop.totals || {};
-        const caseVal = document.getElementById('gi-case-value');
-        const caseNote = document.getElementById('gi-case-note');
-        if (caseVal) caseVal.textContent = t.caseSlots != null ? String(t.caseSlots) : '—';
-        if (caseNote) {
-            const used = (shop.usage && shop.usage.usedPans) || 0;
-            const low = (shop.lowPans || []).length;
-            if (low) caseNote.textContent = `${low} low · ${used} served`;
-            else if (used) caseNote.textContent = `${used} pans served today`;
-            else caseNote.textContent = t.totalValue ? `~${money(t.totalValue)} on hand` : 'Live inventory';
+        const used = (shop.usage && shop.usage.usedPans) || 0;
+        const cost = (shop.pricing && shop.pricing.costPerPan) || 0;
+        const profitToday = r2Money(used * cost);
+
+        const profitVal = document.getElementById('gi-profit-value');
+        const profitNote = document.getElementById('gi-profit-note');
+        if (profitVal) profitVal.textContent = used > 0 ? money(profitToday) : '$0';
+        if (profitNote) profitNote.textContent = used > 0 ? `${used} pans served today` : 'No pans served yet';
+
+        const stockVal = document.getElementById('gi-stock-value');
+        const stockNote = document.getElementById('gi-stock-note');
+        if (stockVal) stockVal.textContent = t.totalValue != null ? money(t.totalValue) : '—';
+        if (stockNote) {
+            const pans = t.totalPans != null ? t.totalPans : '—';
+            stockNote.textContent = `${pans} pans on hand`;
         }
 
-        const learnVal = document.getElementById('gi-learn-value');
-        const learnNote = document.getElementById('gi-learn-note');
-        if (learnVal) learnVal.textContent = String(eventCount);
-        if (learnNote) {
-            learnNote.textContent = settings.geminiReady
-                ? (eventCount >= MIN_EVENTS_FOR_READY ? 'Ready for Gemini' : `Need ${Math.max(0, MIN_EVENTS_FOR_READY - eventCount)} more`)
-                : 'Saved for Gemini';
+        const caseVal = document.getElementById('gi-case-value');
+        const caseNote = document.getElementById('gi-case-note');
+        if (caseVal) {
+            const slots = t.caseSlots != null ? t.caseSlots : '—';
+            caseVal.textContent = `${slots}`;
+        }
+        if (caseNote) {
+            const low = (shop.lowPans || []).length;
+            caseNote.textContent = low
+                ? `${low} low · ${used} served`
+                : `${used} served today`;
         }
 
         updateWeatherUi();
     }
 
+    function r2Money(n) {
+        return Math.round((Number(n) || 0) * 100) / 100;
+    }
+
     /* ----- Chat ---------------------------------------------------------- */
     function wireUi() {
         const toggle = document.getElementById('gi-chat-toggle');
+        const closeChat = document.getElementById('gi-chat-close');
         const panel = document.getElementById('gi-chat');
         const form = document.getElementById('gi-chat-form');
         const input = document.getElementById('gi-chat-input');
+        const minimize = document.getElementById('gi-minimize');
+        const expand = document.getElementById('gi-expand');
+
         if (toggle && panel) {
             toggle.addEventListener('click', () => {
                 const open = panel.hasAttribute('hidden');
-                if (open) panel.removeAttribute('hidden');
-                else panel.setAttribute('hidden', '');
-                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-                toggle.textContent = open ? 'Close' : 'Ask';
-                if (open && input) input.focus();
+                setChatOpen(open);
             });
         }
+        if (closeChat) closeChat.addEventListener('click', () => setChatOpen(false));
+        if (minimize) minimize.addEventListener('click', () => {
+            setChatOpen(false);
+            setCollapsed(true);
+        });
+        if (expand) expand.addEventListener('click', () => setCollapsed(false));
+
+        try {
+            if (localStorage.getItem('giCollapsed') === '1') setCollapsed(true);
+        } catch (_) { /* ignore */ }
+
         if (form) {
             form.addEventListener('submit', e => {
                 e.preventDefault();
