@@ -112,6 +112,36 @@
     grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
+/* Visual drag-and-drop affordances (case ↔ freezers) */
+.g-pan[draggable="true"],
+.g-pan-chip[draggable="true"] {
+    cursor: grab;
+}
+
+.g-pan[draggable="true"]:active,
+.g-pan-chip[draggable="true"]:active {
+    cursor: grabbing;
+}
+
+.g-pan.g-dragging,
+.g-pan-chip.g-dragging {
+    opacity: 0.45;
+    outline: 2px dashed #7ec8ff;
+    outline-offset: 2px;
+}
+
+.g-case.g-drop-hover,
+.g-freezer.g-drop-hover {
+    outline: 2px solid #4a90d9;
+    outline-offset: 3px;
+    box-shadow: var(--shadow-lg), inset 0 0 40px #00000055, 0 0 0 4px rgba(74, 144, 217, 0.18);
+}
+
+.g-pan.empty.g-drop-slot {
+    border-color: #4a90d9;
+    background: rgba(74, 144, 217, 0.12);
+}
+
 .g-case-size-toggle {
     margin-left: auto;
 }
