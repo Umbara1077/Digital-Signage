@@ -324,12 +324,23 @@
         const root = document.getElementById('gelato-intelligence');
         const wrap = document.getElementById('gi-popover-root');
         const openBtn = document.getElementById('gi-open');
+        const body = document.getElementById('gi-body');
+        const strip = document.getElementById('gi-expand');
         if (!root) return;
 
         if (uiMode === 'inline') {
-            // Admin: always expanded — ignore close requests
-            root.classList.remove('is-collapsed');
-            if (wrap) wrap.removeAttribute('hidden');
+            // Admin: minimized strip in flow; Open expands the same pink banner
+            root.classList.toggle('is-collapsed', !open);
+            if (body) {
+                if (open) body.removeAttribute('hidden');
+                else body.setAttribute('hidden', '');
+            }
+            if (strip) {
+                if (open) strip.setAttribute('hidden', '');
+                else strip.removeAttribute('hidden');
+            }
+            try { localStorage.setItem('giAdminCollapsed', open ? '0' : '1'); } catch (_) { /* ignore */ }
+            if (!open) setChatOpen(false);
             return;
         }
 
@@ -377,8 +388,10 @@
         const hero = heroMessage(shop);
         const lead = document.getElementById('gi-lead');
         const sub = document.getElementById('gi-sub');
+        const collapsedMsg = document.getElementById('gi-collapsed-msg');
         if (lead) lead.textContent = hero.text;
         if (sub) sub.textContent = hero.sub;
+        if (collapsedMsg) collapsedMsg.textContent = hero.text;
 
         const label = document.getElementById('gi-progress-label');
         if (label) {
@@ -542,6 +555,7 @@
         const form = document.getElementById('gi-chat-form');
         const input = document.getElementById('gi-chat-input');
         const minimize = document.getElementById('gi-minimize');
+        const expand = document.getElementById('gi-expand');
         const openBtn = document.getElementById('gi-open');
         const backdrop = document.getElementById('gi-backdrop');
 
@@ -550,6 +564,7 @@
         }
         if (closeChat) closeChat.addEventListener('click', () => setChatOpen(false));
         if (minimize) minimize.addEventListener('click', () => setPanelOpen(false));
+        if (expand) expand.addEventListener('click', () => setPanelOpen(true));
         if (openBtn) {
             openBtn.addEventListener('click', () => {
                 const wrap = document.getElementById('gi-popover-root');
@@ -564,7 +579,10 @@
         });
 
         if (uiMode === 'inline') {
-            setPanelOpen(true);
+            // Admin: load minimized (collapsed strip) unless user left it open
+            let adminPref = null;
+            try { adminPref = localStorage.getItem('giAdminCollapsed'); } catch (_) { /* ignore */ }
+            setPanelOpen(adminPref === '0');
         } else {
             // Popover starts closed so the gelato page loses no vertical space.
             // Honor an explicit prior "open" preference only.

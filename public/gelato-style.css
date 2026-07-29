@@ -3120,20 +3120,30 @@ body.g-mobile main {
     box-shadow: 0 3px 7px rgba(224, 121, 110, 0.3);
 }
 
-/* ----- Topbar open button (gelato) ------------------------------------ */
+/* ----- Topbar open button (gelato) — same pink gradient as the banner CTA */
+.btn.gi-open-btn,
 .gi-open-btn {
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    color: #fff;
+    border: none;
+    background: linear-gradient(105deg, #e2568f, #a86fd4 55%, #f0956b);
+    box-shadow: 0 6px 16px rgba(226, 86, 143, 0.35);
+}
+.btn.gi-open-btn:hover,
+.gi-open-btn:hover {
+    filter: brightness(1.06);
+    color: #fff;
 }
 .gi-open-btn .gi-star-mini {
     width: 14px;
     height: 14px;
     flex: 0 0 auto;
 }
-.gi-open-btn .gi-star-mini path { fill: #ffd0e4; }
+.gi-open-btn .gi-star-mini path { fill: #fff; }
 .gi-open-btn.is-open {
-    box-shadow: 0 0 0 2px rgba(226, 86, 143, 0.45);
+    box-shadow: 0 0 0 2px rgba(226, 86, 143, 0.45), 0 6px 16px rgba(226, 86, 143, 0.35);
 }
 
 /* ----- Popover shell (gelato: zero layout space when closed) ---------- */
@@ -3169,15 +3179,12 @@ body.g-mobile main {
     flex: 0 0 auto;
 }
 
-/* Inline (admin): full banner in document flow above hero buttons */
+/* Inline (admin): banner in document flow above hero buttons */
 .gi-banner[data-gi-mode="inline"] {
     margin: 8px auto 28px;
 }
-.gi-banner[data-gi-mode="inline"] .gi-minimize {
-    display: none;
-}
 
-/* ----- Legacy collapsed strip (unused on gelato/admin now) ------------ */
+/* ----- Collapsed strip (admin minimized view) ------------------------- */
 .gi-collapsed-bar {
     display: none;
     width: 100%;
@@ -3192,7 +3199,7 @@ body.g-mobile main {
     font: inherit;
 }
 .gi-banner.is-collapsed .gi-collapsed-bar { display: flex; }
-.gi-banner.is-collapsed .gi-body { display: none; }
+.gi-banner.is-collapsed .gi-body { display: none !important; }
 
 .gi-star-mini {
     width: 16px;
