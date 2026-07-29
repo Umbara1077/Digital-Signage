@@ -205,9 +205,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                // Ensure openTime and closeTime are numbers
-                const openTime = parseInt(data.openTime, 10);
-                const closeTime = parseInt(data.closeTime, 10);
+                // Use today's per-day override hours if set, otherwise the default
+                // openTime/closeTime (the shape every other consumer reads).
+                const today = new Date().getDay();
+                const dh = (data.dayHours && (data.dayHours[today] || data.dayHours[String(today)])) || null;
+                const openTime = parseInt((dh && dh.openTime != null) ? dh.openTime : data.openTime, 10);
+                const closeTime = parseInt((dh && dh.closeTime != null) ? dh.closeTime : data.closeTime, 10);
 
                 // Convert HHMM format to hour and minute values
                 const openHour = Math.floor(openTime / 100);

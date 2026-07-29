@@ -615,21 +615,30 @@
             <h2>Update Business Hours (24 Hour Time)</h2>
             <form id="updateBusinessHoursForm">
 
-                <label for="openTime">Opening Time 24HR (HHMM):</label>
+                <label for="openTime">Default Opening Time 24HR (HHMM):</label>
                 <input type="number" id="openTime" name="openTime" min="0" max="2359" required>
 
-                <label for="closeTime">Closing Time 24HR (HHMM):</label>
+                <label for="closeTime">Default Closing Time 24HR (HHMM):</label>
                 <input type="number" id="closeTime" name="closeTime" min="0" max="2359" required>
+                <p style="color:#9aa3b2;font-size:.85rem;margin:6px 0 0;">Default hours apply to every open day unless you enter custom per-day hours below. (The mobile-order site and cafe signage always use these default hours.)</p>
 
                 <fieldset style="margin-top:12px">
-                    <legend>Open Days</legend>
-                    <label><input type="checkbox" name="openDays" value="0" id="day0"> Sun</label>
-                    <label><input type="checkbox" name="openDays" value="1" id="day1"> Mon</label>
-                    <label><input type="checkbox" name="openDays" value="2" id="day2"> Tue</label>
-                    <label><input type="checkbox" name="openDays" value="3" id="day3"> Wed</label>
-                    <label><input type="checkbox" name="openDays" value="4" id="day4"> Thu</label>
-                    <label><input type="checkbox" name="openDays" value="5" id="day5"> Fri</label>
-                    <label><input type="checkbox" name="openDays" value="6" id="day6"> Sat</label>
+                    <legend>Open Days &amp; Per-Day Hours</legend>
+                    <p style="color:#9aa3b2;font-size:.85rem;margin:0 0 8px;">Check a day to open it. Leave its time boxes blank to use the default hours, or enter a custom Open/Close (HHMM) just for that day.</p>
+                    <table style="border-collapse:collapse;width:100%;max-width:440px;">
+                        <thead><tr style="text-align:left;font-size:.82rem;color:#9aa3b2;">
+                            <th style="padding:4px 8px;">Open</th><th style="padding:4px 8px;">Day</th><th style="padding:4px 8px;">Open (HHMM)</th><th style="padding:4px 8px;">Close (HHMM)</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr><td style="padding:4px 8px;"><input type="checkbox" name="openDays" value="0" id="day0"></td><td style="padding:4px 8px;">Sun</td><td style="padding:4px 8px;"><input type="number" id="day0Open" min="0" max="2359" placeholder="default" style="width:96px;"></td><td style="padding:4px 8px;"><input type="number" id="day0Close" min="0" max="2359" placeholder="default" style="width:96px;"></td></tr>
+                            <tr><td style="padding:4px 8px;"><input type="checkbox" name="openDays" value="1" id="day1"></td><td style="padding:4px 8px;">Mon</td><td style="padding:4px 8px;"><input type="number" id="day1Open" min="0" max="2359" placeholder="default" style="width:96px;"></td><td style="padding:4px 8px;"><input type="number" id="day1Close" min="0" max="2359" placeholder="default" style="width:96px;"></td></tr>
+                            <tr><td style="padding:4px 8px;"><input type="checkbox" name="openDays" value="2" id="day2"></td><td style="padding:4px 8px;">Tue</td><td style="padding:4px 8px;"><input type="number" id="day2Open" min="0" max="2359" placeholder="default" style="width:96px;"></td><td style="padding:4px 8px;"><input type="number" id="day2Close" min="0" max="2359" placeholder="default" style="width:96px;"></td></tr>
+                            <tr><td style="padding:4px 8px;"><input type="checkbox" name="openDays" value="3" id="day3"></td><td style="padding:4px 8px;">Wed</td><td style="padding:4px 8px;"><input type="number" id="day3Open" min="0" max="2359" placeholder="default" style="width:96px;"></td><td style="padding:4px 8px;"><input type="number" id="day3Close" min="0" max="2359" placeholder="default" style="width:96px;"></td></tr>
+                            <tr><td style="padding:4px 8px;"><input type="checkbox" name="openDays" value="4" id="day4"></td><td style="padding:4px 8px;">Thu</td><td style="padding:4px 8px;"><input type="number" id="day4Open" min="0" max="2359" placeholder="default" style="width:96px;"></td><td style="padding:4px 8px;"><input type="number" id="day4Close" min="0" max="2359" placeholder="default" style="width:96px;"></td></tr>
+                            <tr><td style="padding:4px 8px;"><input type="checkbox" name="openDays" value="5" id="day5"></td><td style="padding:4px 8px;">Fri</td><td style="padding:4px 8px;"><input type="number" id="day5Open" min="0" max="2359" placeholder="default" style="width:96px;"></td><td style="padding:4px 8px;"><input type="number" id="day5Close" min="0" max="2359" placeholder="default" style="width:96px;"></td></tr>
+                            <tr><td style="padding:4px 8px;"><input type="checkbox" name="openDays" value="6" id="day6"></td><td style="padding:4px 8px;">Sat</td><td style="padding:4px 8px;"><input type="number" id="day6Open" min="0" max="2359" placeholder="default" style="width:96px;"></td><td style="padding:4px 8px;"><input type="number" id="day6Close" min="0" max="2359" placeholder="default" style="width:96px;"></td></tr>
+                        </tbody>
+                    </table>
                 </fieldset>
 
                 <button type="submit">Update Business Hours</button>
@@ -718,13 +727,20 @@
                         document.getElementById("openTime").value = data.openTime;
                         document.getElementById("closeTime").value = data.closeTime;
 
-                        // NEW: set day checkboxes from Firestore openDays (0=Sun … 6=Sat)
+                        // set day checkboxes from Firestore openDays (0=Sun … 6=Sat)
                         const openDays = Array.isArray(data.openDays)
                             ? data.openDays.map(n => parseInt(n, 10))
                             : [];
+                        // optional per-day override hours { "<day>": { openTime, closeTime } }
+                        const dayHours = (data.dayHours && typeof data.dayHours === "object") ? data.dayHours : {};
                         for (let d = 0; d <= 6; d++) {
                             const el = document.getElementById(`day${d}`);
                             if (el) el.checked = openDays.includes(d);
+                            const dh = dayHours[d] || dayHours[String(d)];   // keys may be numeric or string
+                            const openEl = document.getElementById(`day${d}Open`);
+                            const closeEl = document.getElementById(`day${d}Close`);
+                            if (openEl) openEl.value = (dh && dh.openTime != null) ? dh.openTime : "";
+                            if (closeEl) closeEl.value = (dh && dh.closeTime != null) ? dh.closeTime : "";
                         }
                     }
                 })
@@ -736,16 +752,40 @@
             const openTime = parseInt(document.getElementById("openTime").value);
             const closeTime = parseInt(document.getElementById("closeTime").value);
 
-            // NEW: collect checked days as integers
+            // collect checked days as integers
             const openDays = Array.from(document.querySelectorAll('input[name="openDays"]:checked'))
                 .map(el => parseInt(el.value, 10));
 
-            db.collection("business_hours").doc("hours").set(
-                { openTime, closeTime, openDays },   // include openDays
-                { merge: true }
-            )
+            // per-day overrides: only for open days that have BOTH a valid open and
+            // close time entered. Left blank => that day uses the default hours.
+            // Backward-compatible: openTime/closeTime/openDays keep their exact meaning
+            // (the mobile-order site and cafe signage read only those); dayHours is
+            // additive and ignored by anything that doesn't know about it.
+            const dayHours = {};
+            openDays.forEach(d => {
+                const oEl = document.getElementById(`day${d}Open`);
+                const cEl = document.getElementById(`day${d}Close`);
+                const o = oEl ? parseInt(oEl.value, 10) : NaN;
+                const c = cEl ? parseInt(cEl.value, 10) : NaN;
+                if (!isNaN(o) && !isNaN(c)) dayHours[d] = { openTime: o, closeTime: c };
+            });
+
+            // update() replaces the dayHours map wholesale (so a removed override
+            // doesn't linger the way a merge would) while leaving any other fields
+            // untouched; fall back to set() if the doc doesn't exist yet.
+            const ref = db.collection("business_hours").doc("hours");
+            const payload = { openTime, closeTime, openDays, dayHours };
+            ref.update(payload)
                 .then(() => alert("Business hours updated successfully!"))
-                .catch((error) => console.error("Error updating business hours:", error));
+                .catch((error) => {
+                    if (error && error.code === "not-found") {
+                        ref.set(payload)
+                            .then(() => alert("Business hours updated successfully!"))
+                            .catch((e2) => console.error("Error creating business hours:", e2));
+                    } else {
+                        console.error("Error updating business hours:", error);
+                    }
+                });
         });
 
         fetchCurrentBusinessHours();
