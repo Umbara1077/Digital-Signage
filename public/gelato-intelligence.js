@@ -520,9 +520,12 @@
         });
         if (expand) expand.addEventListener('click', () => setCollapsed(false));
 
-        try {
-            if (localStorage.getItem('giCollapsed') === '1') setCollapsed(true);
-        } catch (_) { /* ignore */ }
+        // Default to MINIMIZED so the panel doesn't take over the view on load.
+        // Only stay expanded if the user explicitly expanded it before ('0'); a
+        // missing/unavailable preference falls through to minimized.
+        let giPref = null;
+        try { giPref = localStorage.getItem('giCollapsed'); } catch (_) { /* ignore */ }
+        if (giPref !== '0') setCollapsed(true);
 
         if (form) {
             form.addEventListener('submit', e => {
