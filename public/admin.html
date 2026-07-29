@@ -724,15 +724,20 @@
                 .then((doc) => {
                     if (doc.exists) {
                         const data = doc.data();
-                        document.getElementById("openTime").value = data.openTime;
-                        document.getElementById("closeTime").value = data.closeTime;
+                        // optional per-day hours: { default:{openTime,closeTime},
+                        // "<day>":{openTime,closeTime} }. The flat openTime/closeTime
+                        // are a live "today" mirror written by the signage, so the
+                        // Default inputs read from dayHours.default when present and
+                        // only fall back to the flat fields for legacy docs.
+                        const dayHours = (data.dayHours && typeof data.dayHours === "object") ? data.dayHours : {};
+                        const def = dayHours.default || null;
+                        document.getElementById("openTime").value = (def && def.openTime != null) ? def.openTime : data.openTime;
+                        document.getElementById("closeTime").value = (def && def.closeTime != null) ? def.closeTime : data.closeTime;
 
                         // set day checkboxes from Firestore openDays (0=Sun … 6=Sat)
                         const openDays = Array.isArray(data.openDays)
                             ? data.openDays.map(n => parseInt(n, 10))
                             : [];
-                        // optional per-day override hours { "<day>": { openTime, closeTime } }
-                        const dayHours = (data.dayHours && typeof data.dayHours === "object") ? data.dayHours : {};
                         for (let d = 0; d <= 6; d++) {
                             const el = document.getElementById(`day${d}`);
                             if (el) el.checked = openDays.includes(d);
@@ -749,19 +754,20 @@
 
         form.addEventListener("submit", (event) => {
             event.preventDefault();
-            const openTime = parseInt(document.getElementById("openTime").value);
-            const closeTime = parseInt(document.getElementById("closeTime").value);
+            const defaultOpen = parseInt(document.getElementById("openTime").value);
+            const defaultClose = parseInt(document.getElementById("closeTime").value);
 
             // collect checked days as integers
             const openDays = Array.from(document.querySelectorAll('input[name="openDays"]:checked'))
                 .map(el => parseInt(el.value, 10));
 
-            // per-day overrides: only for open days that have BOTH a valid open and
-            // close time entered. Left blank => that day uses the default hours.
-            // Backward-compatible: openTime/closeTime/openDays keep their exact meaning
-            // (the mobile-order site and cafe signage read only those); dayHours is
-            // additive and ignored by anything that doesn't know about it.
-            const dayHours = {};
+            // dayHours holds the base ("default") hours plus any per-day overrides
+            // (open days with BOTH an open and close time entered; blank => default).
+            // dayHours is the source of truth for per-day times; the flat
+            // openTime/closeTime are a "today" mirror the signage keeps in sync so
+            // the mobile-order site and cafe signage (which read only the flat fields)
+            // show today's hours with no change to them.
+            const dayHours = { default: { openTime: defaultOpen, closeTime: defaultClose } };
             openDays.forEach(d => {
                 const oEl = document.getElementById(`day${d}Open`);
                 const cEl = document.getElementById(`day${d}Close`);
@@ -769,6 +775,13 @@
                 const c = cEl ? parseInt(cEl.value, 10) : NaN;
                 if (!isNaN(o) && !isNaN(c)) dayHours[d] = { openTime: o, closeTime: c };
             });
+
+            // seed the flat fields with TODAY's resolved hours so consumers are
+            // correct immediately (the always-on signage maintains them afterward)
+            const today = new Date().getDay();
+            const todayOv = dayHours[today];
+            const openTime = todayOv ? todayOv.openTime : defaultOpen;
+            const closeTime = todayOv ? todayOv.closeTime : defaultClose;
 
             // update() replaces the dayHours map wholesale (so a removed override
             // doesn't linger the way a merge would) while leaving any other fields

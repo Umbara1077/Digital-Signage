@@ -56,13 +56,37 @@
                             return;
                         }
 
-                        // Use today's per-day override hours if set, otherwise the
-                        // default openTime/closeTime (the shape every other consumer
-                        // reads). dayHours is optional and additive.
-                        const today = new Date().getDay();
-                        const dh = (data.dayHours && (data.dayHours[today] || data.dayHours[String(today)])) || null;
-                        const openTime = parseInt((dh && dh.openTime != null) ? dh.openTime : data.openTime, 10);
-                        const closeTime = parseInt((dh && dh.closeTime != null) ? dh.closeTime : data.closeTime, 10);
+                        // Resolve TODAY's hours: a per-day override wins, else the
+                        // stored base hours (dayHours.default), else the flat fields
+                        // (legacy docs). Uses the same new Date().getDay() basis as
+                        // the open/closed check below, so it rolls over with the day.
+                        const now = new Date();
+                        const today = now.getDay();
+                        const dh = (data.dayHours && typeof data.dayHours === "object") ? data.dayHours : {};
+                        const storedOpen = parseInt(data.openTime, 10);
+                        const storedClose = parseInt(data.closeTime, 10);
+                        const baseOpen = (dh.default && dh.default.openTime != null) ? parseInt(dh.default.openTime, 10) : storedOpen;
+                        const baseClose = (dh.default && dh.default.closeTime != null) ? parseInt(dh.default.closeTime, 10) : storedClose;
+                        const ov = dh[today] || dh[String(today)] || null;
+                        const openTime = (ov && ov.openTime != null) ? parseInt(ov.openTime, 10) : baseOpen;
+                        const closeTime = (ov && ov.closeTime != null) ? parseInt(ov.closeTime, 10) : baseClose;
+
+                        // Keep the flat openTime/closeTime mirrored to TODAY's hours so
+                        // apps that read only those fields (mobile order, cafe signage)
+                        // show per-day hours with no change to them. Write ONLY when the
+                        // stored value differs, so idle loads and multiple signage
+                        // screens don't loop — concurrent writes are the same value and
+                        // converge. (dayHours.default is bootstrapped from the flat
+                        // fields for legacy docs that have overrides but no stored base,
+                        // so mirroring can't clobber the base hours.)
+                        const hasOverrides = [0, 1, 2, 3, 4, 5, 6].some(d => dh[d] || dh[String(d)]);
+                        const syncUpdates = {};
+                        if (openTime !== storedOpen || closeTime !== storedClose) { syncUpdates.openTime = openTime; syncUpdates.closeTime = closeTime; }
+                        if (!dh.default && hasOverrides) { syncUpdates["dayHours.default"] = { openTime: baseOpen, closeTime: baseClose }; }
+                        if (Object.keys(syncUpdates).length) {
+                            db.collection("business_hours").doc("hours").update(syncUpdates)
+                                .catch((e) => console.error("Hours mirror sync failed:", e));
+                        }
 
                         // Convert HHMM format to hour and minute values
                         const openHour = Math.floor(openTime / 100);
@@ -256,81 +280,6 @@
         });
     </script>
 
-    <!--
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            function checkTime() {
-                const now = new Date();
-                const day = now.getDay();
-                const hours = now.getHours();
-                const minutes = now.getMinutes();
-                
-                // Business hours for Wednesday and Thursday (7 AM to 8 PM) and Friday to Sunday (7 AM to 8 PM)
-                const isWednesdayOrThursday = (day === 3 || day === 4);
-                const isFridayToSunday = (day === 0 || (day >= 5 && day <= 6)); // Include Sunday as part of business days
-                
-                // Business hours logic
-                const isOpenHoursWednesdayThursday = (hours >= 7 && (hours < 20 || (hours === 20 && minutes === 0)));
-                const isOpenHoursFridayToSunday = (hours >= 7 && (hours < 20 || (hours === 20 && minutes === 0)));
-                
-                // Determine if the business is open
-                const isBusinessDay = isWednesdayOrThursday || isFridayToSunday;
-                const isOpenHours = (isWednesdayOrThursday && isOpenHoursWednesdayThursday) || 
-                                    (isFridayToSunday && isOpenHoursFridayToSunday);
-                
-                const currentPage = window.location.pathname;
-                
-                // Console logs to verify time zones
-                console.log(`index.html - Day: ${day}, Hours: ${hours}:${minutes}`);
-                console.log(`index.html - Is Business Day: ${isBusinessDay}, Is Open Hours: ${isOpenHours}`);
-                
-                if (isBusinessDay) {
-                    console.log(isWednesdayOrThursday ? "Time Zone: Wednesday and Thursday (7 AM to 8 PM)" 
-                                                      : "Time Zone: Friday-Sunday (7 AM to 8 PM)");
-                }
-    
-                if (!isBusinessDay || !isOpenHours) {
-                    if (currentPage !== "/early.html") {
-                        console.log("Redirecting to early.html");
-                        setTimeout(() => {
-                            window.location.href = "early.html";
-                        }, 500);
-                    }
-                } else {
-                    if (currentPage === "/early.html") {
-                        console.log("Redirecting to index.html");
-                        setTimeout(() => {
-                            window.location.href = "index.html";
-                        }, 500);
-                    }
-                }
-            }
-    
-            checkTime();
-            setInterval(checkTime, 60000);
-                const delay = Math.random() * 5; // 0-5s
-                const size = Math.random() * 4 + 3; // 3-7px for snow
-
-                particle.style.left = `${startLeft}%`;
-                particle.style.animation = `snowfall ${duration}s linear infinite`;
-                particle.style.animationDelay = `-${delay}s`; // Start immediately with offset
-
-                if (!isFlag) {
-                    particle.style.width = `${size}px`;
-                    particle.style.height = `${size}px`;
-                }
-
-                snowContainer.appendChild(particle);
-            }
-
-            // Create particles
-            const particleCount = 150; // Total particles (increased for more density)
-            for (let i = 0; i < particleCount; i++) {
-                // 1 in 6 particles is a flag
-                createParticle(i % 6 === 0);
-            }
-        });
-    </script> -->
 </body>
 
 </html>

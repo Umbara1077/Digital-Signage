@@ -205,12 +205,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                // Use today's per-day override hours if set, otherwise the default
-                // openTime/closeTime (the shape every other consumer reads).
-                const today = new Date().getDay();
-                const dh = (data.dayHours && (data.dayHours[today] || data.dayHours[String(today)])) || null;
-                const openTime = parseInt((dh && dh.openTime != null) ? dh.openTime : data.openTime, 10);
-                const closeTime = parseInt((dh && dh.closeTime != null) ? dh.closeTime : data.closeTime, 10);
+                // Resolve TODAY's hours: a per-day override wins, else the stored
+                // base hours (dayHours.default), else the flat fields (legacy docs).
+                // Same new Date().getDay() basis as the open/closed check, so it
+                // rolls over with the day.
+                const now = new Date();
+                const today = now.getDay();
+                const dh = (data.dayHours && typeof data.dayHours === "object") ? data.dayHours : {};
+                const storedOpen = parseInt(data.openTime, 10);
+                const storedClose = parseInt(data.closeTime, 10);
+                const baseOpen = (dh.default && dh.default.openTime != null) ? parseInt(dh.default.openTime, 10) : storedOpen;
+                const baseClose = (dh.default && dh.default.closeTime != null) ? parseInt(dh.default.closeTime, 10) : storedClose;
+                const ov = dh[today] || dh[String(today)] || null;
+                const openTime = (ov && ov.openTime != null) ? parseInt(ov.openTime, 10) : baseOpen;
+                const closeTime = (ov && ov.closeTime != null) ? parseInt(ov.closeTime, 10) : baseClose;
+
+                // Mirror TODAY's hours into the flat openTime/closeTime so apps that
+                // read only those (mobile order, cafe signage) show per-day hours with
+                // no change to them. Write ONLY when different, so idle loads and
+                // multiple signage screens don't loop (concurrent writes converge).
+                const hasOverrides = [0, 1, 2, 3, 4, 5, 6].some(d => dh[d] || dh[String(d)]);
+                const syncUpdates = {};
+                if (openTime !== storedOpen || closeTime !== storedClose) { syncUpdates.openTime = openTime; syncUpdates.closeTime = closeTime; }
+                if (!dh.default && hasOverrides) { syncUpdates["dayHours.default"] = { openTime: baseOpen, closeTime: baseClose }; }
+                if (Object.keys(syncUpdates).length) {
+                    db.collection("business_hours").doc("hours").update(syncUpdates)
+                        .catch((e) => console.error("Hours mirror sync failed:", e));
+                }
 
                 // Convert HHMM format to hour and minute values
                 const openHour = Math.floor(openTime / 100);
@@ -265,80 +286,6 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 
-    <!---
-    <script>
-        function startCountdown(duration, callback) {
-            let countdown = duration;
-            const countdownTimer = document.getElementById('countdown-timer');
-            countdownTimer.style.display = 'block';
-            countdownTimer.textContent = `${Math.floor(countdown / 60)}:${(countdown % 60).toString().padStart(2, '0')}`;
-    
-            const countdownInterval = setInterval(() => {
-                countdown -= 1;
-                countdownTimer.textContent = `${Math.floor(countdown / 60)}:${(countdown % 60).toString().padStart(2, '0')}`;
-                if (countdown <= 0) {
-                    clearInterval(countdownInterval);
-                    callback();
-                }
-            }, 1000);
-        }
-    
-        function checkTime() {
-            const now = new Date();
-            const day = now.getDay();
-            const hours = now.getHours();
-            const minutes = now.getMinutes();
-            const seconds = now.getSeconds();
-    
-            // Business hours for Wednesday and Thursday (7 AM to 8 PM) and Friday to Sunday (7 AM to 8 PM)
-            const isWednesdayOrThursday = (day === 3 || day === 4);
-            const isFridayToSunday = (day === 0 || (day >= 5 && day <= 6)); // Include Sunday as part of business days
-            
-            // Countdown period from 6:30 AM to 7:00 AM on business days
-            const isCountdownPeriod = (hours === 6 && minutes >= 30) || (hours === 7 && minutes === 0);
-            
-            // Business hours logic
-            const isOpenHoursWednesdayThursday = (hours > 7 || (hours === 7 && minutes >= 0)) && (hours < 20 || (hours === 20 && minutes === 0));
-            const isOpenHoursFridayToSunday = (hours > 7 || (hours === 7 && minutes >= 0)) && (hours < 20 || (hours === 20 && minutes === 0));
-    
-            const isBusinessDay = isWednesdayOrThursday || isFridayToSunday;
-            const isOpenHours = (isWednesdayOrThursday && isOpenHoursWednesdayThursday) || 
-                                (isFridayToSunday && isOpenHoursFridayToSunday);
-    
-            console.log(`early.html - Current Time: ${hours}:${minutes}:${seconds}`);
-            console.log(`early.html - Day of Week: ${day}`);
-            console.log(`early.html - Is Business Day: ${isBusinessDay}`);
-            console.log(`early.html - Countdown Period: ${isCountdownPeriod}`);
-            console.log(`early.html - Open Hours: ${isOpenHours}`);
-    
-            if (isBusinessDay) {
-                console.log(isWednesdayOrThursday ? "Time Zone: Wednesday and Thursday (7 AM to 8 PM)"
-                                                  : "Time Zone: Friday-Sunday (7 AM to 8 PM)");
-            }
-    
-            if (isOpenHours && isBusinessDay) {
-                console.log("Redirecting to index.html from early.html");
-                setTimeout(() => {
-                    window.location.href = "index.html";
-                }, 500);
-            } else if (isCountdownPeriod && isBusinessDay) {
-                const targetTime = new Date(now);
-                targetTime.setHours(7, 0, 0, 0); // Set target to 7:00 AM
-                const remainingTime = Math.floor((targetTime - now) / 1000); // in seconds
-                console.log("Starting Countdown to Opening");
-                startCountdown(remainingTime, () => window.location.href = "index.html");
-            } else {
-                console.log("Not within Business Hours or Countdown Period - Display 'Check back later!'");
-                const countdownTimer = document.getElementById('countdown-timer');
-                if (countdownTimer) {
-                    countdownTimer.textContent = "Check back later!";
-                }
-            }
-        }
-    
-        checkTime();
-        setInterval(checkTime, 60000); // Check every minute
-    </script> -->
     
 </body>
 </html>
