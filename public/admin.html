@@ -526,14 +526,23 @@
     </header>
 
     <main>
-        <!-- ===================== DVG INTELLIGENCE (full banner — same layout as gelato expanded panel) ===================== -->
-        <section class="gi-banner gi-collecting" id="gelato-intelligence" data-gi-mode="inline" aria-label="DVG Intelligence">
-            <div class="gi-body" id="gi-body">
+        <!-- ===================== DVG INTELLIGENCE (loads minimized; Open expands full pink banner) ===================== -->
+        <section class="gi-banner gi-collecting is-collapsed" id="gelato-intelligence" data-gi-mode="inline" aria-label="DVG Intelligence">
+            <button type="button" class="gi-collapsed-bar" id="gi-expand">
+                <svg class="gi-star-mini" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2l1.7 6.2L20 12l-6.3 1.6L12 21.8l-1.7-8.2L4 12l6.3-3.6L12 2.2z"/></svg>
+                <strong>DVG Intelligence</strong>
+                <span class="gi-collapsed-msg" id="gi-collapsed-msg">Still gathering information</span>
+                <span class="gi-expand-cta">Open</span>
+            </button>
+
+            <div class="gi-body" id="gi-body" hidden>
                 <div class="gi-wash" aria-hidden="true"></div>
                 <div class="gi-sheen" aria-hidden="true"></div>
                 <div class="gi-blob gi-blob-a" aria-hidden="true"></div>
                 <div class="gi-blob gi-blob-b" aria-hidden="true"></div>
                 <div class="gi-blob gi-blob-c" aria-hidden="true"></div>
+
+                <button type="button" class="gi-icon-btn gi-minimize" id="gi-minimize" title="Minimize" aria-label="Minimize DVG Intelligence">−</button>
 
                 <div class="gi-hero">
                     <div class="gi-badge-row">
