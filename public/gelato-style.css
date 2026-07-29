@@ -3120,7 +3120,64 @@ body.g-mobile main {
     box-shadow: 0 3px 7px rgba(224, 121, 110, 0.3);
 }
 
-/* ----- Collapsed strip ------------------------------------------------ */
+/* ----- Topbar open button (gelato) ------------------------------------ */
+.gi-open-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.gi-open-btn .gi-star-mini {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+}
+.gi-open-btn .gi-star-mini path { fill: #ffd0e4; }
+.gi-open-btn.is-open {
+    box-shadow: 0 0 0 2px rgba(226, 86, 143, 0.45);
+}
+
+/* ----- Popover shell (gelato: zero layout space when closed) ---------- */
+.gi-popover-root {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 16px 12px 24px;
+    overflow: auto;
+    box-sizing: border-box;
+}
+.gi-popover-root[hidden] {
+    display: none !important;
+}
+.gi-popover-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    background: rgba(18, 10, 24, 0.48);
+}
+.gi-popover-root .gi-banner {
+    position: relative;
+    z-index: 1;
+    margin: 8px auto 0;
+    width: min(100%, 1180px);
+    flex: 0 0 auto;
+}
+
+/* Inline (admin): full banner in document flow above hero buttons */
+.gi-banner[data-gi-mode="inline"] {
+    margin: 8px auto 28px;
+}
+.gi-banner[data-gi-mode="inline"] .gi-minimize {
+    display: none;
+}
+
+/* ----- Legacy collapsed strip (unused on gelato/admin now) ------------ */
 .gi-collapsed-bar {
     display: none;
     width: 100%;
