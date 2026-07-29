@@ -53,6 +53,9 @@
     let lastSnapshotAt = 0;
     let chatBusy = false;
     let started = false;
+    /* 'popover' = gelato topbar button (no layout space when closed)
+     * 'inline'  = always-visible full banner (admin) */
+    let uiMode = 'popover';
 
     const todayStr = () => new Date().toLocaleDateString('en-CA', { timeZone: SHOP.timezone });
     const stamp = () => firebase.firestore.FieldValue.serverTimestamp();
@@ -70,6 +73,14 @@
         return !settings.geminiReady || eventCount < MIN_EVENTS_FOR_READY;
     }
 
+    function detectMode(opts) {
+        if (opts && (opts.mode === 'inline' || opts.mode === 'popover')) return opts.mode;
+        const root = document.getElementById('gelato-intelligence');
+        const attr = root && root.getAttribute('data-gi-mode');
+        if (attr === 'inline' || attr === 'popover') return attr;
+        return document.getElementById('gi-open') ? 'popover' : 'inline';
+    }
+
     /* ----- Boot ---------------------------------------------------------- */
     function init(opts) {
         if (started) return;
@@ -77,6 +88,9 @@
         getSnapshot = (opts && opts.getSnapshot) || (() => null);
         if (!db || !document.getElementById('gelato-intelligence')) return;
         started = true;
+        uiMode = detectMode(opts);
+        const root = document.getElementById('gelato-intelligence');
+        if (root) root.setAttribute('data-gi-mode', uiMode);
 
         wireUi();
         ensureSettings();
@@ -306,15 +320,37 @@
         };
     }
 
-    function setCollapsed(collapsed) {
+    function setPanelOpen(open) {
         const root = document.getElementById('gelato-intelligence');
-        const body = document.getElementById('gi-body');
-        const strip = document.getElementById('gi-expand');
-        if (!root || !body || !strip) return;
-        root.classList.toggle('is-collapsed', collapsed);
-        body.hidden = !!collapsed;
-        strip.hidden = !collapsed;
-        try { localStorage.setItem('giCollapsed', collapsed ? '1' : '0'); } catch (_) { /* ignore */ }
+        const wrap = document.getElementById('gi-popover-root');
+        const openBtn = document.getElementById('gi-open');
+        if (!root) return;
+
+        if (uiMode === 'inline') {
+            // Admin: always expanded — ignore close requests
+            root.classList.remove('is-collapsed');
+            if (wrap) wrap.removeAttribute('hidden');
+            return;
+        }
+
+        // Popover (gelato): closed = zero layout space; open = overlay with same banner
+        if (wrap) {
+            if (open) wrap.removeAttribute('hidden');
+            else wrap.setAttribute('hidden', '');
+        } else {
+            root.classList.toggle('is-collapsed', !open);
+        }
+        if (openBtn) {
+            openBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            openBtn.classList.toggle('is-open', !!open);
+        }
+        try { localStorage.setItem('giOpen', open ? '1' : '0'); } catch (_) { /* ignore */ }
+        if (!open) setChatOpen(false);
+    }
+
+    /* Back-compat alias used by older call sites */
+    function setCollapsed(collapsed) {
+        setPanelOpen(!collapsed);
     }
 
     function setChatOpen(open) {
@@ -341,10 +377,8 @@
         const hero = heroMessage(shop);
         const lead = document.getElementById('gi-lead');
         const sub = document.getElementById('gi-sub');
-        const collapsedMsg = document.getElementById('gi-collapsed-msg');
         if (lead) lead.textContent = hero.text;
         if (sub) sub.textContent = hero.sub;
-        if (collapsedMsg) collapsedMsg.textContent = hero.text;
 
         const label = document.getElementById('gi-progress-label');
         if (label) {
@@ -508,24 +542,36 @@
         const form = document.getElementById('gi-chat-form');
         const input = document.getElementById('gi-chat-input');
         const minimize = document.getElementById('gi-minimize');
-        const expand = document.getElementById('gi-expand');
+        const openBtn = document.getElementById('gi-open');
+        const backdrop = document.getElementById('gi-backdrop');
 
         if (toggle && panel) {
             toggle.addEventListener('click', () => setChatOpen(panel.hasAttribute('hidden')));
         }
         if (closeChat) closeChat.addEventListener('click', () => setChatOpen(false));
-        if (minimize) minimize.addEventListener('click', () => {
-            setChatOpen(false);
-            setCollapsed(true);
-        });
-        if (expand) expand.addEventListener('click', () => setCollapsed(false));
+        if (minimize) minimize.addEventListener('click', () => setPanelOpen(false));
+        if (openBtn) {
+            openBtn.addEventListener('click', () => {
+                const wrap = document.getElementById('gi-popover-root');
+                const isOpen = wrap ? !wrap.hasAttribute('hidden') : false;
+                setPanelOpen(!isOpen);
+            });
+        }
+        if (backdrop) backdrop.addEventListener('click', () => setPanelOpen(false));
 
-        // Default to MINIMIZED so the panel doesn't take over the view on load.
-        // Only stay expanded if the user explicitly expanded it before ('0'); a
-        // missing/unavailable preference falls through to minimized.
-        let giPref = null;
-        try { giPref = localStorage.getItem('giCollapsed'); } catch (_) { /* ignore */ }
-        if (giPref !== '0') setCollapsed(true);
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && uiMode === 'popover') setPanelOpen(false);
+        });
+
+        if (uiMode === 'inline') {
+            setPanelOpen(true);
+        } else {
+            // Popover starts closed so the gelato page loses no vertical space.
+            // Honor an explicit prior "open" preference only.
+            let giPref = null;
+            try { giPref = localStorage.getItem('giOpen'); } catch (_) { /* ignore */ }
+            setPanelOpen(giPref === '1');
+        }
 
         if (form) {
             form.addEventListener('submit', e => {

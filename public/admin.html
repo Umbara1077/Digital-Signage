@@ -4,6 +4,7 @@
 <head>
     <title>Admin Panel</title>
     <link rel="stylesheet" type="text/css" href="admin-style.css">
+    <link rel="stylesheet" type="text/css" href="gelato-style.css">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-firestore.js"></script>
@@ -11,6 +12,7 @@
     <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-auth.js"></script>
     <script src="firebaseConfig.js"></script>
     <script src="admin-script.js"></script>
+    <script defer src="gelato-intelligence.js"></script>
     <link rel="icon" href="DolceLogo-Admin.png" type="image/x-icon">
     <style>
         .btn {
@@ -524,6 +526,73 @@
     </header>
 
     <main>
+        <!-- ===================== DVG INTELLIGENCE (full banner — same layout as gelato expanded panel) ===================== -->
+        <section class="gi-banner gi-collecting" id="gelato-intelligence" data-gi-mode="inline" aria-label="DVG Intelligence">
+            <div class="gi-body" id="gi-body">
+                <div class="gi-wash" aria-hidden="true"></div>
+                <div class="gi-sheen" aria-hidden="true"></div>
+                <div class="gi-blob gi-blob-a" aria-hidden="true"></div>
+                <div class="gi-blob gi-blob-b" aria-hidden="true"></div>
+                <div class="gi-blob gi-blob-c" aria-hidden="true"></div>
+
+                <div class="gi-hero">
+                    <div class="gi-badge-row">
+                        <span class="gi-badge">Brand new</span>
+                        <span class="gi-eyebrow">Dolce Vita Gelateria · Sewell, NJ</span>
+                    </div>
+
+                    <div class="gi-title-row">
+                        <h2 class="gi-title">DVG Intelligence</h2>
+                        <span class="gi-star-wrap" aria-hidden="true">
+                            <svg class="gi-star" viewBox="0 0 64 64">
+                                <path d="M32 4l5.8 20.2L58 32l-20.2 5.8L32 60l-5.8-22.2L6 32l20.2-7.8L32 4z"/>
+                            </svg>
+                            <svg class="gi-star gi-star-sm" viewBox="0 0 64 64">
+                                <path d="M32 4l5.8 20.2L58 32l-20.2 5.8L32 60l-5.8-22.2L6 32l20.2-7.8L32 4z"/>
+                            </svg>
+                        </span>
+                    </div>
+
+                    <h3 class="gi-headline">
+                        <span class="gi-dot" aria-hidden="true"></span>
+                        <span id="gi-lead">Still gathering information</span>
+                    </h3>
+                    <p class="gi-sub" id="gi-sub">
+                        Soon it will read every pan, price, and Sewell forecast to tell you exactly what to make and what
+                        it earns you.
+                    </p>
+
+                    <div class="gi-progress" id="gi-progress">
+                        <div class="gi-progress-track"><span class="gi-progress-fill" id="gi-progress-fill"></span></div>
+                        <span class="gi-progress-label" id="gi-progress-label">Learning your shop</span>
+                    </div>
+
+                    <button type="button" class="gi-chat-btn" id="gi-chat-toggle" aria-expanded="false" aria-controls="gi-chat">
+                        <svg class="gi-btn-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2l1.7 6.2L20 12l-6.3 1.6L12 21.8l-1.7-8.2L4 12l6.3-3.6L12 2.2z"/></svg>
+                        <span id="gi-chat-toggle-label">Chat with DVG Intelligence</span>
+                    </button>
+                </div>
+
+                <div class="gi-chat" id="gi-chat" hidden>
+                    <div class="gi-chat-head">
+                        <strong>DVG Intelligence</strong>
+                        <button type="button" class="gi-icon-btn" id="gi-chat-close" title="Close chat" aria-label="Close chat">✕</button>
+                    </div>
+                    <div class="gi-chat-log" id="gi-chat-log" role="log" aria-live="polite"></div>
+                    <form class="gi-chat-form" id="gi-chat-form">
+                        <input type="text" id="gi-chat-input" maxlength="500" placeholder="Ask about profit, stock, weather, what to make…" autocomplete="off" aria-label="Message DVG Intelligence">
+                        <button type="submit" class="gi-chat-btn gi-chat-send">Send</button>
+                    </form>
+                </div>
+
+                <div class="gi-insights-head">
+                    <h4>Insights</h4>
+                    <span class="gi-insights-note" id="gi-insights-note">Live now · more unlock as data builds</span>
+                </div>
+                <div class="gi-insights" id="gi-insights" aria-label="DVG Intelligence insights"></div>
+            </div>
+        </section>
+
         <div class="top-actions">
             <button id="view-main-button" class="hero-btn"><span class="blob-clip"></span>View Menu Page</button>
             <a href="https://dolcecaffesignage.web.app/admin.html" class="btn hero-btn"><span class="blob-clip"></span>Pricing Menu<span class="new-badge">✨ NEW</span></a>
@@ -715,6 +784,136 @@
         document.getElementById('view-main-button').addEventListener('click', function () {
             window.location.href = 'index.html';
         });
+    </script>
+    <script>
+        /* Boot DVG Intelligence on admin with a live Firestore inventory snapshot
+         * (same collections the gelato page uses). Banner stays fully expanded. */
+        (function () {
+            const GRAMS_PER_PAN = 7500;
+            const CASE_SLOTS = 18;
+            const SWAP_THRESHOLD = 0.5;
+            const EPS = 1e-6;
+            const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
+            const todayStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+
+            let inventory = [];
+            let usageToday = { usedPans: 0, wastedPans: 0 };
+            let pricePerGram = 0.035;
+            let costPerPan = r2(0.035 * GRAMS_PER_PAN);
+            let moves = [];
+
+            function sumLoc(key) {
+                return r2(inventory.reduce((s, f) => s + (Number(f[key]) || 0), 0));
+            }
+            function sumLocGelato(key) {
+                return r2(inventory.reduce((s, f) => {
+                    if (f.isDummy) return s;
+                    return s + (Number(f[key]) || 0);
+                }, 0));
+            }
+            function casePans() {
+                return inventory.filter(f => f.casePan != null && f.casePan >= 1);
+            }
+            function activePans() {
+                return r2(casePans().reduce((s, f) => s + (Number(f.active) || 0), 0));
+            }
+            function todaysMovement() {
+                const today = todayStr();
+                const byType = {};
+                let count = 0;
+                moves.forEach(m => {
+                    const at = (m.at && typeof m.at.toDate === 'function') ? m.at.toDate() : null;
+                    if (!at || at.toLocaleDateString('en-CA') !== today) return;
+                    count++;
+                    const type = m.type || 'other';
+                    byType[type] = (byType[type] || 0) + 1;
+                });
+                const topType = Object.keys(byType).sort((a, b) => byType[b] - byType[a])[0] || null;
+                return {
+                    movesToday: count,
+                    logDepth: moves.length,
+                    byType,
+                    topType,
+                    topTypeCount: topType ? byType[topType] : 0,
+                    flavorsTouched: 0,
+                    topFlavor: null
+                };
+            }
+            function buildSnapshot() {
+                const caseList = casePans().slice().sort((a, b) => a.casePan - b.casePan).map(f => ({
+                    id: f.id,
+                    name: f.name || '',
+                    pan: f.casePan,
+                    active: r2(f.active || 0)
+                }));
+                const lowPans = caseList.filter(p => p.active <= SWAP_THRESHOLD + EPS);
+                const caseAmt = activePans();
+                const shortAmt = sumLoc('shortTerm');
+                const longAmt = sumLocGelato('longTerm');
+                const totalAmt = r2(caseAmt + shortAmt + longAmt);
+                return {
+                    pricing: { pricePerGram, costPerPan, gramsPerPan: GRAMS_PER_PAN },
+                    totals: {
+                        casePans: caseAmt,
+                        caseSlots: caseList.length,
+                        caseSlotsMax: CASE_SLOTS,
+                        shortPans: shortAmt,
+                        longPans: longAmt,
+                        totalPans: totalAmt,
+                        caseValue: r2(caseAmt * costPerPan),
+                        shortValue: r2(shortAmt * costPerPan),
+                        longValue: r2(longAmt * costPerPan),
+                        totalValue: r2(totalAmt * costPerPan)
+                    },
+                    case: caseList,
+                    lowPans,
+                    usage: {
+                        usedPans: r2(usageToday.usedPans || 0),
+                        wastedPans: r2(usageToday.wastedPans || 0),
+                        date: todayStr()
+                    },
+                    movement: todaysMovement(),
+                    queueLength: 0
+                };
+            }
+
+            function boot() {
+                if (!window.GelatoIntelligence || typeof GelatoIntelligence.init !== 'function' || typeof db === 'undefined') {
+                    setTimeout(boot, 50);
+                    return;
+                }
+                GelatoIntelligence.init({
+                    db: db,
+                    mode: 'inline',
+                    getSnapshot: buildSnapshot
+                });
+                db.collection('gelatoInventory').onSnapshot(snap => {
+                    inventory = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+                    GelatoIntelligence.refreshBanner();
+                }, err => console.error('admin gi inventory', err));
+                db.collection('gelatoSettings').doc('pricing').onSnapshot(d => {
+                    if (!d.exists) return;
+                    const data = d.data() || {};
+                    if (data.pricePerGram != null) pricePerGram = Number(data.pricePerGram) || pricePerGram;
+                    if (data.costPerPan != null) costPerPan = Number(data.costPerPan) || r2(pricePerGram * GRAMS_PER_PAN);
+                    else costPerPan = r2(pricePerGram * GRAMS_PER_PAN);
+                    GelatoIntelligence.refreshBanner();
+                }, err => console.error('admin gi pricing', err));
+                db.collection('gelatoUsage').doc(todayStr()).onSnapshot(d => {
+                    usageToday = d.exists ? (d.data() || {}) : { usedPans: 0, wastedPans: 0 };
+                    GelatoIntelligence.refreshBanner();
+                }, err => console.error('admin gi usage', err));
+                db.collection('gelatoMoves').orderBy('at', 'desc').limit(60).onSnapshot(snap => {
+                    moves = snap.docs.map(d => d.data());
+                    GelatoIntelligence.refreshBanner();
+                }, err => console.error('admin gi moves', err));
+            }
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', boot);
+            } else {
+                boot();
+            }
+        })();
     </script>
     <script>
         const form = document.getElementById("updateBusinessHoursForm");
