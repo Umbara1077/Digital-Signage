@@ -56,33 +56,42 @@
                             return;
                         }
 
-                        // Resolve TODAY's hours: a per-day override wins, else the
-                        // stored base hours (dayHours.default), else the flat fields
-                        // (legacy docs). Uses the same new Date().getDay() basis as
-                        // the open/closed check below, so it rolls over with the day.
+                        // Resolve TODAY's hours: a per-day override wins, else the base
+                        // "default" hours from dayHours.default, else the flat fields
+                        // (pure-legacy docs with no stored default). Uses the same
+                        // new Date().getDay() basis as the open/closed check below, so it
+                        // rolls over with the day.
                         const now = new Date();
                         const today = now.getDay();
                         const dh = (data.dayHours && typeof data.dayHours === "object") ? data.dayHours : {};
                         const storedOpen = parseInt(data.openTime, 10);
                         const storedClose = parseInt(data.closeTime, 10);
-                        const baseOpen = (dh.default && dh.default.openTime != null) ? parseInt(dh.default.openTime, 10) : storedOpen;
-                        const baseClose = (dh.default && dh.default.closeTime != null) ? parseInt(dh.default.closeTime, 10) : storedClose;
+                        // Base hours come ONLY from dayHours.default (written by the admin
+                        // from the dedicated default inputs — a stable, clean source). The
+                        // flat openTime/closeTime are a mutable "today" mirror, so once a
+                        // stored default exists they are NEVER treated as the default, and
+                        // the signage never promotes them into dayHours.default. Falling
+                        // back to the flat fields is limited to legacy docs with no default.
+                        const hasDefault = !!(dh.default && dh.default.openTime != null && dh.default.closeTime != null);
+                        const baseOpen = hasDefault ? parseInt(dh.default.openTime, 10) : storedOpen;
+                        const baseClose = hasDefault ? parseInt(dh.default.closeTime, 10) : storedClose;
                         const ov = dh[today] || dh[String(today)] || null;
                         const openTime = (ov && ov.openTime != null) ? parseInt(ov.openTime, 10) : baseOpen;
                         const closeTime = (ov && ov.closeTime != null) ? parseInt(ov.closeTime, 10) : baseClose;
 
-                        // Keep the flat openTime/closeTime mirrored to TODAY's hours so
-                        // apps that read only those fields (mobile order, cafe signage)
-                        // show per-day hours with no change to them. Write ONLY when the
-                        // stored value differs, so idle loads and multiple signage
-                        // screens don't loop — concurrent writes are the same value and
-                        // converge. (dayHours.default is bootstrapped from the flat
-                        // fields for legacy docs that have overrides but no stored base,
-                        // so mirroring can't clobber the base hours.)
-                        const hasOverrides = [0, 1, 2, 3, 4, 5, 6].some(d => dh[d] || dh[String(d)]);
+                        // Mirror TODAY's resolved hours into the flat fields for apps that
+                        // read only those (mobile order, cafe signage). Mirror ONLY when a
+                        // stable dayHours.default exists, so a legacy doc's flat fields —
+                        // that doc's ONLY record of its default hours — are never clobbered.
+                        // (A legacy doc starts syncing once the admin re-saves, which writes
+                        // dayHours.default from the clean default inputs.) Write only when
+                        // the stored value differs, so idle loads and multiple screens don't
+                        // loop — concurrent writes are the same value and converge.
                         const syncUpdates = {};
-                        if (openTime !== storedOpen || closeTime !== storedClose) { syncUpdates.openTime = openTime; syncUpdates.closeTime = closeTime; }
-                        if (!dh.default && hasOverrides) { syncUpdates["dayHours.default"] = { openTime: baseOpen, closeTime: baseClose }; }
+                        if (hasDefault && (openTime !== storedOpen || closeTime !== storedClose)) {
+                            syncUpdates.openTime = openTime;
+                            syncUpdates.closeTime = closeTime;
+                        }
                         if (Object.keys(syncUpdates).length) {
                             db.collection("business_hours").doc("hours").update(syncUpdates)
                                 .catch((e) => console.error("Hours mirror sync failed:", e));
