@@ -8,6 +8,17 @@
     <link rel="stylesheet" type="text/css" href="admin-style.css">
     <link rel="stylesheet" type="text/css" href="gelato-style.css">
     <link rel="icon" href="DolceLogo-Admin.png" type="image/x-icon">
+
+    <script>
+        /* Set the theme before first paint so the page never flashes the wrong
+         * palette. Light is the default (it matches the admin panel); the dark
+         * palette is the one baked into gelato-style.css's :root. */
+        (function () {
+            var t = 'light';
+            try { t = localStorage.getItem('gTheme') || 'light'; } catch (e) { }
+            document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
+        })();
+    </script>
     <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-firestore.js"></script>
     <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-auth.js"></script>
@@ -34,6 +45,398 @@
                 .catch(error => console.error("Error setting persistence:", error));
         });
     </script>
+    <style>
+        /* =========================================================================
+           GELATO LIGHT THEME + THEME TOGGLE
+           -------------------------------------------------------------------------
+           gelato-style.css now drives every colour through --g-* tokens whose
+           :root defaults are the original dark values, so the dark theme is
+           byte-for-byte what it always was. This block supplies the light palette
+           and re-skins the handful of elements gelato.html inherits straight from
+           admin-style.css (body, header, .btn, form) — admin-style.css itself is
+           untouched because gelato.html is not its only consumer.
+
+           Layout, spacing and markup order are deliberately unchanged; this is a
+           palette swap plus the toggle control in the header.
+           ========================================================================= */
+
+        html[data-theme="light"] {
+            /* --- generated light palette (see gelato-style.css for the dark defaults) --- */
+            --g-amb-bd-1: hsl(38.4 70% 55.5%);          /* border was #f0a92b */
+            --g-amb-bg-1: hsl(38.4 86.8% 55.5%);        /* bg     was #f0a92b */
+            --g-amb-bg-2: hsl(40.9 100% 71%);           /* bg     was #ffd06b */
+            --g-amb-bg-3: hsl(37.5 81.9% 43.3%);        /* bg     was #c98514 */
+            --g-amb-bg-4: hsl(44.2 100% 71%);           /* bg     was #ffd86b */
+            --g-amb-gl-1: hsl(38.4 86.8% 55.5%);        /* glow   was #f0a92b */
+            --g-amb-gl-2: hsl(38.4 86.8% 55.5% / 26.7%);/* glow   was #f0a92b44 */
+            --g-amb-gl-3: hsl(38.4 86.8% 55.5% / 20%);  /* glow   was #f0a92b33 */
+            --g-amb-gl-4: hsl(38.4 86.8% 55.5% / 60%);  /* glow   was #f0a92b99 */
+            --g-amb-tx-1: hsl(38.4 80% 26%);            /* text   was #f0a92b */
+            --g-amb-tx-2: hsl(43.4 100% 11.4%);         /* text   was #3a2a00 */
+            --g-amb-tx-3: hsl(41.1 80% 26%);            /* text   was #ffc74d */
+            --g-amb-tx-4: hsl(38.9 80% 26%);            /* text   was #ffe6b8 */
+            --g-amb-tx-5: hsl(40.5 80% 26%);            /* text   was #ffcf6b */
+            --g-blk-bg-1: hsl(40 15.5% 95.2%);          /* bg     was #0f1218 */
+            --g-blk-bg-10: hsl(40 16% 94.4%);           /* bg     was #200f10 */
+            --g-blk-bg-11: hsl(40 16% 94.8% / 92%);     /* bg     was rgba(16,20,27,.92) */
+            --g-blk-bg-2: hsl(40 16% 95.6%);            /* bg     was #0d1016 */
+            --g-blk-bg-3: hsl(40 15.4% 94.7%);          /* bg     was #11141b */
+            --g-blk-bg-4: hsl(40 16% 95.8%);            /* bg     was #0c0f15 */
+            --g-blk-bg-5: hsl(40 15.7% 94.4%);          /* bg     was #12151d */
+            --g-blk-bg-6: hsl(40 16% 94.5%);            /* bg     was #11151d */
+            --g-blk-bg-7: hsl(40 16% 94.8%);            /* bg     was #10141b */
+            --g-blk-bg-8: hsl(40 22% 12% / 45%);        /* bg     PINNED was rgba(4,6,10,.72) */
+            --g-blk-bg-9: hsl(40 16% 94.3%);            /* bg     was #0f211a */
+            --g-blk-gl-1: hsl(40 35% 20% / 14%);        /* glow   was #00000055 */
+            --g-blk-gl-2: hsl(40 35% 20% / 22.4%);      /* glow   was #00000088 */
+            --g-blk-gl-3: hsl(40 35% 20% / 21.1%);      /* glow   was #00000080 */
+            --g-blk-gl-4: hsl(40 35% 20% / 11.2%);      /* glow   was #00000044 */
+            --g-blk-gl-5: hsl(40 35% 20% / 28%);        /* glow   was #000000aa */
+            --g-blk-gl-6: hsl(40 35% 20% / 25.2%);      /* glow   was rgba(0,0,0,.6) */
+            --g-blk-gl-7: hsl(40 35% 20% / 14.7%);      /* glow   was rgba(0,0,0,.35) */
+            --g-blk-tx-1: hsl(140.6 80% 7.8%);          /* text   was #04240f */
+            --g-blu-bd-1: hsl(222.2 23.1% 45.9%);       /* border was #5a6a90 */
+            --g-blu-bd-2: hsl(205.6 70% 58%);           /* border was #7ec8ff */
+            --g-blu-bd-3: hsl(210.6 65.3% 57.1%);       /* border was #4a90d9 */
+            --g-blu-bd-4: hsl(207.7 70% 58%);           /* border was #38a3ff */
+            --g-blu-bd-5: hsl(210.4 39.3% 37.5%);       /* border was #3a5f85 */
+            --g-blu-bd-6: hsl(209.6 70% 58%);           /* border was #6fb8ff */
+            --g-blu-bd-7: hsl(210 50.5% 37.3%);         /* border was #2f5f8f */
+            --g-blu-bg-1: hsl(210.6 65.3% 57.1% / 12%); /* bg     was rgba(74,144,217,0.12) */
+            --g-blu-bg-2: hsl(215.5 70.1% 93%);         /* bg     was #1f3350 */
+            --g-blu-bg-3: hsl(225 69.2% 93%);           /* bg     was #2a3a6a */
+            --g-blu-bg-4: hsl(213.3 100% 73.5% / 6%);   /* bg     was rgba(120,180,255,.06) */
+            --g-blu-bg-5: hsl(207.7 100% 61%);          /* bg     was #38a3ff */
+            --g-blu-bg-6: hsl(208.7 72% 93%);           /* bg     was #1e4e7a */
+            --g-blu-bg-7: hsl(209.1 72% 93%);           /* bg     was #14385a */
+            --g-blu-gl-1: hsl(210.6 65.3% 57.1% / 18%); /* glow   was rgba(74,144,217,0.18) */
+            --g-blu-tx-1: hsl(214.4 80% 26%);           /* text   was #9fc8ff */
+            --g-blu-tx-2: hsl(209.6 80% 26%);           /* text   was #6fb8ff */
+            --g-blu-tx-3: hsl(207.8 80% 26%);           /* text   was #9ed2ff */
+            --g-blu-tx-4: hsl(211.6 80% 26%);           /* text   was #8fc4ff */
+            --g-grn-bd-1: hsl(141.2 70% 42%);           /* border was #1db954 */
+            --g-grn-bd-2: hsl(141.2 70% 42% / 55%);     /* border was rgba(29,185,84,.55) */
+            --g-grn-bg-1: hsl(144.7 72.7% 55.5%);       /* bg     was #3be07f */
+            --g-grn-bg-2: hsl(141.2 72.9% 42%);         /* bg     was #1db954 */
+            --g-grn-bg-3: hsl(142.7 75.6% 32.2%);       /* bg     was #149043 */
+            --g-grn-bg-4: hsl(145.7 63.1% 52.2%);       /* bg     was #38d27a */
+            --g-grn-bg-5: hsl(139.6 71.1% 93%);         /* bg     was #1c4a2b */
+            --g-grn-bg-6: hsl(120 52.2% 54.9% / 25%);   /* bg     was rgba(80,200,80,.25) */
+            --g-grn-bg-7: hsl(142.6 69% 60.8%);         /* bg     was #56e08a */
+            --g-grn-bg-8: hsl(141.2 72.9% 42% / 18%);   /* bg     was rgba(29,185,84,.18) */
+            --g-grn-gl-1: hsl(141.2 72.9% 42% / 20%);   /* glow   was #1db95433 */
+            --g-grn-gl-2: hsl(141.2 72.9% 42%);         /* glow   was #1db954 */
+            --g-grn-tx-1: hsl(144.1 76.4% 26%);         /* text   was #8ff0b6 */
+            --g-grn-tx-2: hsl(141.2 72.9% 26%);         /* text   was #1db954 */
+            --g-grn-tx-3: hsl(142.2 80% 26%);           /* text   was #c9ffdd */
+            --g-grn-tx-4: hsl(142.6 69% 26%);           /* text   was #56e08a */
+            --g-grn-tx-5: hsl(145.9 67.4% 26%);         /* text   was #6fe3a1 */
+            --g-ink-bd-1: hsl(40 14% 81.3%);            /* border was #3a4560 */
+            --g-ink-bd-10: hsl(40 14% 90.6%);           /* border was #1d2230 */
+            --g-ink-bd-2: hsl(40 11% 87.8%);            /* border was #2a2f3a */
+            --g-ink-bd-3: hsl(40 11% 83.2%);            /* border was #3a4150 */
+            --g-ink-bd-4: hsl(40 14% 87.1%);            /* border was #283042 */
+            --g-ink-bd-5: hsl(40 14% 84.7%);            /* border was #2f3a4f */
+            --g-ink-bd-6: hsl(40 14% 81.3%);            /* border was #3a4660 */
+            --g-ink-bd-7: hsl(40 14% 88.9%);            /* border was #232a38 */
+            --g-ink-bd-8: hsl(40 13.2% 77.4%);          /* border was #4a5470 */
+            --g-ink-bd-9: hsl(40 9.7% 74.5%);           /* border was #5b6577 */
+            --g-ink-bg-1: hsl(40 16% 93.8%);            /* bg     was #141821 */
+            --g-ink-bg-10: hsl(40 16% 91.7%);           /* bg     was #14361f */
+            --g-ink-bg-11: hsl(40 16% 92.8%);           /* bg     was #2a1518 */
+            --g-ink-bg-12: hsl(40 16% 90.6%);           /* bg     was #3a1c1f */
+            --g-ink-bg-13: hsl(40 16% 88.3%);           /* bg     was #243049 */
+            --g-ink-bg-14: hsl(40 16% 91.7%);           /* bg     was #1a2030 */
+            --g-ink-bg-15: hsl(40 16% 93.3%);           /* bg     was #2a1010 */
+            --g-ink-bg-16: hsl(40 16% 92.2%);           /* bg     was #1a1f2b */
+            --g-ink-bg-17: hsl(40 16% 91.7% / 53.3%);   /* bg     was #14361f88 */
+            --g-ink-bg-18: hsl(40 16% 90.3%);           /* bg     was #3a1f22 */
+            --g-ink-bg-19: hsl(40 16% 90.3%);           /* bg     was #1f3a2c */
+            --g-ink-bg-2: hsl(40 12.4% 91.5%);          /* bg     was #20242d */
+            --g-ink-bg-20: hsl(40 16% 93.1%);           /* bg     was #161c26 */
+            --g-ink-bg-21: hsl(40 12% 89.2%);           /* bg     was #2a2f3a */
+            --g-ink-bg-22: hsl(40 14.7% 93.5%);         /* bg     was #161922 */
+            --g-ink-bg-23: hsl(40 16% 91.4%);           /* bg     was #143a27 */
+            --g-ink-bg-24: hsl(40 16% 90.8%);           /* bg     was #3a1a1c */
+            --g-ink-bg-25: hsl(40 16% 91.5%);           /* bg     was #3a2c12 */
+            --g-ink-bg-26: hsl(40 16% 91.7%);           /* bg     was #15351f */
+            --g-ink-bg-27: hsl(40 16% 88.5%);           /* bg     was #2a2348 */
+            --g-ink-bg-3: hsl(40 12.3% 88.9%);          /* bg     was #2b313c */
+            --g-ink-bg-4: hsl(40 14.7% 93.5%);          /* bg     was #161a22 */
+            --g-ink-bg-5: hsl(40 10.7% 78.4%);          /* bg     was #5b6577 */
+            --g-ink-bg-6: hsl(40 12.1% 88.7%);          /* bg     was #2c323d */
+            --g-ink-bg-7: hsl(40 15.1% 88.4%);          /* bg     was #2a3142 */
+            --g-ink-bg-8: hsl(40 12% 38%);              /* bg     PINNED was #9fb0c8 */
+            --g-ink-bg-9: hsl(40 16% 91.6%);            /* bg     was #1b2130 */
+            --g-ink-tx-1: hsl(40 12% 19.7%);            /* text   was #cdd6e6 */
+            --g-ink-tx-2: hsl(40 12% 9.7%);             /* text   was #e7eeff */
+            --g-ink-tx-3: hsl(40 12% 14.6%);            /* text   was #dbe3f2 */
+            --g-ink-tx-4: hsl(40 12% 16.8%);            /* text   was #d6deec */
+            --g-ink-tx-5: hsl(40 12% 9.1%);             /* text   was #eaf1ff */
+            --g-ink-tx-6: hsl(40 12% 13.2%);            /* text   was #dfe7f5 */
+            --g-ink-tx-7: hsl(40 12% 18.5%);            /* text   was #cfd9ea */
+            --g-ink-tx-8: hsl(40 12% 12.1%);            /* text   was #dbeaff */
+            --g-ink-tx-9: hsl(40 12% 9.1%);             /* text   was #eafff2 */
+            --g-ink-tx-onhover: hsl(40 12% 14%);        /* text   PINNED was #fff */
+            --g-ink-tx-onnavtop: hsl(40 12% 14%);       /* text   PINNED was #fff */
+            --g-ink-tx-onpan: hsl(40 12% 14%);          /* text   PINNED was #ffffff */
+            --g-red-bd-1: hsl(0 43.2% 29%);             /* border was #6a2a2a */
+            --g-red-bd-2: hsl(359.3 70% 58%);           /* border was #ff4d4f */
+            --g-red-bd-3: hsl(0 70% 58% / 45%);         /* border was rgba(255,90,90,.45) */
+            --g-red-bg-1: hsl(359 100% 77.1%);          /* bg     was #ff8a8c */
+            --g-red-bg-2: hsl(359.3 100% 65.1%);        /* bg     was #ff4d4f */
+            --g-red-bg-3: hsl(358.8 63.4% 48.2%);       /* bg     was #c92d30 */
+            --g-red-bg-4: hsl(0 69.2% 93%);             /* bg     was #6a2a2a */
+            --g-red-bg-5: hsl(0 46.8% 42.7%);           /* bg     was #a03a3a */
+            --g-red-bg-6: hsl(0 53.3% 35.3%);           /* bg     was #8a2a2a */
+            --g-red-bg-7: hsl(0 48.4% 52.2%);           /* bg     was #c04a4a */
+            --g-red-bg-8: hsl(0 100% 65.7% / 25%);      /* bg     was rgba(255,80,80,.25) */
+            --g-red-bg-9: hsl(0 100% 65.7% / 18%);      /* bg     was rgba(255,80,80,.18) */
+            --g-red-gl-1: hsl(359.3 100% 60% / 26.7%);  /* glow   was #ff4d4f44 */
+            --g-red-gl-2: hsl(359.3 100% 60% / 20%);    /* glow   was #ff4d4f33 */
+            --g-red-gl-3: hsl(359.3 100% 60% / 60%);    /* glow   was #ff4d4f99 */
+            --g-red-gl-4: hsl(359.3 100% 60% / 33.3%);  /* glow   was #ff4d4f55 */
+            --g-red-tx-1: hsl(359.1 80% 26%);           /* text   was #ff7a7c */
+            --g-red-tx-2: hsl(359.4 80% 26%);           /* text   was #ff9a9b */
+            --g-red-tx-3: hsl(359.3 80% 26%);           /* text   was #ff4d4f */
+            --g-red-tx-4: hsl(359 80% 26%);             /* text   was #ff8a8c */
+            --g-red-tx-5: hsl(0 80% 26%);               /* text   was #ff9c9c */
+            --g-vio-bg-1: hsl(268.2 46.8% 42.7%);       /* bg     was #6a3aa0 */
+            --g-vio-tx-1: hsl(256.6 80% 26%);           /* text   was #c0a8ff */
+            --g-wht-bd-1: hsl(40 15% 78% / 80%);        /* border was #ffffffcc */
+            --g-wht-bd-2: hsl(40 15% 78% / 60%);        /* border was #ffffff99 */
+            --g-wht-bg-1: hsl(40 25% 22% / 3.2%);       /* bg     was rgba(255,255,255,.04) */
+            --g-wht-bg-10: hsl(40 25% 22% / 9.6%);      /* bg     was rgba(255,255,255,.12) */
+            --g-wht-bg-2: hsl(40 25% 22% / 5.6%);       /* bg     was rgba(255,255,255,.07) */
+            --g-wht-bg-3: hsl(40 25% 22% / 1.6%);       /* bg     was rgba(255,255,255,.02) */
+            --g-wht-bg-4: hsl(40 25% 22% / 2.5%);       /* bg     was #ffffff08 */
+            --g-wht-bg-5: hsl(40 25% 22% / 8%);         /* bg     was rgba(255,255,255,.1) */
+            --g-wht-bg-6: hsl(40 25% 22% / 4.8%);       /* bg     was rgba(255,255,255,.06) */
+            --g-wht-bg-7: hsl(40 25% 22% / 4%);         /* bg     was rgba(255,255,255,.05) */
+            --g-wht-bg-8: hsl(40 25% 22% / 2.4%);       /* bg     was rgba(255,255,255,.03) */
+            --g-wht-bg-9: hsl(40 25% 22% / 5.6%);       /* bg     was #ffffff12 */
+            --g-wht-gl-1: hsl(40 25% 25% / 3.1%);       /* glow   was #ffffff10 */
+            --g-wht-gl-2: hsl(40 25% 25% / 10%);        /* glow   was #ffffff33 */
+            --g-wht-tx-1: hsl(0 0% 100%);               /* text   was #fff */
+            --g-wht-tx-2: hsl(0 0% 100%);               /* text   was #ffffff */
+
+            /* admin-style.css tokens, re-pointed for the light page */
+            --white: #ffffff;
+            --muted: #6f6a5f;
+            --border: hsl(40 8% 87%);
+            --card: #ffffff;
+            --shadow-lg: 0 12px 32px rgba(30, 24, 8, .10);
+            /* gelato-style.css uses these for status text AND for badge/meter
+               fills that carry white text, so they need a lightness that works
+               both ways — the stock #1db954 is only ~2.6:1 on paper. */
+            --green: hsl(141 74% 29%);
+            --red: hsl(359 70% 43%);
+            /* --grad-flow is deliberately NOT re-pointed: .g-mode-btn.active
+               fills with it under white text, and a gold gradient there would
+               drop to ~2.3:1. The topbar buttons get their gold border from an
+               explicit gradient in the .btn rule below instead. */
+            /* admin-style.css references these but never defines them */
+            --surface: #ffffff;
+            --fg: hsl(40 12% 10%);
+
+            /* local shorthands for the rules below */
+            --gold: #c9a227;
+            --gold-lt: #e3c46f;
+            --gold-dk: #9a7818;
+            --line-strong: hsl(40 10% 82%);
+            --text: hsl(40 12% 10%);
+            --text-2: hsl(40 8% 32%);
+        }
+
+        /* ---------- page shell (from admin-style.css) ---------- */
+        html[data-theme="light"] body {
+            color: var(--text);
+            background:
+                radial-gradient(1100px 720px at 12% 4%, rgba(201, 162, 39, .14) 0%, transparent 62%),
+                radial-gradient(900px 640px at 88% 20%, rgba(226, 196, 111, .16) 0%, transparent 60%),
+                linear-gradient(160deg, #fbfaf7, #f2eee5);
+            background-attachment: fixed;
+        }
+
+        html[data-theme="light"] body::before {
+            background: radial-gradient(1200px 700px at 50% -12%, rgba(201, 162, 39, .10), transparent 70%);
+            background-size: auto;
+            mix-blend-mode: normal;
+            opacity: 1;
+            animation: none;
+        }
+
+        html[data-theme="light"] header {
+            background: linear-gradient(180deg, rgba(255, 255, 255, .95), rgba(255, 255, 255, .84));
+            border-bottom: 1px solid var(--border);
+            box-shadow: 0 6px 22px rgba(30, 24, 8, .06);
+        }
+
+        html[data-theme="light"] section>h2 {
+            color: var(--text);
+        }
+
+        html[data-theme="light"] section>h2::after {
+            opacity: 1;
+            background: linear-gradient(90deg, var(--gold) 0%, var(--gold-lt) 42%, rgba(201, 162, 39, 0) 100%);
+        }
+
+        /* Plain .btn only — the g-btn-* variants and the DVG Intelligence button
+           carry their own (already tokenised) colours and must keep winning. */
+        html[data-theme="light"] .btn:not([class*="g-btn"]):not(.gi-open-btn) {
+            background-image: linear-gradient(#fff, #fff),
+                linear-gradient(135deg, var(--gold-dk), var(--gold), var(--gold-lt), var(--gold-dk));
+            color: var(--text);
+        }
+
+        html[data-theme="light"] .btn:not([class*="g-btn"]):not(.gi-open-btn):hover {
+            filter: brightness(1);
+            background-image: linear-gradient(#fffdf7, #fffdf7),
+                linear-gradient(135deg, var(--gold-dk), var(--gold), var(--gold-lt), var(--gold-dk));
+        }
+
+        /* .g-btn-night is the one variant that never declares its own colour, so
+           it inherited admin-style.css's near-white .btn text and ended up
+           invisible once its (tokenised) fill turned light. */
+        html[data-theme="light"] .g-btn-night {
+            color: var(--text);
+        }
+
+        /* These two labels are centred over the WHOLE capacity track, so part of
+           the text sits on the coloured fill and part on the empty track. The
+           track is light now, so the white label needs a hard shadow to stay legible
+           across both halves rather than a recoloured fill. */
+        html[data-theme="light"] .g-cap-bar span,
+        html[data-theme="light"] .g-mob-capbar em {
+            text-shadow: 0 1px 2px rgba(0, 0, 0, .9), 0 0 3px rgba(0, 0, 0, .75);
+        }
+
+        /* ---------- forms inherited from admin-style.css ---------- */
+        html[data-theme="light"] form {
+            background: #fff;
+            border-color: var(--border);
+            color: var(--text);
+        }
+
+        html[data-theme="light"] form::before {
+            background:
+                radial-gradient(900px 460px at -10% -10%, rgba(201, 162, 39, .30), transparent 45%),
+                radial-gradient(900px 460px at 110% -10%, rgba(226, 196, 111, .28), transparent 45%);
+        }
+
+        html[data-theme="light"] form label {
+            color: var(--text);
+        }
+
+        html[data-theme="light"] form input[type="text"],
+        html[data-theme="light"] form input[type="number"],
+        html[data-theme="light"] form input[type="url"],
+        html[data-theme="light"] form input[type="file"],
+        html[data-theme="light"] form select,
+        html[data-theme="light"] form textarea {
+            background: #fdfcf9;
+            color: var(--text);
+            border-color: var(--line-strong);
+        }
+
+        html[data-theme="light"] form input:hover,
+        html[data-theme="light"] form select:hover,
+        html[data-theme="light"] form textarea:hover {
+            border-color: var(--gold-lt);
+        }
+
+        html[data-theme="light"] form input:focus,
+        html[data-theme="light"] form select:focus,
+        html[data-theme="light"] form textarea:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 0 4px rgba(201, 162, 39, .20);
+        }
+
+        html[data-theme="light"] form button {
+            background: linear-gradient(135deg, var(--gold), var(--gold-lt));
+            border: 1px solid var(--gold-dk);
+            color: #241d05;
+            box-shadow: 0 8px 20px rgba(201, 162, 39, .28);
+        }
+
+        /* ---------- theme toggle (header, absolutely placed so no layout moves) ---------- */
+        .g-theme-toggle {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid #2f3a4f;
+            background: #141821;
+            color: #dbe3f2;
+            font: inherit;
+            font-size: .8rem;
+            font-weight: 800;
+            line-height: 1;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, .3);
+            transition: border-color .18s ease, color .18s ease, transform .18s ease, box-shadow .18s ease, background .18s ease;
+        }
+
+        .g-theme-toggle:hover {
+            transform: translateY(-50%) translateY(-1px);
+            border-color: #4a90d9;
+            color: #fff;
+        }
+
+        .g-theme-toggle:active {
+            transform: translateY(-50%) scale(.97);
+        }
+
+        html[data-theme="light"] .g-theme-toggle {
+            border-color: var(--line-strong);
+            background: #fff;
+            color: var(--text);
+            box-shadow: 0 2px 10px rgba(30, 24, 8, .07);
+        }
+
+        html[data-theme="light"] .g-theme-toggle:hover {
+            border-color: var(--gold);
+            color: var(--gold-dk);
+            box-shadow: 0 6px 16px rgba(201, 162, 39, .22);
+        }
+
+        .g-theme-toggle svg {
+            width: 15px;
+            height: 15px;
+            flex: none;
+            fill: currentColor;
+        }
+
+        /* icon and label both describe what you get if you click */
+        .g-theme-ico-moon {
+            display: none;
+        }
+
+        html[data-theme="light"] .g-theme-ico-moon {
+            display: block;
+        }
+
+        html[data-theme="light"] .g-theme-ico-sun {
+            display: none;
+        }
+
+        /* the header is short on phones — drop the label, keep the icon */
+        @media (max-width: 640px) {
+            .g-theme-toggle {
+                right: 10px;
+                padding: 9px 11px;
+            }
+
+            .g-theme-txt {
+                display: none;
+            }
+        }
+    </style>
 </head>
 
 <body>
@@ -41,6 +444,19 @@
         <div class="header-content">
             <img src="DolceLogo-Admin.png" alt="Dolce Vita Gelateria Logo" class="logo">
         </div>
+        <!-- Absolutely positioned inside the sticky header, so nothing else on
+             the page shifts. -->
+        <button type="button" class="g-theme-toggle" id="g-theme-toggle" aria-pressed="false">
+            <svg class="g-theme-ico-sun" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="4.2" />
+                <path d="M12 1.6v3.1M12 19.3v3.1M4.4 4.4l2.2 2.2M17.4 17.4l2.2 2.2M1.6 12h3.1M19.3 12h3.1M4.4 19.6l2.2-2.2M17.4 6.6l2.2-2.2"
+                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+            <svg class="g-theme-ico-moon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M21 13.2A9.2 9.2 0 1 1 10.8 3a7.2 7.2 0 0 0 10.2 10.2z" />
+            </svg>
+            <span class="g-theme-txt" id="g-theme-txt">Light mode</span>
+        </button>
     </header>
 
     <main>
@@ -364,6 +780,35 @@
         document.getElementById('back-to-admin').addEventListener('click', () => {
             window.location.href = 'admin.html';
         });
+    </script>
+    <script>
+        /* Light/dark toggle. The attribute is already set in <head> before first
+         * paint; this only handles clicks and keeps the label in sync. */
+        (function () {
+            const KEY = 'gTheme';
+            const root = document.documentElement;
+            const btn = document.getElementById('g-theme-toggle');
+            const txt = document.getElementById('g-theme-txt');
+            if (!btn) return;
+
+            function sync() {
+                const light = root.getAttribute('data-theme') !== 'dark';
+                // the control advertises what you switch TO
+                if (txt) txt.textContent = light ? 'Dark mode' : 'Light mode';
+                btn.setAttribute('aria-pressed', String(light));
+                btn.setAttribute('aria-label', light ? 'Switch to dark mode' : 'Switch to light mode');
+                btn.title = light ? 'Switch to dark mode' : 'Switch to light mode';
+            }
+
+            btn.addEventListener('click', () => {
+                const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+                root.setAttribute('data-theme', next);
+                try { localStorage.setItem(KEY, next); } catch (e) { }
+                sync();
+            });
+
+            sync();
+        })();
     </script>
 </body>
 

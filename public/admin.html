@@ -208,6 +208,16 @@
             animation: morphBlob4 8.2s ease-in-out infinite, floatBtn 4.2s ease-in-out infinite -9s, holographic 9s linear infinite -3s !important;
         }
 
+        /* DVG Team Management sits past nth-child(9), so it carries its own
+           class-based theme (gold leaf, matching the page accent). */
+        .hero-btn.team-mgmt-btn {
+            background: linear-gradient(135deg, rgba(201, 162, 39, 0.34), rgba(226, 196, 111, 0.20), rgba(154, 120, 24, 0.28));
+            background-size: 400% 400%;
+            box-shadow: 0 0 25px rgba(201, 162, 39, 0.72), 0 0 60px rgba(226, 196, 111, 0.42);
+            border-color: rgba(243, 226, 169, 0.68);
+            animation: morphBlob5 7.8s ease-in-out infinite, floatBtn 4.4s ease-in-out infinite -10s, holographic 8.5s linear infinite -5s !important;
+        }
+
         /* .hero-btn is overflow: visible (so the NEW badge can sit outside its
            corner) so the shimmer can no longer rely on the button's own
            overflow to stay contained. This inner wrapper fills the button,
@@ -267,6 +277,10 @@
 
         .hero-btn.tv-manager-btn .blob-clip::before {
             animation-delay: 9s;
+        }
+
+        .hero-btn.team-mgmt-btn .blob-clip::before {
+            animation-delay: 10s;
         }
 
         /* "NEW" badge, floating on the top-right corner of linked tool buttons. */
@@ -516,16 +530,1000 @@
         }
     </style>
 
+    <style>
+        /* =========================================================================
+           ADMIN THEME — "gold leaf on paper"
+           -------------------------------------------------------------------------
+           Lives inline (not in admin-style.css) on purpose: gelato.html and
+           __mode_mock.html also link admin-style.css and must keep the dark look.
+           This block loads after both stylesheets, so it wins on cascade order
+           without needing !important except where it has to beat an inline style.
+           Nothing here removes markup or behaviour — it only re-skins and re-flows.
+           ========================================================================= */
+
+        :root {
+            /* accent ramp */
+            --gold: #c9a227;
+            --gold-lt: #e3c46f;
+            --gold-dk: #9a7818;
+            --gold-wash: #f7f1de;
+
+            /* surfaces & type */
+            --paper: #fbfaf7;
+            --line-strong: #d9d2c1;
+            --text: #16140f;
+            --text-2: #4a463d;
+
+            /* re-pointed admin-style.css tokens */
+            --white: #ffffff;
+            --muted: #6f6a5f;
+            --bg1: #fbfaf7;
+            --bg2: #f2eee5;
+            --card: #ffffff;
+            --border: #e7e2d6;
+            --grad-flow: linear-gradient(135deg, #9a7818, #c9a227, #e3c46f, #9a7818);
+            --shadow-lg: 0 12px 32px rgba(30, 24, 8, .10);
+            --shadow-sm: 0 2px 10px rgba(30, 24, 8, .07);
+
+            /* admin-style.css referenced these but never defined them, so the
+               Change-Image modal was rendering on a transparent card. */
+            --surface: #ffffff;
+            --fg: #16140f;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            color: var(--text);
+            background:
+                radial-gradient(1100px 720px at 12% 4%, rgba(201, 162, 39, .14) 0%, transparent 62%),
+                radial-gradient(900px 640px at 88% 20%, rgba(226, 196, 111, .16) 0%, transparent 60%),
+                linear-gradient(160deg, var(--bg1), var(--bg2));
+            background-attachment: fixed;
+        }
+
+        /* the old overlay was a blend-mode wash tuned for a dark page */
+        body::before {
+            background: radial-gradient(1200px 700px at 50% -12%, rgba(201, 162, 39, .10), transparent 70%);
+            background-size: auto;
+            mix-blend-mode: normal;
+            opacity: 1;
+            animation: none;
+        }
+
+        /* ---------- Header + navigation ---------- */
+        header {
+            background: linear-gradient(180deg, rgba(255, 255, 255, .95), rgba(255, 255, 255, .84));
+            border-bottom: 1px solid var(--border);
+            box-shadow: 0 6px 22px rgba(30, 24, 8, .06);
+        }
+
+        .header-content {
+            position: relative;
+            max-width: 1180px;
+            padding: 8px 18px 6px;
+        }
+
+        /* the header is sticky, so every pixel here is permanently spent */
+        .logo {
+            max-width: 78px;
+        }
+
+        .adm-headbar {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .adm-chip-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid var(--line-strong);
+            background: #fff;
+            color: var(--text);
+            font: inherit;
+            font-size: .8rem;
+            font-weight: 800;
+            letter-spacing: .01em;
+            line-height: 1;
+            cursor: pointer;
+            box-shadow: var(--shadow-sm);
+            transition: border-color .18s ease, color .18s ease, transform .18s ease, box-shadow .18s ease, background .18s ease;
+        }
+
+        .adm-chip-btn:hover {
+            border-color: var(--gold);
+            color: var(--gold-dk);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(201, 162, 39, .22);
+        }
+
+        .adm-chip-btn:active {
+            transform: translateY(0) scale(.98);
+        }
+
+        #admFxToggle {
+            background: linear-gradient(135deg, var(--gold), var(--gold-lt));
+            border-color: var(--gold-dk);
+            color: #241d05;
+        }
+
+        #admFxToggle.is-off {
+            background: #fff;
+            border-color: var(--line-strong);
+            color: var(--text-2);
+        }
+
+        .adm-chip-ico {
+            font-size: .95em;
+            line-height: 1;
+        }
+
+        /* three-line burger drawn with box-shadow so there is no extra markup */
+        .adm-burger,
+        .adm-burger::before,
+        .adm-burger::after {
+            display: block;
+            width: 16px;
+            height: 2px;
+            border-radius: 2px;
+            background: currentColor;
+        }
+
+        .adm-burger {
+            position: relative;
+        }
+
+        .adm-burger::before,
+        .adm-burger::after {
+            content: "";
+            position: absolute;
+            left: 0;
+        }
+
+        .adm-burger::before {
+            top: -5px;
+        }
+
+        .adm-burger::after {
+            top: 5px;
+        }
+
+        .adm-nav {
+            width: 100%;
+            border-top: 1px solid var(--border);
+            background: rgba(255, 255, 255, .72);
+        }
+
+        .adm-nav-inner {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 8px 14px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+        }
+
+        .adm-nav-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 7px 13px;
+            border-radius: 999px;
+            border: 1px solid var(--line-strong);
+            background: #fff;
+            color: var(--text);
+            text-decoration: none;
+            font-size: .79rem;
+            font-weight: 700;
+            letter-spacing: .01em;
+            white-space: nowrap;
+            box-shadow: var(--shadow-sm);
+            transition: border-color .18s ease, color .18s ease, transform .18s ease, box-shadow .18s ease;
+        }
+
+        .adm-nav-link:hover,
+        .adm-nav-link:focus-visible {
+            border-color: var(--gold);
+            color: var(--gold-dk);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(201, 162, 39, .22);
+        }
+
+        .adm-nav-link.is-primary {
+            background: linear-gradient(135deg, var(--gold), var(--gold-lt));
+            border-color: var(--gold-dk);
+            color: #241d05;
+        }
+
+        .adm-nav-link.is-primary:hover {
+            color: #241d05;
+        }
+
+        /* NEW / DEV / SOON markers, mirroring the badges on the showcase buttons */
+        .adm-tag {
+            font-size: .6rem;
+            font-weight: 900;
+            letter-spacing: .07em;
+            text-transform: uppercase;
+            padding: 3px 7px;
+            border-radius: 999px;
+            background: var(--gold-wash);
+            color: var(--gold-dk);
+            border: 1px solid rgba(201, 162, 39, .38);
+            line-height: 1;
+        }
+
+        .adm-tag.is-dev {
+            background: #fff3d1;
+            color: #7d5f00;
+            border-color: #e6c766;
+        }
+
+        .adm-tag.is-soon {
+            background: #f1eee8;
+            color: #7a736a;
+            border-color: #ded8cc;
+        }
+
+        .adm-nav-toggle {
+            display: none;
+        }
+
+        @media (max-width: 900px) {
+            .adm-nav-toggle {
+                display: inline-flex;
+            }
+
+            .adm-nav {
+                max-height: 0;
+                overflow: hidden;
+                border-top-color: transparent;
+                transition: max-height .3s ease;
+            }
+
+            .adm-nav.is-open {
+                max-height: 72vh;
+                overflow-y: auto;
+                border-top-color: var(--border);
+            }
+
+            .adm-nav-inner {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 12px 14px 16px;
+            }
+
+            .adm-nav-link {
+                justify-content: space-between;
+                padding: 12px 16px;
+                font-size: .9rem;
+            }
+        }
+
+        /* short laptop screens: a two-row sticky nav plus the logo eats too much */
+        @media (min-width: 901px) and (max-height: 780px) {
+            .logo {
+                max-width: 62px;
+            }
+
+            .adm-nav-inner {
+                padding: 6px 14px;
+            }
+        }
+
+        @media (max-width: 560px) {
+            .logo {
+                max-width: 64px;
+            }
+
+            .adm-headbar {
+                right: 10px;
+                gap: 6px;
+            }
+
+            .adm-chip-btn {
+                padding: 9px 11px;
+            }
+
+            /* icon-only so two chips + the logo never collide */
+            .adm-chip-txt {
+                display: none;
+            }
+        }
+
+        /* ---------- Main rhythm ---------- */
+        main {
+            padding: 26px 16px 72px;
+            gap: 30px;
+        }
+
+        /* ---------- Live overview dashboard ---------- */
+        .adm-dash {
+            width: min(1180px, 100%);
+            margin: 0 auto;
+            gap: 20px;
+        }
+
+        .adm-dash-head {
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        .adm-eyebrow {
+            display: block;
+            font-size: .72rem;
+            font-weight: 900;
+            letter-spacing: .22em;
+            text-transform: uppercase;
+            color: var(--gold);
+            margin-bottom: 10px;
+        }
+
+        .adm-dash-title {
+            margin: 0 0 10px;
+            font-size: clamp(1.7rem, 4.4vw, 2.6rem);
+            font-weight: 900;
+            letter-spacing: -.025em;
+            line-height: 1.1;
+            color: var(--text);
+        }
+
+        .adm-dash-title span {
+            background: linear-gradient(90deg, #b8901f, var(--gold-lt));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .adm-dash-sub {
+            margin: 0;
+            color: var(--text-2);
+            font-size: .95rem;
+            line-height: 1.6;
+        }
+
+        .adm-gauges {
+            width: 100%;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 14px;
+        }
+
+        .adm-gauge {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 20px 14px 18px;
+            text-align: center;
+            box-shadow: var(--shadow-sm);
+            transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+        }
+
+        .adm-gauge:hover {
+            transform: translateY(-3px);
+            border-color: var(--line-strong);
+            box-shadow: 0 14px 30px rgba(30, 24, 8, .12);
+        }
+
+        .adm-ring-wrap {
+            position: relative;
+            width: 112px;
+            height: 112px;
+            margin: 0 auto 12px;
+        }
+
+        .adm-ring {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .adm-ring circle {
+            fill: none;
+            stroke-width: 9;
+            stroke-linecap: round;
+        }
+
+        .adm-ring-bg {
+            stroke: #efeadd;
+        }
+
+        .adm-ring-fg {
+            stroke: var(--gold);
+            stroke-dasharray: 326.73;
+            stroke-dashoffset: 326.73;
+            transition: stroke-dashoffset .85s cubic-bezier(.22, 1, .36, 1);
+        }
+
+        .adm-ring-fg.is-alert {
+            stroke: #d4574d;
+        }
+
+        .adm-ring-val {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+        }
+
+        .adm-ring-val strong {
+            font-size: 1.5rem;
+            font-weight: 900;
+            letter-spacing: -.02em;
+            color: var(--text);
+            line-height: 1;
+        }
+
+        .adm-ring-val small {
+            font-size: .62rem;
+            font-weight: 700;
+            letter-spacing: .05em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .adm-gauge-name {
+            margin: 0 0 4px;
+            font-size: .92rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .adm-gauge-note {
+            margin: 0;
+            font-size: .76rem;
+            line-height: 1.45;
+            color: var(--muted);
+        }
+
+        .adm-stats {
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .adm-stat {
+            flex: 1 1 150px;
+            min-width: 140px;
+            max-width: 230px;
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px 14px;
+            text-align: center;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .adm-stat-val {
+            display: block;
+            font-size: 1.5rem;
+            font-weight: 900;
+            letter-spacing: -.02em;
+            color: var(--text);
+            line-height: 1.15;
+        }
+
+        .adm-stat.is-wide {
+            flex-basis: 210px;
+            max-width: 290px;
+        }
+
+        .adm-stat.is-wide .adm-stat-val {
+            font-size: 1.05rem;
+            letter-spacing: 0;
+        }
+
+        .adm-stat-lbl {
+            display: block;
+            margin-top: 5px;
+            font-size: .72rem;
+            font-weight: 800;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        /* ---------- Showcase panel (holds the animated blob buttons) ----------
+           The blob buttons are translucent white-on-colour, so they need a dark
+           bed to stay legible now that the page itself is light. */
+        .adm-showcase {
+            width: min(1180px, 100%);
+            margin: 0 auto;
+            background:
+                radial-gradient(700px 260px at 50% -10%, rgba(201, 162, 39, .18), transparent 70%),
+                linear-gradient(160deg, #15161c, #0d0e12);
+            border: 1px solid #2b2c34;
+            border-radius: 26px;
+            padding: 18px 20px 40px;
+            box-shadow: 0 18px 44px rgba(20, 16, 6, .18);
+        }
+
+        /* section{display:flex} from admin-style.css outranks the UA [hidden] rule */
+        .adm-showcase[hidden] {
+            display: none !important;
+        }
+
+        .adm-showcase-head {
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            justify-content: center;
+            gap: 6px 12px;
+            margin-bottom: 24px;
+        }
+
+        .adm-showcase-head .adm-eyebrow {
+            margin: 0;
+            color: var(--gold-lt);
+        }
+
+        .adm-showcase-note {
+            margin: 0;
+            font-size: .8rem;
+            color: #9c968a;
+        }
+
+        .adm-showcase>.top-actions {
+            width: 100%;
+        }
+
+        /* ---------- Section headings ---------- */
+        section>h2 {
+            width: min(100%, 980px);
+            color: var(--text);
+            font-size: 1.3rem;
+            letter-spacing: -.015em;
+            margin: 4px auto 14px;
+        }
+
+        section>h2::after {
+            height: 3px;
+            opacity: 1;
+            background: linear-gradient(90deg, var(--gold) 0%, var(--gold-lt) 42%, rgba(201, 162, 39, 0) 100%);
+        }
+
+        /* ---------- Forms ---------- */
+        form {
+            width: min(100%, 980px);
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            box-shadow: var(--shadow-lg);
+            color: var(--text);
+            padding: 24px 26px;
+            /* a fixed label column keeps every form aligned instead of the old
+               1fr/2fr split that stretched short labels on wide screens */
+            grid-template-columns: minmax(150px, 230px) minmax(0, 1fr);
+            gap: 14px 20px;
+            align-items: start;
+            text-align: left;
+            /* eight cards bobbing out of phase made the page hard to read */
+            animation: none;
+        }
+
+        form::before {
+            background:
+                radial-gradient(900px 460px at -10% -10%, rgba(201, 162, 39, .30), transparent 45%),
+                radial-gradient(900px 460px at 110% -10%, rgba(226, 196, 111, .28), transparent 45%);
+        }
+
+        /* loose children of a 2-column grid form were being squeezed into the
+           label column — span them instead */
+        form>p,
+        form>fieldset,
+        form>table,
+        form>h3 {
+            grid-column: 1 / -1;
+        }
+
+        form label {
+            color: var(--text);
+            font-size: .9rem;
+            padding-top: 2px;
+        }
+
+        form input[type="text"],
+        form input[type="number"],
+        form input[type="url"],
+        form input[type="file"],
+        form select,
+        form textarea {
+            background: #fdfcf9;
+            color: var(--text);
+            border-color: var(--line-strong);
+        }
+
+        form input:hover,
+        form select:hover,
+        form textarea:hover {
+            border-color: var(--gold-lt);
+        }
+
+        form input:focus,
+        form select:focus,
+        form textarea:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 0 4px rgba(201, 162, 39, .20);
+        }
+
+        form input[type="file"] {
+            padding: 10px 12px;
+            font-size: .88rem;
+        }
+
+        form button {
+            background: linear-gradient(135deg, var(--gold), var(--gold-lt));
+            border: 1px solid var(--gold-dk);
+            color: #241d05;
+            font-weight: 800;
+            box-shadow: 0 8px 20px rgba(201, 162, 39, .28);
+            margin-top: 6px;
+        }
+
+        form button:hover {
+            filter: brightness(1.04);
+        }
+
+        form fieldset {
+            grid-column: 1 / -1;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            background: #fdfcf9;
+            padding: 6px 16px 16px;
+            margin: 4px 0 0;
+            /* the per-day hours table is wider than a phone */
+            overflow-x: auto;
+            /* browsers force min-inline-size:min-content on <fieldset>, which
+               made it push past the viewport and get clipped by form{overflow:clip}
+               instead of scrolling */
+            min-inline-size: 0;
+            min-width: 0;
+        }
+
+        form fieldset legend {
+            padding: 0 8px;
+            font-size: .88rem;
+            font-weight: 800;
+            letter-spacing: .01em;
+            color: var(--gold-dk);
+        }
+
+        form fieldset table {
+            min-width: 380px;
+        }
+
+        form fieldset td {
+            border-top: 1px solid #f0ece1;
+        }
+
+        /* these carry inline colours tuned for the dark theme; an author
+           !important is the only thing that outranks a style attribute */
+        #updateBusinessHoursForm p[style],
+        #updateBusinessHoursForm thead tr[style] {
+            color: var(--text-2) !important;
+        }
+
+        /* ---------- Manage-mode toggle ---------- */
+        .manage-mode-toggle {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin: 0 0 16px;
+        }
+
+        #menuManageBlock {
+            width: min(100%, 980px);
+        }
+
+        .manage-mode-btn {
+            background: #fff;
+            border-color: var(--line-strong);
+            color: var(--text-2);
+        }
+
+        .manage-mode-btn:hover {
+            border-color: var(--gold);
+            color: var(--gold-dk);
+        }
+
+        .manage-mode-btn.active {
+            background: linear-gradient(135deg, var(--gold), var(--gold-lt));
+            border-color: var(--gold-dk);
+            color: #241d05;
+            box-shadow: 0 6px 16px rgba(201, 162, 39, .28);
+        }
+
+        .remove-btn {
+            background-image: linear-gradient(135deg, #e5484d, #ff7a7c) !important;
+            border-color: #cf3a3f !important;
+            color: #fff;
+            box-shadow: 0 8px 20px rgba(229, 72, 77, .26);
+        }
+
+        .addback-btn {
+            background-image: linear-gradient(135deg, #1a9e4b, #43c97a) !important;
+            border-color: #16853f !important;
+            color: #fff;
+            box-shadow: 0 8px 20px rgba(26, 158, 75, .24);
+        }
+
+        /* ---------- Temporary-availability checkbox card ---------- */
+        #toggleTemporaryAvailabilityForm label:has(input[type="checkbox"]) {
+            background: #fdfcf9;
+            border-color: var(--border);
+            color: var(--text);
+            box-shadow: none;
+        }
+
+        #toggleTemporaryAvailabilityForm input[type="checkbox"] {
+            background: #fff;
+            border-color: var(--line-strong);
+        }
+
+        #toggleTemporaryAvailabilityForm input[type="checkbox"]:hover {
+            border-color: var(--gold);
+        }
+
+        #toggleTemporaryAvailabilityForm input[type="checkbox"]:focus-visible {
+            box-shadow: 0 0 0 4px rgba(201, 162, 39, .22);
+        }
+
+        #toggleTemporaryAvailabilityForm input[type="checkbox"]::after {
+            background: conic-gradient(from 180deg, var(--gold-dk), var(--gold), var(--gold-lt), var(--gold-dk));
+        }
+
+        #toggleTemporaryAvailabilityForm input[type="checkbox"]:checked {
+            background-image: linear-gradient(#fff, #fff), linear-gradient(135deg, var(--gold-dk), var(--gold-lt));
+        }
+
+        /* ---------- Cards ---------- */
+        .current-menu-grid,
+        .arrange-grid {
+            width: min(1180px, 100%);
+        }
+
+        .menu-item-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            color: var(--text);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .menu-item-card:hover {
+            border-color: var(--line-strong);
+            box-shadow: 0 18px 38px rgba(30, 24, 8, .14);
+        }
+
+        .menu-item-card h3 {
+            color: var(--text);
+        }
+
+        .menu-item-card p {
+            color: var(--text-2);
+            font-size: .88rem;
+            line-height: 1.5;
+        }
+
+        .card-img-actions {
+            justify-content: center;
+        }
+
+        .change-img-btn {
+            background: #fff;
+            border: 1px solid var(--line-strong);
+            color: var(--text-2);
+        }
+
+        .change-img-btn:hover {
+            border-color: var(--gold);
+            color: var(--gold-dk);
+        }
+
+        .arrange-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .arrange-card.dragging {
+            box-shadow: 0 0 20px rgba(201, 162, 39, .35);
+        }
+
+        .arrange-name {
+            color: var(--text);
+        }
+
+        .arrange-num {
+            background: linear-gradient(135deg, var(--gold-dk), var(--gold-lt));
+            color: #241d05;
+        }
+
+        .flavor-preview {
+            border-color: var(--border);
+        }
+
+        /* ---------- Change-image modal ---------- */
+        .cim-overlay {
+            background: rgba(28, 22, 10, .55);
+            backdrop-filter: blur(3px);
+        }
+
+        .cim-card {
+            box-shadow: 0 24px 60px rgba(30, 24, 8, .28);
+        }
+
+        .cim-close:hover {
+            background: var(--gold-wash);
+            color: var(--gold-dk);
+        }
+
+        .cim-thumb:hover {
+            border-color: var(--gold);
+        }
+
+        @media (max-width: 820px) {
+            /* re-assert admin-style.css's single-column stack — this block loads
+               after it, so the desktop 2-column rule above would otherwise win
+               inside its media query too */
+            form {
+                grid-template-columns: 1fr;
+                gap: 12px;
+                padding: 20px 16px;
+            }
+
+            form label {
+                padding-top: 0;
+            }
+
+            form button {
+                width: 100%;
+            }
+        }
+    </style>
+
 </head>
 
 <body>
     <header>
         <div class="header-content">
             <img src="DolceLogo-Admin.png" alt="Dolce Vita Gelateria Logo" class="logo">
+            <div class="adm-headbar">
+                <button type="button" class="adm-chip-btn" id="admFxToggle" aria-controls="admShowcase"
+                    aria-expanded="true" title="Show or hide the animated tool buttons">
+                    <span class="adm-chip-ico" aria-hidden="true">✦</span>
+                    <span class="adm-chip-txt" id="admFxToggleLabel">Hide Showcase</span>
+                </button>
+                <button type="button" class="adm-chip-btn adm-nav-toggle" id="admNavToggle" aria-controls="admNav"
+                    aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="adm-burger" aria-hidden="true"></span>
+                    <span class="adm-chip-txt">Menu</span>
+                </button>
+            </div>
         </div>
+
+        <!-- Always-available navigation: a wrapped pill row on desktop, a
+             collapsible drawer on mobile. Mirrors every showcase button so the
+             tools stay reachable with the showcase hidden. -->
+        <nav class="adm-nav" id="admNav" aria-label="Admin tools">
+            <div class="adm-nav-inner">
+                <a href="index.html" class="adm-nav-link is-primary">View Menu Page</a>
+                <a href="https://dolcecaffesignage.web.app/admin.html" class="adm-nav-link">Pricing Menu<span
+                        class="adm-tag">New</span></a>
+                <a href="gelato.html" class="adm-nav-link">Gelato Inventory</a>
+                <a href="https://dolcevitagelato-inventory.web.app" target="_blank" rel="noopener noreferrer"
+                    class="adm-nav-link" title="Stock &amp; Supplies">Supply Hub<span class="adm-tag">New</span></a>
+                <a href="https://gelatosystem.web.app" target="_blank" rel="noopener noreferrer" class="adm-nav-link"
+                    title="Recipes &amp; Formulas">Gelato Lab<span class="adm-tag">New</span></a>
+                <a href="https://dvgpassport.web.app/admin.html" target="_blank" rel="noopener noreferrer"
+                    class="adm-nav-link">DVG Passport<span class="adm-tag">New</span></a>
+                <a href="https://dvg-calendar-d8caf.web.app/" target="_blank" rel="noopener noreferrer"
+                    class="adm-nav-link" title="Schedules &amp; Team">DVG Team Management<span
+                        class="adm-tag">New</span></a>
+                <a href="./coming-soon.html" class="adm-nav-link">Marketing Hub<span class="adm-tag is-soon">Soon</span></a>
+                <a href="https://coffeemanagment.web.app/analysis.html" target="_blank" rel="noopener noreferrer"
+                    class="adm-nav-link">Mobile Order Sales<span class="adm-tag is-dev">Dev</span></a>
+                <a href="https://coffeemanagment.web.app/index.html" target="_blank" rel="noopener noreferrer"
+                    class="adm-nav-link">Mobile Orders<span class="adm-tag">New</span></a>
+                <a href="https://tvqueue-b6329.web.app/admin.html" target="_blank" rel="noopener noreferrer"
+                    class="adm-nav-link">TV Manager<span class="adm-tag">New</span></a>
+            </div>
+        </nav>
     </header>
 
     <main>
+        <!-- ===================== LIVE OVERVIEW (gauges fed by the same Firestore
+             snapshot DVG Intelligence already subscribes to) ===================== -->
+        <section class="adm-dash" id="admDash" aria-label="Live overview">
+            <div class="adm-dash-head">
+                <span class="adm-eyebrow">Live Overview</span>
+                <h2 class="adm-dash-title">Dolce Vita <span>Control Center</span></h2>
+                <p class="adm-dash-sub">Case fill, usage, and inventory value — read straight from the gelato
+                    inventory the moment it changes.</p>
+            </div>
+
+            <div class="adm-gauges">
+                <article class="adm-gauge">
+                    <div class="adm-ring-wrap">
+                        <svg class="adm-ring" viewBox="0 0 120 120" aria-hidden="true">
+                            <circle class="adm-ring-bg" cx="60" cy="60" r="52"></circle>
+                            <circle class="adm-ring-fg" id="gaugeCaseRing" cx="60" cy="60" r="52"></circle>
+                        </svg>
+                        <span class="adm-ring-val"><strong id="gaugeCaseVal">—</strong><small>of 18</small></span>
+                    </div>
+                    <h3 class="adm-gauge-name">Case Slots Filled</h3>
+                    <p class="adm-gauge-note" id="gaugeCaseNote">Waiting for inventory…</p>
+                </article>
+
+                <article class="adm-gauge">
+                    <div class="adm-ring-wrap">
+                        <svg class="adm-ring" viewBox="0 0 120 120" aria-hidden="true">
+                            <circle class="adm-ring-bg" cx="60" cy="60" r="52"></circle>
+                            <circle class="adm-ring-fg" id="gaugeLevelRing" cx="60" cy="60" r="52"></circle>
+                        </svg>
+                        <span class="adm-ring-val"><strong id="gaugeLevelVal">—</strong><small>full</small></span>
+                    </div>
+                    <h3 class="adm-gauge-name">Case Stock Level</h3>
+                    <p class="adm-gauge-note" id="gaugeLevelNote">Waiting for inventory…</p>
+                </article>
+
+                <article class="adm-gauge">
+                    <div class="adm-ring-wrap">
+                        <svg class="adm-ring" viewBox="0 0 120 120" aria-hidden="true">
+                            <circle class="adm-ring-bg" cx="60" cy="60" r="52"></circle>
+                            <circle class="adm-ring-fg is-alert" id="gaugeWasteRing" cx="60" cy="60" r="52"></circle>
+                        </svg>
+                        <span class="adm-ring-val"><strong id="gaugeWasteVal">—</strong><small>wasted</small></span>
+                    </div>
+                    <h3 class="adm-gauge-name">Waste Rate Today</h3>
+                    <p class="adm-gauge-note" id="gaugeWasteNote">Nothing logged yet today</p>
+                </article>
+
+                <article class="adm-gauge">
+                    <div class="adm-ring-wrap">
+                        <svg class="adm-ring" viewBox="0 0 120 120" aria-hidden="true">
+                            <circle class="adm-ring-bg" cx="60" cy="60" r="52"></circle>
+                            <circle class="adm-ring-fg is-alert" id="gaugeLowRing" cx="60" cy="60" r="52"></circle>
+                        </svg>
+                        <span class="adm-ring-val"><strong id="gaugeLowVal">—</strong><small>low pans</small></span>
+                    </div>
+                    <h3 class="adm-gauge-name">Needs a Swap</h3>
+                    <p class="adm-gauge-note" id="gaugeLowNote">Waiting for inventory…</p>
+                </article>
+            </div>
+
+            <div class="adm-stats">
+                <div class="adm-stat"><span class="adm-stat-val" id="statTotalPans">—</span><span
+                        class="adm-stat-lbl">Pans On Hand</span></div>
+                <div class="adm-stat"><span class="adm-stat-val" id="statValue">—</span><span
+                        class="adm-stat-lbl">Inventory Value</span></div>
+                <div class="adm-stat"><span class="adm-stat-val" id="statUsed">—</span><span class="adm-stat-lbl">Pans
+                        Used Today</span></div>
+                <div class="adm-stat"><span class="adm-stat-val" id="statMoves">—</span><span
+                        class="adm-stat-lbl">Moves Logged Today</span></div>
+                <div class="adm-stat is-wide"><span class="adm-stat-val" id="statHours">—</span><span
+                        class="adm-stat-lbl" id="statHoursNote">Today's Hours</span></div>
+            </div>
+        </section>
+
         <!-- ===================== DVG INTELLIGENCE (loads minimized; Open expands full pink banner) ===================== -->
         <section class="gi-banner gi-collecting is-collapsed" id="gelato-intelligence" data-gi-mode="inline" aria-label="DVG Intelligence">
             <button type="button" class="gi-collapsed-bar" id="gi-expand">
@@ -602,7 +1600,16 @@
             </div>
         </section>
 
-        <div class="top-actions">
+        <!-- The animated blob buttons live on a dark bed (they are translucent
+             white-on-colour) and can be hidden wholesale from the header chip.
+             Every link here is duplicated in the header nav, so hiding this
+             never takes a destination away. -->
+        <section class="adm-showcase" id="admShowcase" aria-label="Tool showcase">
+            <div class="adm-showcase-head">
+                <span class="adm-eyebrow">Connected Tools</span>
+                <p class="adm-showcase-note">Same links as the top nav — hide this strip any time.</p>
+            </div>
+            <div class="top-actions">
             <button id="view-main-button" class="hero-btn"><span class="blob-clip"></span>View Menu Page</button>
             <a href="https://dolcecaffesignage.web.app/admin.html" class="btn hero-btn"><span class="blob-clip"></span>Pricing Menu<span class="new-badge">✨ NEW</span></a>
             <a href="gelato.html" class="btn hero-btn"><span class="blob-clip"></span>Gelato Inventory</a>
@@ -613,7 +1620,9 @@
             <a href="https://coffeemanagment.web.app/analysis.html" target="_blank" rel="noopener noreferrer" class="btn hero-btn"><span class="blob-clip"></span>Mobile Order Sales<span class="new-badge badge-dev">🚧 DEV</span></a>
             <a href="https://coffeemanagment.web.app/index.html" target="_blank" rel="noopener noreferrer" class="btn hero-btn"><span class="blob-clip"></span>Mobile Orders<span class="new-badge">✨ NEW</span></a>
             <a href="https://tvqueue-b6329.web.app/admin.html" target="_blank" rel="noopener noreferrer" class="btn hero-btn tv-manager-btn"><span class="blob-clip"></span>TV Manager<span class="new-badge">✨ NEW</span></a>
-        </div>
+            <a href="https://dvg-calendar-d8caf.web.app/" target="_blank" rel="noopener noreferrer" class="btn hero-btn team-mgmt-btn" title="Schedules &amp; Team"><span class="blob-clip"></span>DVG Team Management<span class="new-badge">✨ NEW</span></a>
+            </div>
+        </section>
 
         <section>
             <h2>Snow & Flag Effect</h2>
@@ -795,6 +1804,58 @@
         });
     </script>
     <script>
+        /* Mobile nav drawer. On >900px the nav is a plain wrapped pill row and
+         * the toggle is display:none, so this simply never fires there. */
+        (function () {
+            const nav = document.getElementById('admNav');
+            const btn = document.getElementById('admNavToggle');
+            if (!nav || !btn) return;
+
+            function setOpen(open) {
+                nav.classList.toggle('is-open', open);
+                btn.setAttribute('aria-expanded', String(open));
+            }
+
+            btn.addEventListener('click', () => setOpen(!nav.classList.contains('is-open')));
+            // tapping a destination closes the drawer behind you
+            nav.addEventListener('click', e => {
+                if (e.target.closest('.adm-nav-link')) setOpen(false);
+            });
+            document.addEventListener('keydown', e => {
+                if (e.key === 'Escape') setOpen(false);
+            });
+            window.addEventListener('resize', () => {
+                if (window.innerWidth > 900) setOpen(false);
+            });
+        })();
+
+        /* Showcase (animated blob buttons) show/hide, remembered per browser. */
+        (function () {
+            const KEY = 'admShowcaseHidden';
+            const showcase = document.getElementById('admShowcase');
+            const btn = document.getElementById('admFxToggle');
+            const label = document.getElementById('admFxToggleLabel');
+            if (!showcase || !btn) return;
+
+            function apply(hidden) {
+                showcase.hidden = hidden;
+                btn.classList.toggle('is-off', hidden);
+                btn.setAttribute('aria-expanded', String(!hidden));
+                if (label) label.textContent = hidden ? 'Show Showcase' : 'Hide Showcase';
+            }
+
+            let saved = null;
+            try { saved = localStorage.getItem(KEY); } catch (_) { }
+            apply(saved === '1');
+
+            btn.addEventListener('click', () => {
+                const next = !showcase.hidden;
+                try { localStorage.setItem(KEY, next ? '1' : '0'); } catch (_) { }
+                apply(next);
+            });
+        })();
+    </script>
+    <script>
         /* Boot DVG Intelligence on admin with a live Firestore inventory snapshot
          * (same collections the gelato page uses). Banner stays fully expanded. */
         (function () {
@@ -886,6 +1947,71 @@
                 };
             }
 
+            /* ---- Live Overview gauges -------------------------------------
+             * Purely a second consumer of buildSnapshot() — no extra Firestore
+             * reads, and every write is guarded so a missing node can never
+             * break the banner it shares its listeners with. */
+            const RING_LEN = 2 * Math.PI * 52;
+
+            function setRing(id, ratio) {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const p = Math.max(0, Math.min(1, Number(ratio) || 0));
+                el.style.strokeDasharray = RING_LEN.toFixed(2);
+                el.style.strokeDashoffset = (RING_LEN * (1 - p)).toFixed(2);
+            }
+            function setTxt(id, value) {
+                const el = document.getElementById(id);
+                if (el) el.textContent = value;
+            }
+            function paintGauges() {
+                const s = buildSnapshot();
+                const slots = s.totals.caseSlots;
+                const max = s.totals.caseSlotsMax || CASE_SLOTS;
+                const open = Math.max(0, max - slots);
+
+                setRing('gaugeCaseRing', max ? slots / max : 0);
+                setTxt('gaugeCaseVal', slots);
+                setTxt('gaugeCaseNote', slots
+                    ? `${open} slot${open === 1 ? '' : 's'} still open`
+                    : 'No pans assigned to the case');
+
+                const level = slots ? s.totals.casePans / slots : 0;
+                setRing('gaugeLevelRing', level);
+                setTxt('gaugeLevelVal', Math.round(level * 100) + '%');
+                setTxt('gaugeLevelNote', `${s.totals.casePans} pan${s.totals.casePans === 1 ? '' : 's'} across the case`);
+
+                const used = s.usage.usedPans;
+                const wasted = s.usage.wastedPans;
+                const moved = r2(used + wasted);
+                const wasteRate = moved > 0 ? wasted / moved : 0;
+                setRing('gaugeWasteRing', wasteRate);
+                setTxt('gaugeWasteVal', Math.round(wasteRate * 100) + '%');
+                setTxt('gaugeWasteNote', moved > 0
+                    ? `${wasted} wasted of ${moved} pans moved today`
+                    : 'Nothing logged yet today');
+
+                const low = s.lowPans.length;
+                setRing('gaugeLowRing', slots ? low / slots : 0);
+                setTxt('gaugeLowVal', low);
+                setTxt('gaugeLowNote', low
+                    ? 'At or under half a pan — swap soon'
+                    : (slots ? 'Every pan is above half' : 'Waiting for inventory…'));
+
+                setTxt('statTotalPans', s.totals.totalPans);
+                setTxt('statValue', '$' + Math.round(s.totals.totalValue).toLocaleString('en-US'));
+                setTxt('statUsed', used);
+                setTxt('statMoves', s.movement.movesToday);
+            }
+
+            /* One entry point for both consumers, so a throw in either can't
+             * starve the other of updates. */
+            function refreshAll() {
+                try { GelatoIntelligence.refreshBanner(); } catch (e) { console.error('admin gi banner', e); }
+                try { paintGauges(); } catch (e) { console.error('admin gauges', e); }
+            }
+            window.admPaintGauges = paintGauges;
+
             function boot() {
                 if (!window.GelatoIntelligence || typeof GelatoIntelligence.init !== 'function' || typeof db === 'undefined') {
                     setTimeout(boot, 50);
@@ -896,9 +2022,10 @@
                     mode: 'inline',
                     getSnapshot: buildSnapshot
                 });
+                refreshAll();
                 db.collection('gelatoInventory').onSnapshot(snap => {
                     inventory = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
-                    GelatoIntelligence.refreshBanner();
+                    refreshAll();
                 }, err => console.error('admin gi inventory', err));
                 db.collection('gelatoSettings').doc('pricing').onSnapshot(d => {
                     if (!d.exists) return;
@@ -906,15 +2033,15 @@
                     if (data.pricePerGram != null) pricePerGram = Number(data.pricePerGram) || pricePerGram;
                     if (data.costPerPan != null) costPerPan = Number(data.costPerPan) || r2(pricePerGram * GRAMS_PER_PAN);
                     else costPerPan = r2(pricePerGram * GRAMS_PER_PAN);
-                    GelatoIntelligence.refreshBanner();
+                    refreshAll();
                 }, err => console.error('admin gi pricing', err));
                 db.collection('gelatoUsage').doc(todayStr()).onSnapshot(d => {
                     usageToday = d.exists ? (d.data() || {}) : { usedPans: 0, wastedPans: 0 };
-                    GelatoIntelligence.refreshBanner();
+                    refreshAll();
                 }, err => console.error('admin gi usage', err));
                 db.collection('gelatoMoves').orderBy('at', 'desc').limit(60).onSnapshot(snap => {
                     moves = snap.docs.map(d => d.data());
-                    GelatoIntelligence.refreshBanner();
+                    refreshAll();
                 }, err => console.error('admin gi moves', err));
             }
             if (document.readyState === 'loading') {
@@ -926,6 +2053,40 @@
     </script>
     <script>
         const form = document.getElementById("updateBusinessHoursForm");
+
+        /* Live Overview "Today's Hours" tile. Read-only: it resolves today's
+         * hours with the same precedence the form uses (per-day override >
+         * dayHours.default > legacy flat fields) and never writes anything. */
+        function paintHoursTile(data) {
+            const valEl = document.getElementById("statHours");
+            const lblEl = document.getElementById("statHoursNote");
+            if (!valEl) return;
+
+            const fmt = (v) => {
+                const n = parseInt(v, 10);
+                if (isNaN(n)) return "--";
+                const h = Math.floor(n / 100), m = n % 100;
+                const ampm = h >= 12 ? "PM" : "AM";
+                return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${ampm}`;
+            };
+
+            const dayHours = (data && data.dayHours && typeof data.dayHours === "object") ? data.dayHours : {};
+            const def = dayHours.default || { openTime: data && data.openTime, closeTime: data && data.closeTime };
+            const today = new Date().getDay();
+            const openDays = Array.isArray(data && data.openDays) ? data.openDays.map(n => parseInt(n, 10)) : [];
+
+            if (openDays.length && !openDays.includes(today)) {
+                valEl.textContent = "Closed";
+                if (lblEl) lblEl.textContent = "Closed Today";
+                return;
+            }
+
+            const ov = dayHours[today] || dayHours[String(today)] || null;
+            const o = (ov && ov.openTime != null) ? ov.openTime : (def ? def.openTime : null);
+            const c = (ov && ov.closeTime != null) ? ov.closeTime : (def ? def.closeTime : null);
+            valEl.textContent = `${fmt(o)} – ${fmt(c)}`;
+            if (lblEl) lblEl.textContent = ov ? "Today's Custom Hours" : "Today's Hours (Default)";
+        }
 
         function fetchCurrentBusinessHours() {
             db.collection("business_hours").doc("hours").get()
@@ -955,6 +2116,8 @@
                             if (openEl) openEl.value = (dh && dh.openTime != null) ? dh.openTime : "";
                             if (closeEl) closeEl.value = (dh && dh.closeTime != null) ? dh.closeTime : "";
                         }
+
+                        paintHoursTile(data);
                     }
                 })
                 .catch((error) => console.error("Error fetching business hours:", error));
@@ -997,11 +2160,11 @@
             const ref = db.collection("business_hours").doc("hours");
             const payload = { openTime, closeTime, openDays, dayHours };
             ref.update(payload)
-                .then(() => alert("Business hours updated successfully!"))
+                .then(() => { paintHoursTile(payload); alert("Business hours updated successfully!"); })
                 .catch((error) => {
                     if (error && error.code === "not-found") {
                         ref.set(payload)
-                            .then(() => alert("Business hours updated successfully!"))
+                            .then(() => { paintHoursTile(payload); alert("Business hours updated successfully!"); })
                             .catch((e2) => console.error("Error creating business hours:", e2));
                     } else {
                         console.error("Error updating business hours:", error);
