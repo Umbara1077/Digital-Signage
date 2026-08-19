@@ -10,8 +10,10 @@
  *
  * Only flavors currently on the menu are shown. Data lives in its own
  * `gelatoInventory` collection (doc id == menuItems id) plus a
- * `gelatoSettings/queue` doc for the swap queue, so nothing here writes to any
- * pre-existing collection and it can't interfere with the rest of the app.
+ * `gelatoSettings/queue` doc for the swap queue, `orderQueue` for flavors to
+ * make, and `orderChecks` for which of those have been marked made, so nothing
+ * here writes to any pre-existing collection and it can't interfere with the
+ * rest of the app.
  * ========================================================================= */
 
 (function () {
@@ -60,17 +62,21 @@
     let queueLoaded = false;   // true once the saved queue has loaded from the DB
     let usageToday = {};       // today's running usage totals (pans)
     let orderQueue = [];       // flavors flagged to make (production list)
+    let orderQueueLoaded = false;  // true once gelatoSettings/orderQueue has arrived
     let viewMode = 'visual';   // 'visual' | 'stats' | 'mobile'
     let statMode = false;      // kept in sync with viewMode === 'stats'
     let openPanChips = new Set();   // "id|loc|idx|amt" keys of chips in adjust mode
     let chipHandlersAttached = false;
     let autoStageExcluded = new Set();  // "pan|flavorId" keys excluded from auto-stage (manually removed)
+    let orderChecked = new Set();  // flavorIds marked made — mirrored to gelatoSettings/orderChecks
+    let orderApproveLock = false;  // prevents double-approve while pans are writing
     let _started = false;  // prevents wireUi/start from running twice if auth fires twice
     let pendingDummyFocusId = null;  // id of a just-created dummy pan to auto-focus once rendered
     let longFreezerCtxAttached = false;  // guards the one-time "empty space" right-click listener
     const queueDocRef = () => db.collection('gelatoSettings').doc('queue');
     const snapshotDocRef = () => db.collection('gelatoSettings').doc('caseSnapshot');
     const orderDocRef = () => db.collection('gelatoSettings').doc('orderQueue');
+    const orderChecksDocRef = () => db.collection('gelatoSettings').doc('orderChecks');
     const pricingDocRef = () => db.collection('gelatoSettings').doc('pricing');
     const menuBackupDocRef = () => db.collection('gelatoSettings').doc('menuBackup');
     const todayStr = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD (local)
@@ -207,10 +213,20 @@
 
         orderDocRef().onSnapshot(d => {
             orderQueue = (d.exists && Array.isArray(d.data().items)) ? d.data().items : [];
+            orderQueueLoaded = true;
+            if (dropStaleOrderChecks()) persistOrderChecks();
             renderOrderQueue();
             if (statMode) renderStatTable();
             if (viewMode === 'mobile') renderMobilePanel();
         }, err => console.error('order snapshot error', err));
+
+        orderChecksDocRef().onSnapshot(d => {
+            const ids = (d.exists && Array.isArray(d.data().checked)) ? d.data().checked : [];
+            orderChecked = new Set(ids.filter(Boolean).map(String));
+            if (dropStaleOrderChecks()) persistOrderChecks();
+            renderOrderQueue();
+            if (viewMode === 'mobile') renderMobilePanel();
+        }, err => console.error('order checks snapshot error', err));
 
         pricingDocRef().onSnapshot(d => {
             const v = d.exists ? Number(d.data().pricePerGram) : NaN;
@@ -1090,17 +1106,27 @@
             }).join('') + `</div>`
             : `<p class="g-empty-note">Nothing staged.</p>`;
 
-        // production order list — add and remove flavors
+        // production order list — check off made flavors, then Approve into Short-Term
+        pruneOrderChecked();
         html += `<h3 class="g-mob-h">Order Queue (flavors to make)</h3>`;
         html += orderQueue.length
-            ? `<div class="g-mob-list">` + orderQueue.map((o, i) => `
-                <div class="g-mob-row">
+            ? `<div class="g-mob-list">` + orderQueue.map((o, i) => {
+                const checked = orderChecked.has(String(o.flavorId));
+                return `
+                <div class="g-mob-row${checked ? ' is-checked' : ''}">
                     <span class="g-mob-pan">${i + 1}</span>
-                    <span class="g-mob-name">${esc(nameById(o.flavorId) || o.name)}</span>
-                    <button type="button" class="g-mob-btn go" data-act="mob-odel" data-i="${i}"
-                        title="Made it — adds 1.0 pan to Short-Term and clears it from the list"
-                        aria-label="Made — move 1 pan to short-term">✕</button>
-                </div>`).join('') + `</div>`
+                    <label class="g-order-check">
+                        <input type="checkbox" data-act="mob-ocheck" data-i="${i}" ${checked ? 'checked' : ''}>
+                        <span class="g-mob-name">${esc(nameById(o.flavorId) || o.name)}</span>
+                    </label>
+                    ${checked ? `<button type="button" class="g-mob-btn go" data-act="mob-oapprove" data-i="${i}">Approve</button>` : ''}
+                    <button type="button" class="g-mob-btn danger" data-act="mob-odel" data-i="${i}"
+                        title="Remove from the list without adding stock"
+                        aria-label="Remove from order list">✕</button>
+                </div>`;
+            }).join('') + `</div>` + (orderChecked.size
+                ? `<button type="button" class="g-mob-btn go g-mob-approve-all" data-act="mob-oapprove-all">Approve ${orderChecked.size} to freezer</button>`
+                : '')
             : `<p class="g-empty-note">No flavors queued for production.</p>`;
         html += `<form class="g-mob-add" id="mob-order-form">
             <select id="mob-order-flavor" aria-label="Flavor to queue">${menuFlavors.map(f =>
@@ -1140,8 +1166,14 @@
             b.addEventListener('click', () => executeSwap(Number(b.dataset.i))));
         el.querySelectorAll('[data-act="mob-qdel"]').forEach(b =>
             b.addEventListener('click', () => removeFromQueue(Number(b.dataset.i))));
+        el.querySelectorAll('[data-act="mob-ocheck"]').forEach(box =>
+            box.addEventListener('change', () => toggleOrderChecked(Number(box.dataset.i), box.checked)));
+        el.querySelectorAll('[data-act="mob-oapprove"]').forEach(b =>
+            b.addEventListener('click', () => approveOrder(Number(b.dataset.i))));
+        el.querySelectorAll('[data-act="mob-oapprove-all"]').forEach(b =>
+            b.addEventListener('click', () => approveCheckedOrders()));
         el.querySelectorAll('[data-act="mob-odel"]').forEach(b =>
-            b.addEventListener('click', () => completeOrder(Number(b.dataset.i))));
+            b.addEventListener('click', () => removeFromOrder(Number(b.dataset.i))));
         const orderForm = document.getElementById('mob-order-form');
         if (orderForm) orderForm.addEventListener('submit', e => {
             e.preventDefault();
@@ -2127,20 +2159,85 @@
         }
         const list = document.getElementById('order-list');
         if (!list) return;
+        pruneOrderChecked();
         if (!orderQueue.length) {
             list.innerHTML = `<p class="g-empty-note">No flavors queued for production.</p>`;
             return;
         }
-        list.innerHTML = orderQueue.map((o, i) => `
-            <div class="g-order-item">
+        const items = orderQueue.map((o, i) => {
+            const checked = orderChecked.has(String(o.flavorId));
+            return `
+            <div class="g-order-item${checked ? ' is-checked' : ''}">
+                <label class="g-order-check">
+                    <input type="checkbox" class="g-order-done" data-i="${i}" ${checked ? 'checked' : ''}
+                        aria-label="Mark ${esc(nameById(o.flavorId) || o.name)} as made">
+                </label>
                 <span class="g-order-num">${i + 1}</span>
                 <span class="g-order-iname">${esc(nameById(o.flavorId) || o.name)}</span>
+                ${checked ? `<button type="button" class="g-order-approve" data-i="${i}">Approve</button>` : ''}
                 <button type="button" class="g-order-del" data-i="${i}"
-                    title="Made it — adds 1.0 pan to Short-Term and clears it from the list"
-                    aria-label="Made — move 1 pan to short-term">✕</button>
-            </div>`).join('');
+                    title="Remove from the list without adding stock"
+                    aria-label="Remove from order list">✕</button>
+            </div>`;
+        }).join('');
+        const n = orderChecked.size;
+        const master = `
+            <div class="g-order-master">
+                <div class="g-order-master-copy">
+                    <strong>Approve to freezer</strong>
+                    <span>${n ? `${n} checked — press to add 1.0 pan each to Short-Term` : 'Check finished flavors, then approve. Checking alone does not add stock.'}</span>
+                </div>
+                <button type="button" class="g-order-approve g-order-approve-all" ${n ? '' : 'disabled'}>
+                    Approve ${n || 0} to freezer
+                </button>
+            </div>`;
+        list.innerHTML = items + master;
+        list.querySelectorAll('.g-order-done').forEach(box =>
+            box.addEventListener('change', () => toggleOrderChecked(Number(box.dataset.i), box.checked)));
+        list.querySelectorAll('.g-order-approve[data-i]').forEach(b =>
+            b.addEventListener('click', () => approveOrder(Number(b.dataset.i))));
+        const allBtn = list.querySelector('.g-order-approve-all');
+        if (allBtn) allBtn.addEventListener('click', () => approveCheckedOrders());
         list.querySelectorAll('.g-order-del').forEach(b =>
-            b.addEventListener('click', () => completeOrder(Number(b.dataset.i))));
+            b.addEventListener('click', () => removeFromOrder(Number(b.dataset.i))));
+    }
+
+    function pruneOrderChecked() {
+        dropStaleOrderChecks();
+    }
+
+    function dropStaleOrderChecks() {
+        if (!orderQueueLoaded) return false;
+        const live = new Set(orderQueue.map(o => String(o.flavorId)));
+        let changed = false;
+        [...orderChecked].forEach(id => {
+            if (!live.has(id)) {
+                orderChecked.delete(id);
+                changed = true;
+            }
+        });
+        return changed;
+    }
+
+    function persistOrderChecks() {
+        return orderChecksDocRef().set({
+            checked: [...orderChecked],
+            updatedAt: stamp()
+        }).catch(err => {
+            console.error('persist order checks failed', err);
+            status('Could not save the check — see console.');
+        });
+    }
+
+    async function toggleOrderChecked(i, on) {
+        const o = orderQueue[i];
+        if (!o) return;
+        const id = String(o.flavorId);
+        if (on) orderChecked.add(id);
+        else orderChecked.delete(id);
+        renderOrderQueue();
+        if (viewMode === 'mobile') renderMobilePanel();
+        await persistOrderChecks();
     }
 
     function toggleOrder(flavorId) {
@@ -2160,27 +2257,71 @@
     }
 
     async function removeFromOrder(i) {
+        const o = orderQueue[i];
+        if (o) orderChecked.delete(String(o.flavorId));
         const next = orderQueue.slice();
         next.splice(i, 1);
-        await orderDocRef().set({ items: next }, { merge: true });
+        const batch = db.batch();
+        batch.set(orderDocRef(), { items: next }, { merge: true });
+        batch.set(orderChecksDocRef(), { checked: [...orderChecked], updatedAt: stamp() });
+        await batch.commit();
     }
 
-    /* ✕ on an order-queue item = that flavor has been made: one full pan
+    async function approveOrder(i) {
+        const o = orderQueue[i];
+        if (!o) return false;
+        if (!orderChecked.has(String(o.flavorId))) {
+            status('Check the flavor off first, then Approve to send it into Short-Term.');
+            return false;
+        }
+        return completeOrder(i);
+    }
+
+    async function approveCheckedOrders() {
+        if (orderApproveLock) return;
+        pruneOrderChecked();
+        const pending = orderQueue.filter(o => orderChecked.has(String(o.flavorId)));
+        if (!pending.length) {
+            status('Check finished flavors first — nothing is sent until you Approve.');
+            return;
+        }
+        orderApproveLock = true;
+        let ok = 0;
+        try {
+            for (const o of pending) {
+                const i = orderQueue.findIndex(x => x.flavorId === o.flavorId);
+                if (i < 0) continue;
+                const done = await completeOrder(i);
+                if (!done) break;
+                ok += 1;
+            }
+        } finally {
+            orderApproveLock = false;
+        }
+        if (ok > 1) status(`Approved ${ok} pan(s) into Short-Term.`, true);
+        renderOrderQueue();
+        if (viewMode === 'mobile') renderMobilePanel();
+    }
+
+    /* Approve on an order-queue item = that flavor has been made: one full pan
      * (1.0) goes into short-term storage, then the item leaves the list.
-     * If the short-term freezer has no free slot, the item stays put. */
+     * Checking the box alone does not move stock. If the short-term freezer
+     * has no free slot, the item stays put. */
     async function completeOrder(i) {
         const o = orderQueue[i];
-        if (!o) return;
+        if (!o) return false;
         const f = byId(o.flavorId);
         const name = nameById(o.flavorId) || o.name || '(unnamed)';
         const newArr = addPans(pansOf(f || {}, 'shortTerm'), 1);
         if (slotsAfter('shortTerm', o.flavorId, newArr) > SHORT_CAP) {
             status(`Short-term freezer is full — ${slotsOpen('shortTerm')} slot(s) open. ${name} stays on the order list.`);
-            return;
+            return false;
         }
         try {
             if (f) {
                 await doc(f.id).update(setPans({ updatedAt: stamp() }, 'shortTerm', newArr));
+                const inv = inventory.find(x => x.id === f.id);
+                if (inv) Object.assign(inv, setPans({ updatedAt: stamp() }, 'shortTerm', newArr));
             } else {
                 // no inventory doc yet — create it on the fly (mirrors onAddStock)
                 const m = liveMeta(o.flavorId);
@@ -2194,20 +2335,37 @@
                 setPans(u, 'shortTerm', newArr);
                 setPans(u, 'longTerm', []);
                 await doc(o.flavorId).set(u, { merge: true });
+                inventory.push({ ...u, id: o.flavorId });
             }
-            await removeFromOrder(i);
+            flavors = inventory.filter(x => onMenu(x) || hasStock(x))
+                .map(enrich)
+                .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            orderChecked.delete(String(o.flavorId));
+            const next = orderQueue.slice();
+            next.splice(i, 1);
+            orderQueue = next;
+            const batch = db.batch();
+            batch.set(orderDocRef(), { items: next }, { merge: true });
+            batch.set(orderChecksDocRef(), { checked: [...orderChecked], updatedAt: stamp() });
+            await batch.commit();
             logMove('intake', `Made ${name} — 1 pan → Short-Term (from order queue)`);
             status(`${name} made: 1.0 pan added to Short-Term.`, true);
+            return true;
         } catch (e) {
             console.error('completeOrder failed', e);
             status('Completing the order failed — see console.');
+            return false;
         }
     }
 
     async function clearOrder() {
         if (!orderQueue.length) return;
         if (!confirm('Clear the entire production order list?')) return;
-        await orderDocRef().set({ items: [] });
+        orderChecked.clear();
+        const batch = db.batch();
+        batch.set(orderDocRef(), { items: [] });
+        batch.set(orderChecksDocRef(), { checked: [], updatedAt: stamp() });
+        await batch.commit();
     }
 
     // ----- Recommendations (red pans) -------------------------------------
