@@ -1182,11 +1182,16 @@
         });
     }
 
-    /* Predictively stage a same-flavor refill for any case pan that has
-     * short-term stock to pull from — even before it hits the red. Also
-     * reconciles the queue against reality: an entry whose replacement
-     * flavor no longer has short-term stock (moved/transferred away after
-     * being staged) is dropped instead of sitting there falsely "READY". */
+    /* Stage a same-flavor refill for any case pan that has actually dropped
+     * into the red AND has short-term stock to pull from. Also reconciles the
+     * queue against reality: an entry whose replacement flavor no longer has
+     * short-term stock (moved/transferred away after being staged) is dropped
+     * instead of sitting there falsely "READY".
+     *
+     * The low check matters: staging every pan that merely *has* backup stock
+     * parks a permanent entry on all 18 slots (one staged swap per pan), which
+     * buries the pans that genuinely need attention and lets a healthy pan be
+     * "refilled" long before it needs it. */
     function autoStageLowPans() {
         // never write until the saved queue has loaded, or we'd clobber it
         if (!queueLoaded) return;
@@ -1198,9 +1203,8 @@
 
         const additions = [];
         casePans().forEach(f => {
-            // predictive: stage a refill for ANY pan that has a short-term
-            // replacement ready, even before it drops into the red
-            if (caseStock(f) > EPS && !queue.some(q => q.pan === f.casePan)
+            const low = (f.active || 0) <= SWAP_THRESHOLD + EPS;
+            if (low && caseStock(f) > EPS && !queue.some(q => q.pan === f.casePan)
                     && !autoStageExcluded.has(`${f.casePan}|${f.id}`)) {
                 additions.push({ pan: f.casePan, flavorId: f.id, name: f.name });
             }
@@ -2286,19 +2290,20 @@
             return;
         }
         orderApproveLock = true;
-        let ok = 0;
+        let ok = 0, blocked = 0;
         try {
             for (const o of pending) {
                 const i = orderQueue.findIndex(x => x.flavorId === o.flavorId);
                 if (i < 0) continue;
-                const done = await completeOrder(i);
-                if (!done) break;
-                ok += 1;
+                // one flavor that won't fit (or errors) shouldn't abort the rest
+                if (await completeOrder(i)) ok += 1;
+                else blocked += 1;
             }
         } finally {
             orderApproveLock = false;
         }
-        if (ok > 1) status(`Approved ${ok} pan(s) into Short-Term.`, true);
+        if (ok > 1 && !blocked) status(`Approved ${ok} pan(s) into Short-Term.`, true);
+        else if (blocked) status(`Approved ${ok} pan(s) — ${blocked} stayed on the list (no room in Short-Term).`, ok > 0);
         renderOrderQueue();
         if (viewMode === 'mobile') renderMobilePanel();
     }
@@ -2474,9 +2479,20 @@
         await queueDocRef().set({ queue: next }, { merge: true });
     }
 
-    /* Pull one whole pan of the staged flavor out of a freezer (short-term
-     * preferred) and drop it into the target case slot, replacing whatever was
-     * there. */
+    /* Move gelato out of short-term storage and into the target case slot.
+     *
+     * Two shapes, and the difference matters:
+     *  - different flavor  → the outgoing pan leaves the case and the incoming
+     *                        flavor takes the slot with up to a full pan (1.0).
+     *  - same flavor       → this is a REFILL, so top the existing pan back up
+     *                        to 1.0 instead of swapping it out. Swapping it out
+     *                        would push the fuller case pan back into the
+     *                        freezer and leave the case holding the leftover
+     *                        scrap, which is how a 0.9 pan ended up at 0.3.
+     *
+     * Either way the amount pulled is capped at what the pan can physically
+     * hold, and pullPans takes the flavor's smallest pans first so partials get
+     * used up before whole ones. */
     async function executeSwap(i) {
         const q = queue[i];
         if (!q) return;
@@ -2484,36 +2500,44 @@
         if (!incoming) { status('Replacement flavor no longer exists.'); return; }
 
         // the case is fed from short-term only
-        if (caseStock(incoming) <= EPS) {
+        const stock = caseStock(incoming);
+        if (stock <= EPS) {
             status(`${incoming.name} has no short-term stock. Move some up from long-term first.`); return;
         }
 
-        const stock = r2(incoming.shortTerm || 0);
-        const frac = r2(stock % 1);
-        const take = frac > EPS ? frac : Math.min(1, stock);
         const outgoing = flavors.find(f => f.casePan === q.pan);
+        const isRefill = !!outgoing && outgoing.id === incoming.id;
+        const existingActive = isRefill ? r2(outgoing.active || 0) : 0;
+
+        // never overfill a pan, and never pull more than the freezer holds
+        const room = r2(1 - existingActive);
+        const take = r2(Math.min(room, stock));
+        if (take <= EPS) {
+            status(`Pan ${q.pan} is already full (1.0) — nothing to add.`); return;
+        }
+        const nextActive = r2(existingActive + take);
 
         const batch = db.batch();
-        if (outgoing && outgoing.id !== incoming.id) {
+        if (outgoing && !isRefill) {
             batch.update(doc(outgoing.id), { active: 0, casePan: null, updatedAt: stamp() });
         }
-        // if replacing the same flavor (e.g. Pistachio→Pistachio), the existing
-        // case gelato would be silently overwritten — return it to storage first
-        const existingActive = (outgoing && outgoing.id === incoming.id) ? r2(outgoing.active || 0) : 0;
-        const baseShortPans = existingActive > EPS
-            ? addPans(pansOf(incoming, 'shortTerm'), existingActive)
-            : pansOf(incoming, 'shortTerm');
         batch.update(doc(incoming.id), setPans(
-            { active: take, casePan: q.pan, updatedAt: stamp() },
-            'shortTerm', pullPans(baseShortPans, take)));
+            { active: nextActive, casePan: q.pan, updatedAt: stamp() },
+            'shortTerm', pullPans(pansOf(incoming, 'shortTerm'), take)));
         await batch.commit();
 
         const next = queue.slice();
         next.splice(i, 1);
         await queueDocRef().set({ queue: next }, { merge: true });
-        logMove('swap', `Swapped ${incoming.name} into Pan ${q.pan} (${take} from Short-Term)`);
-        status(`Swapped ${incoming.name} into Pan ${q.pan}.`, true);
-        caseActionFx('swap', incoming.name, `Now in Pan ${q.pan}`, q.pan);
+        if (isRefill) {
+            logMove('swap', `Refilled ${incoming.name} in Pan ${q.pan} (+${take} from Short-Term — now ${nextActive})`);
+            status(`Refilled ${incoming.name} in Pan ${q.pan} — now ${nextActive}.`, true);
+            caseActionFx('swap', incoming.name, `Pan ${q.pan} topped up to ${nextActive}`, q.pan);
+        } else {
+            logMove('swap', `Swapped ${incoming.name} into Pan ${q.pan} (${take} from Short-Term)`);
+            status(`Swapped ${incoming.name} into Pan ${q.pan}.`, true);
+            caseActionFx('swap', incoming.name, `Now in Pan ${q.pan}`, q.pan);
+        }
     }
 
     // ----- Case slot actions ----------------------------------------------
