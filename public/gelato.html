@@ -625,7 +625,7 @@
             </div>
 
             <div class="g-stat-block" id="order-block">
-                <h3>Order Queue — flavors to make</h3>
+                <h3>Order Queue — flavors to make <span class="g-cap">top of the list gets made first</span></h3>
                 <form id="orderAddForm" class="g-order-add">
                     <select id="order-source">
                         <option value="active">Active (on menu)</option>
@@ -636,7 +636,8 @@
                     <button type="button" id="order-clear" class="btn g-btn-danger">Clear list</button>
                 </form>
                 <div id="order-list" class="g-order-list"></div>
-                <p class="g-hint-line">Or click a flavor's name in the table above to add/remove it (no stock
+                <p class="g-hint-line">Drag a row by its <strong>⠿</strong> grip — or use <strong>▲ ▼</strong> — to
+                    re-order what gets made first. Or click a flavor's name in the table above to add/remove it (no stock
                     change). Check a flavor when it's been <strong>made</strong> — nothing goes into Short-Term until you
                     press <strong>Approve</strong>.</p>
             </div>

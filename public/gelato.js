@@ -70,6 +70,8 @@
     let autoStageExcluded = new Set();  // "pan|flavorId" keys excluded from auto-stage (manually removed)
     let orderChecked = new Set();  // flavorIds marked made — mirrored to gelatoSettings/orderChecks
     let orderApproveLock = false;  // prevents double-approve while pans are writing
+    let orderDragFrom = null;      // order-queue row index being dragged, null when idle
+    let orderRerenderQueued = false;  // a remote snapshot landed mid-drag — redraw on dragend
     let _started = false;  // prevents wireUi/start from running twice if auth fires twice
     let pendingDummyFocusId = null;  // id of a just-created dummy pan to auto-focus once rendered
     let longFreezerCtxAttached = false;  // guards the one-time "empty space" right-click listener
@@ -2140,6 +2142,10 @@
     const orderSource = () => (document.getElementById('order-source') || {}).value || 'active';
 
     function renderOrderQueue() {
+        // another machine's live update must not yank the row out from under
+        // an in-progress drag — remember it and redraw once the drag ends
+        if (orderDragFrom !== null) { orderRerenderQueued = true; return; }
+        orderRerenderQueued = false;
         const sel = document.getElementById('order-flavor');
         if (sel) {
             const prev = sel.value;
@@ -2168,16 +2174,26 @@
             list.innerHTML = `<p class="g-empty-note">No flavors queued for production.</p>`;
             return;
         }
+        const last = orderQueue.length - 1;
         const items = orderQueue.map((o, i) => {
             const checked = orderChecked.has(String(o.flavorId));
+            const nm = esc(nameById(o.flavorId) || o.name);
             return `
-            <div class="g-order-item${checked ? ' is-checked' : ''}">
+            <div class="g-order-item${checked ? ' is-checked' : ''}" data-i="${i}">
+                <span class="g-order-grip" title="Drag to reorder — the top of the list gets made first"
+                    aria-hidden="true">⠿</span>
                 <label class="g-order-check">
                     <input type="checkbox" class="g-order-done" data-i="${i}" ${checked ? 'checked' : ''}
-                        aria-label="Mark ${esc(nameById(o.flavorId) || o.name)} as made">
+                        aria-label="Mark ${nm} as made">
                 </label>
                 <span class="g-order-num">${i + 1}</span>
-                <span class="g-order-iname">${esc(nameById(o.flavorId) || o.name)}</span>
+                <span class="g-order-iname">${nm}</span>
+                <span class="g-order-move">
+                    <button type="button" class="g-order-up" data-i="${i}" ${i === 0 ? 'disabled' : ''}
+                        title="Make this earlier" aria-label="Move ${nm} up">▲</button>
+                    <button type="button" class="g-order-down" data-i="${i}" ${i === last ? 'disabled' : ''}
+                        title="Make this later" aria-label="Move ${nm} down">▼</button>
+                </span>
                 ${checked ? `<button type="button" class="g-order-approve" data-i="${i}">Approve</button>` : ''}
                 <button type="button" class="g-order-del" data-i="${i}"
                     title="Remove from the list without adding stock"
@@ -2204,6 +2220,136 @@
         if (allBtn) allBtn.addEventListener('click', () => approveCheckedOrders());
         list.querySelectorAll('.g-order-del').forEach(b =>
             b.addEventListener('click', () => removeFromOrder(Number(b.dataset.i))));
+        list.querySelectorAll('.g-order-up').forEach(b =>
+            b.addEventListener('click', () => moveOrderItem(Number(b.dataset.i), Number(b.dataset.i) - 1)));
+        list.querySelectorAll('.g-order-down').forEach(b =>
+            b.addEventListener('click', () => moveOrderItem(Number(b.dataset.i), Number(b.dataset.i) + 1)));
+        attachOrderDrag(list);
+    }
+
+    /* ----- Order queue ordering ------------------------------------------
+     * The list is the make-order: index 0 gets produced first. Rows can be
+     * dragged by their grip or nudged with the arrows; both funnel into
+     * moveOrderItem, which rewrites `items` on gelatoSettings/orderQueue.
+     * Checks live in a separate doc keyed by flavorId, so a reorder never
+     * disturbs what is checked off or the batch Approve.
+     * ------------------------------------------------------------------ */
+
+    async function moveOrderItem(from, to) {
+        if (!Number.isInteger(from) || !Number.isInteger(to)) return;
+        if (from < 0 || from >= orderQueue.length) return;
+        to = Math.max(0, Math.min(orderQueue.length - 1, to));
+        if (from === to) return;
+        const moved = orderQueue[from];
+        const movedId = String(moved.flavorId);
+
+        // move locally first so the drag lands instantly; the snapshot from the
+        // write below is what every other screen (and this one) settles on
+        const local = orderQueue.slice();
+        local.splice(from, 1);
+        local.splice(to, 0, moved);
+        orderQueue = local;
+        renderOrderQueue();
+        if (viewMode === 'mobile') renderMobilePanel();
+
+        try {
+            await db.runTransaction(async t => {
+                const doc = await t.get(orderDocRef());
+                const items = (doc.exists && Array.isArray(doc.data().items))
+                    ? doc.data().items.slice() : [];
+                // re-find the row by flavorId: another machine may have added,
+                // removed or re-ordered items since this list was drawn, so the
+                // index we dragged from is only a hint. Rebuilding from the
+                // server copy stops one screen's move from reviving or dropping
+                // a flavor another screen just changed.
+                const at = items.findIndex(x => String(x.flavorId) === movedId);
+                if (at === -1) throw new Error('order-item-gone');
+                const [row] = items.splice(at, 1);
+                items.splice(Math.max(0, Math.min(items.length, to)), 0, row);
+                t.set(orderDocRef(), { items, updatedAt: stamp() }, { merge: true });
+            });
+            status(`${nameById(moved.flavorId) || moved.name} is now #${to + 1} to make.`, true);
+        } catch (err) {
+            if (err && err.message === 'order-item-gone') {
+                status('That flavor just left the order list on another screen.');
+            } else {
+                console.error('reorder order queue failed', err);
+                status('Could not save the new make order — see console.');
+            }
+            await resyncOrderQueue();
+        }
+    }
+
+    /* Pull the queue back from the server after a move failed to commit, so the
+     * optimistic reorder above never sticks around as a local-only fiction. */
+    async function resyncOrderQueue() {
+        try {
+            const d = await orderDocRef().get();
+            orderQueue = (d.exists && Array.isArray(d.data().items)) ? d.data().items : [];
+            renderOrderQueue();
+            if (viewMode === 'mobile') renderMobilePanel();
+        } catch (err) {
+            console.error('order queue resync failed', err);
+        }
+    }
+
+    /* Dropping on the top half of a row means "before it", bottom half "after". */
+    function dropsBefore(e, row) {
+        const r = row.getBoundingClientRect();
+        return (e.clientY - r.top) < r.height / 2;
+    }
+
+    function clearOrderDropHints(list) {
+        list.querySelectorAll('.g-order-item').forEach(r =>
+            r.classList.remove('drop-above', 'drop-below'));
+    }
+
+    function attachOrderDrag(list) {
+        list.querySelectorAll('.g-order-item').forEach(row => {
+            const grip = row.querySelector('.g-order-grip');
+            if (grip) {
+                // the row is only draggable while the grip is held, so the
+                // checkbox and the buttons inside it keep behaving normally
+                grip.addEventListener('mousedown', () => { row.draggable = true; });
+                grip.addEventListener('touchstart', () => { row.draggable = true; }, { passive: true });
+            }
+            row.addEventListener('dragstart', e => {
+                orderDragFrom = Number(row.dataset.i);
+                row.classList.add('is-dragging');
+                if (e.dataTransfer) {
+                    e.dataTransfer.effectAllowed = 'move';
+                    try { e.dataTransfer.setData('text/plain', String(orderDragFrom)); } catch (_) { }
+                }
+            });
+            row.addEventListener('dragend', () => {
+                row.draggable = false;
+                row.classList.remove('is-dragging');
+                clearOrderDropHints(list);
+                orderDragFrom = null;
+                if (orderRerenderQueued) renderOrderQueue();
+            });
+            row.addEventListener('dragover', e => {
+                if (orderDragFrom === null) return;
+                e.preventDefault();
+                if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                const before = dropsBefore(e, row);
+                row.classList.toggle('drop-above', before);
+                row.classList.toggle('drop-below', !before);
+            });
+            row.addEventListener('dragleave', () =>
+                row.classList.remove('drop-above', 'drop-below'));
+            row.addEventListener('drop', e => {
+                e.preventDefault();
+                if (orderDragFrom === null) return;
+                const from = orderDragFrom;
+                const over = Number(row.dataset.i);
+                let to = dropsBefore(e, row) ? over : over + 1;
+                if (from < to) to -= 1;      // the gap shifts once the row leaves
+                clearOrderDropHints(list);
+                orderDragFrom = null;
+                moveOrderItem(from, to);
+            });
+        });
     }
 
     function pruneOrderChecked() {

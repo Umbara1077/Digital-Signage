@@ -1422,6 +1422,66 @@
     color: var(--muted);
 }
 
+/* reorder affordances — the order queue list IS the make order */
+.g-order-grip {
+    flex: 0 0 auto;
+    cursor: grab;
+    color: var(--muted);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 2px 2px;
+    user-select: none;
+    touch-action: none;
+}
+
+.g-order-grip:active {
+    cursor: grabbing;
+}
+
+.g-order-item.is-dragging {
+    opacity: .45;
+}
+
+.g-order-item.drop-above {
+    box-shadow: inset 0 3px 0 0 var(--green);
+}
+
+.g-order-item.drop-below {
+    box-shadow: inset 0 -3px 0 0 var(--green);
+}
+
+.g-order-move {
+    flex: 0 0 auto;
+    display: inline-flex;
+    gap: 4px;
+}
+
+.g-order-move button {
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    font-size: .7rem;
+    line-height: 1;
+    border: 1px solid var(--g-ink-bd-6);
+    border-radius: 8px;
+    background: var(--g-ink-bg-9);
+    color: var(--g-ink-tx-3);
+    cursor: pointer;
+}
+
+.g-order-move button:not(:disabled):hover {
+    background: var(--g-ink-bg-18);
+    border-color: var(--green);
+}
+
+.g-order-move button:disabled {
+    opacity: .3;
+    cursor: not-allowed;
+}
+
 .g-order-del {
     flex: 0 0 auto;
     border: 1px solid var(--g-ink-bd-6);
