@@ -53,6 +53,7 @@
     let db = null;
     let inventory = [];        // raw gelatoInventory docs
     let menuIds = null;        // Set of menuItems ids (null until first load)
+    let menuNames = null;      // Set of normalized menuItems names (null until first load)
     let menuFlavors = [];      // all menuItems docs, sorted by name (source of truth for active list)
     let pendingList = [];      // pendingItems docs (off-menu backup flavors)
     let flavors = [];          // visible flavors (on menu OR has stock), sorted
@@ -81,6 +82,7 @@
     const orderChecksDocRef = () => db.collection('gelatoSettings').doc('orderChecks');
     const pricingDocRef = () => db.collection('gelatoSettings').doc('pricing');
     const menuBackupDocRef = () => db.collection('gelatoSettings').doc('menuBackup');
+    const menuDupBackupRef = () => db.collection('gelatoSettings').doc('dupBackup');
     const todayStr = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD (local)
     const usageDocRef = () => db.collection('gelatoUsage').doc(todayStr());
 
@@ -89,9 +91,52 @@
     // Menu Item" reuses/changes an id), so match a flavor to its menu entry and
     // its stock by normalized NAME, not id.
     const normName = s => String(s == null ? '' : s).trim().toLowerCase();
-    const onMenu = f => !menuIds || menuIds.has(f.id);
+    /* "On the menu" is decided by NAME, not doc id. The same flavor can live
+     * under several inventory doc ids (see normName above), so an id-only test
+     * would wrongly treat a stocked flavor as off-menu just because its
+     * inventory doc predates the menu doc it belongs to. */
+    const onMenu = f => !menuNames || menuNames.has(normName(f.name));
     const hasStock = f => (f.active || 0) > EPS || (f.shortTerm || 0) > EPS || (f.longTerm || 0) > EPS;
     const doc = id => db.collection('gelatoInventory').doc(id);
+
+    /* ----- One row per flavor -------------------------------------------
+     * gelatoInventory and pendingItems had both accumulated many docs for the
+     * same flavor -- a fresh doc id was minted every time a flavor was taken
+     * off the menu and put back, and the old docs were never cleaned up. That
+     * is why the pickers listed a flavor over and over. Every list the UI
+     * renders now goes through dedupeByName: group by normalized name, keep
+     * the single best doc. Dummy pans are exempt -- they are deliberately
+     * allowed to share a label. */
+    function dedupeByName(list, rank) {
+        const best = new Map();
+        const keep = [];
+        (list || []).forEach(item => {
+            if (!item) return;
+            const key = normName(item.name);
+            if (item.isDummy || !key) { keep.push(item); return; }   // never collapse dummy pans
+            const cur = best.get(key);
+            if (!cur || rank(item) > rank(cur)) best.set(key, item);
+        });
+        return keep.concat([...best.values()]);
+    }
+    /* Survivor preference: any doc holding real stock wins outright, so
+     * collapsing duplicates can never hide pans. Then the doc the live menu /
+     * pending list actually points at, then the most recently written. */
+    const invRank = f => ((hasStock(f) || f.casePan != null) ? 1000 : 0)
+        + ((menuIds && menuIds.has(f.id)) ? 100 : 0)
+        + (pendingList.some(p => p.id === f.id) ? 10 : 0)
+        + (f.updatedAt ? 1 : 0);
+    const pendRank = p => {
+        const inv = inventory.find(x => x.id === p.id);
+        return ((inv && (hasStock(inv) || inv.casePan != null)) ? 100 : 0)
+            + (p.gelatoImage ? 10 : 0) + (p.imageURL ? 5 : 0) + (p.description ? 1 : 0);
+    };
+    /* Deduped views, computed on demand rather than cached, so they always
+     * reflect the latest menuItems / gelatoInventory / pendingItems snapshot
+     * whatever order those three happen to arrive in. */
+    const inventoryUnique = () => dedupeByName(inventory, invRank);
+    const pendingUnique = () => dedupeByName(pendingList, pendRank)
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
     /* ----- Freezer pans -------------------------------------------------
      * Short/long-term storage is a list of individual pans (each 0 < x <= 1),
@@ -134,10 +179,18 @@
     // stale (e.g. after admin "Replace Menu Item" reuses a doc id). Always
     // overlay the live name/image, matched by id.
     const liveMeta = id => menuFlavors.find(x => x.id === id) || pendingList.find(x => x.id === id) || null;
+    /* Same lookup by name, for a surviving inventory doc whose id is no longer
+     * the one the menu/pending list points at. */
+    const liveMetaByName = n => {
+        const k = normName(n);
+        if (!k) return null;
+        return menuFlavors.find(x => normName(x.name) === k)
+            || pendingList.find(x => normName(x.name) === k) || null;
+    };
     const nameById = id => { const m = liveMeta(id); return m ? (m.name || '') : ''; };
     function enrich(f) {
         if (!f) return f;
-        const m = liveMeta(f.id);
+        const m = liveMeta(f.id) || liveMetaByName(f.name);
         if (!m) return f;
         return {
             ...f,
@@ -166,6 +219,7 @@
 
         db.collection('menuItems').onSnapshot(snap => {
             menuIds = new Set(snap.docs.map(d => d.id));
+            menuNames = new Set(snap.docs.map(d => normName((d.data() || {}).name)).filter(Boolean));
             menuFlavors = snap.docs
                 .map(d => ({ ...d.data(), id: d.id }))
                 .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -234,6 +288,14 @@
             const v = d.exists ? Number(d.data().pricePerGram) : NaN;
             applyPricePerGram(v > 0 ? v : DEFAULT_PRICE_PER_GRAM);
         }, err => console.error('pricing snapshot error', err));
+
+        // show "Undo Merge" only while a duplicate-merge backup exists
+        menuDupBackupRef().onSnapshot(d => {
+            const btn = document.getElementById('undo-merge');
+            if (!btn) return;
+            btn.hidden = !d.exists;
+            if (d.exists) btn.title = `Put back the doc(s) removed on ${(d.data() || {}).savedAt || 'the last merge'}`;
+        }, err => console.error('dupBackup snapshot error', err));
 
         // show the emergency "Undo Menu Sync" button only while a backup exists
         menuBackupDocRef().onSnapshot(d => {
@@ -329,6 +391,159 @@
         }
     }
 
+    /* ----- Collapse duplicate flavor docs --------------------------------
+     * gelatoInventory and pendingItems had built up many docs for the same
+     * flavor (a fresh doc id every time a flavor left the menu and came back;
+     * see dedupeByName and seedMissingFromMenu). The pickers already show one
+     * row per flavor -- this makes the stored data match, keeping one doc per
+     * flavor name and removing the redundant copies.
+     *
+     * Deliberately conservative: it refuses to run at all if any copy it would
+     * remove still holds stock, dummy pans are left alone (they are allowed to
+     * share a label), and every removed doc is written to gelatoSettings/
+     * dupBackup first so "Undo Merge" can put them all back. */
+    const docStock = data => {
+        const f = data || {};
+        return r2((f.active || 0)
+            + panSum(normPans(f.shortPans, f.shortTerm))
+            + panSum(normPans(f.longPans, f.longTerm)));
+    };
+
+    function planDuplicateMerge(invDocs, pendDocs) {
+        const group = (docs, skipDummies) => {
+            const g = new Map();
+            docs.forEach(d => {
+                const data = d.data() || {};
+                if (skipDummies && data.isDummy) return;   // dummy pans may share a label
+                const k = normName(data.name);
+                if (!k) return;                            // never touch unnamed docs
+                if (!g.has(k)) g.set(k, []);
+                g.get(k).push({ id: d.id, data });
+            });
+            return g;
+        };
+        const pick = (docs, rank) => docs
+            .map(x => ({ ...x, rank: rank({ ...x.data, id: x.id }) }))
+            .reduce((a, b) => (b.rank > a.rank ? b : a));
+        const invScore = f => invRank({
+            ...f,
+            shortTerm: panSum(normPans(f.shortPans, f.shortTerm)),
+            longTerm: panSum(normPans(f.longPans, f.longTerm))
+        });
+
+        const drops = [];
+        const kept = [];
+        let invNames = 0, pendNames = 0;
+        group(invDocs, true).forEach(docs => {
+            if (docs.length < 2) return;
+            invNames++;
+            const keep = pick(docs, invScore);
+            kept.push({ col: 'gelatoInventory', id: keep.id, name: keep.data.name });
+            docs.forEach(x => {
+                if (x.id !== keep.id) drops.push({ col: 'gelatoInventory', docId: x.id, data: x.data });
+            });
+        });
+        group(pendDocs, false).forEach(docs => {
+            if (docs.length < 2) return;
+            pendNames++;
+            const keep = pick(docs, pendRank);
+            kept.push({ col: 'pendingItems', id: keep.id, name: keep.data.name });
+            docs.forEach(x => {
+                if (x.id !== keep.id) drops.push({ col: 'pendingItems', docId: x.id, data: x.data });
+            });
+        });
+        const risky = drops.filter(x => docStock(x.data) > EPS || (x.data || {}).casePan != null);
+        return { drops, kept, invNames, pendNames, risky };
+    }
+
+    async function mergeDuplicateFlavors() {
+        try {
+            status('Checking for duplicate flavors…');
+            const [invSnap, pendSnap] = await Promise.all([
+                db.collection('gelatoInventory').get(),
+                db.collection('pendingItems').get()
+            ]);
+            const plan = planDuplicateMerge(invSnap.docs, pendSnap.docs);
+
+            if (!plan.drops.length) {
+                status('No duplicate flavor docs found — there is already one of each.', true);
+                return;
+            }
+            if (plan.risky.length) {
+                console.warn('mergeDuplicateFlavors stopped — these duplicates still hold stock:', plan.risky);
+                status(`Stopped: ${plan.risky.length} duplicate doc(s) still hold stock. Nothing removed — see console.`);
+                return;
+            }
+            const payload = JSON.stringify(plan.drops);
+            if (payload.length > 800000) {
+                status('Too many duplicates to back up in one pass — see console.');
+                console.warn('mergeDuplicateFlavors: backup payload too large', payload.length);
+                return;
+            }
+            if (!confirm(
+                `Merge duplicate flavors?\n\n` +
+                `${plan.invNames} flavor(s) in inventory and ${plan.pendNames} in pending items have more than one copy.\n\n` +
+                `${plan.drops.length} redundant doc(s) will be removed. Every one of them is empty — no stock, ` +
+                `no case pan — and the flavor itself is kept.\n\n` +
+                `All removed docs are saved first, so "Undo Merge" puts them straight back.`
+            )) return;
+
+            status('Merging duplicate flavors…');
+            await menuDupBackupRef().set({
+                at: stamp(),
+                savedAt: new Date().toLocaleString(),
+                items: plan.drops
+            });
+
+            const batches = [];
+            let batch = db.batch(), ops = 0;
+            plan.drops.forEach(x => {
+                batch.delete(db.collection(x.col).doc(x.docId));
+                if (++ops === 499) { batches.push(batch); batch = db.batch(); ops = 0; }
+            });
+            if (ops) batches.push(batch);
+            for (const b of batches) await b.commit();
+
+            logMove('dedupe', `Merged duplicate flavors — removed ${plan.drops.length} redundant doc(s)`);
+            status(`Done — removed ${plan.drops.length} duplicate doc(s). One doc per flavor now.`, true);
+        } catch (e) {
+            console.error('mergeDuplicateFlavors failed', e);
+            status('Merge failed — see console.');
+        }
+    }
+
+    /* Put back every doc the last merge removed. */
+    async function undoMergeDuplicates() {
+        try {
+            const snap = await menuDupBackupRef().get();
+            if (!snap.exists) { status('No merge backup found to restore.'); return; }
+            const b = snap.data() || {};
+            const items = Array.isArray(b.items) ? b.items : [];
+            if (!items.length) { status('The merge backup is empty.'); return; }
+            if (!confirm(
+                `Restore the ${items.length} doc(s) removed by the merge on ${b.savedAt || 'the last run'}?`
+            )) return;
+
+            status('Restoring merged duplicates…');
+            const batches = [];
+            let batch = db.batch(), ops = 0;
+            items.forEach(x => {
+                if (!x || !x.col || !x.docId) return;
+                batch.set(db.collection(x.col).doc(x.docId), x.data || {});
+                if (++ops === 498) { batches.push(batch); batch = db.batch(); ops = 0; }
+            });
+            batch.delete(menuDupBackupRef());   // clears the backup -> hides the Undo button
+            batches.push(batch);
+            for (const bt of batches) await bt.commit();
+
+            logMove('dedupe-undo', `Undid the duplicate merge — restored ${items.length} doc(s)`);
+            status(`Restored ${items.length} doc(s).`, true);
+        } catch (e) {
+            console.error('undoMergeDuplicates failed', e);
+            status('Restore failed — see console.');
+        }
+    }
+
     /* Create an inventory doc for every menu flavor that doesn't have one yet.
      * Additive only -- it never deletes. */
     async function seedMissingFromMenu() {
@@ -337,12 +552,22 @@
                 db.collection('menuItems').get(),
                 db.collection('gelatoInventory').get()
             ]);
-            const existing = new Set(invSnap.docs.map(d => d.id));
+            // Keyed on normalized NAME, not doc id. Keying on id meant that
+            // every time a flavor reappeared under a fresh auto-id (removed
+            // from the menu then added back, or swapped via "Replace Menu
+            // Item") this seeded yet another inventory doc for a flavor that
+            // already had one -- which is what grew gelatoInventory to
+            // hundreds of docs for a few dozen real flavors.
+            const existingNames = new Set(
+                invSnap.docs.map(d => normName((d.data() || {}).name)).filter(Boolean)
+            );
             const batch = db.batch();
             let added = 0;
             menuSnap.forEach(d => {
-                if (existing.has(d.id)) return;
                 const m = d.data();
+                const key = normName(m.name);
+                if (key && existingNames.has(key)) return;
+                if (key) existingNames.add(key);   // guard against dupes inside this same pass
                 batch.set(doc(d.id), {
                     name: m.name || '(unnamed)',
                     gelatoImage: m.gelatoImage || m.imageURL || '',
@@ -510,8 +735,26 @@
             // in the same atomic batch as the rest of the sync.
             const toRemove = currentMenu.filter(m => !keptMenuIds.has(m.id));
             const toAdd = caseFlavors.filter(f => !menuByName.has(normName(f.name)));
+            // Reuse the flavor's existing pendingItems doc when it already has
+            // one. Minting a fresh auto-id doc on every sync is what let
+            // pendingItems collect several copies of the same flavor. The
+            // overwritten copy is recorded in the backup so "Undo Menu Sync"
+            // can still put it back exactly as it was.
+            const pendingIdByName = new Map();
+            pendingSnap.docs.forEach(d => {
+                const k = normName((d.data() || {}).name);
+                if (k && !pendingIdByName.has(k)) pendingIdByName.set(k, d.id);
+            });
             toRemove.forEach(m => {
-                batch.set(db.collection('pendingItems').doc(), m.data);
+                const k = normName((m.data || {}).name);
+                const pid = k ? pendingIdByName.get(k) : null;
+                if (pid && pendingById.get(pid)) {
+                    removedPending.push({ id: pid, data: pendingById.get(pid) });
+                }
+                batch.set(
+                    pid ? db.collection('pendingItems').doc(pid) : db.collection('pendingItems').doc(),
+                    m.data
+                );
                 batch.delete(db.collection('menuItems').doc(m.id));
             });
 
@@ -550,7 +793,17 @@
             )) return;
 
             status('Restoring menu…');
-            const menuSnap = await db.collection('menuItems').get();
+            const [menuSnap, pendSnap] = await Promise.all([
+                db.collection('menuItems').get(),
+                db.collection('pendingItems').get()
+            ]);
+            // reuse one pending doc per flavor name instead of adding a fresh
+            // auto-id copy each time -- same duplicate guard as the sync above
+            const pendingIdByName = new Map();
+            pendSnap.docs.forEach(d => {
+                const k = normName((d.data() || {}).name);
+                if (k && !pendingIdByName.has(k)) pendingIdByName.set(k, d.id);
+            });
             const savedIds = new Set(savedList.map(m => m.id));
             const batch = db.batch();
             // Anything on the menu right now that the restored (pre-sync) menu
@@ -561,7 +814,12 @@
             // here to avoid writing them to pending too.
             menuSnap.docs.forEach(d => {
                 if (savedIds.has(d.id)) return;
-                batch.set(db.collection('pendingItems').doc(), d.data());
+                const k = normName((d.data() || {}).name);
+                const pid = k ? pendingIdByName.get(k) : null;
+                batch.set(
+                    pid ? db.collection('pendingItems').doc(pid) : db.collection('pendingItems').doc(),
+                    d.data()
+                );
                 batch.delete(db.collection('menuItems').doc(d.id));
             });
             savedList.forEach(m => batch.set(db.collection('menuItems').doc(m.id), m.data));
@@ -589,6 +847,10 @@
         document.getElementById('reset-inventory').addEventListener('click', resetInventory);
         document.getElementById('sync-to-menu').addEventListener('click', openSyncToMenuModal);
         document.getElementById('restore-menu').addEventListener('click', restoreMenuBackup);
+        const mergeBtn = document.getElementById('merge-dupes');
+        if (mergeBtn) mergeBtn.addEventListener('click', mergeDuplicateFlavors);
+        const undoMergeBtn = document.getElementById('undo-merge');
+        if (undoMergeBtn) undoMergeBtn.addEventListener('click', undoMergeDuplicates);
         const pickMode = m => { localStorage.setItem('gelatoViewMode', m); setMode(m); };
         document.getElementById('mode-visual').addEventListener('click', () => pickMode('visual'));
         document.getElementById('mode-stats').addEventListener('click', () => pickMode('stats'));
@@ -839,7 +1101,7 @@
      * by id) rather than the copy stored in gelatoInventory, so corrected menu
      * images show up and never get crossed with the wrong flavor. */
     function flavorImage(f) {
-        const m = menuFlavors.find(x => x.id === f.id) || pendingList.find(x => x.id === f.id);
+        const m = liveMeta(f.id) || liveMetaByName(f.name);
         return (m && (m.gelatoImage || m.imageURL)) || f.gelatoImage || f.imageURL || '';
     }
 
@@ -847,7 +1109,12 @@
     function renderAll() {
         // show menu flavors always, plus any off-menu flavor that has stock,
         // with live name/image overlaid so stale stored copies never show
-        flavors = inventory.filter(f => onMenu(f) || hasStock(f))
+        flavors = inventoryUnique()
+            // Dummy pans are placeholders, not menu flavors: they show only
+            // when they actually hold something (unchanged behaviour). Letting
+            // the name-based onMenu test pick them up would surface a dummy
+            // labelled after a real flavor as a second row for that flavor.
+            .filter(f => f.isDummy ? hasStock(f) : (onMenu(f) || hasStock(f)))
             .map(enrich)
             .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         renderCaps();
@@ -2150,8 +2417,9 @@
         if (sel) {
             const prev = sel.value;
             if (orderSource() === 'pending') {
-                sel.innerHTML = pendingList.length
-                    ? pendingList.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('')
+                const pend = pendingUnique();   // one option per flavor, not per doc
+                sel.innerHTML = pend.length
+                    ? pend.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('')
                     : `<option value="">No pending flavors</option>`;
             } else {
                 // priority: whatever's in the display case right now, then the
@@ -2488,7 +2756,8 @@
                 await doc(o.flavorId).set(u, { merge: true });
                 inventory.push({ ...u, id: o.flavorId });
             }
-            flavors = inventory.filter(x => onMenu(x) || hasStock(x))
+            flavors = inventoryUnique()
+                .filter(x => x.isDummy ? hasStock(x) : (onMenu(x) || hasStock(x)))
                 .map(enrich)
                 .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
             orderChecked.delete(String(o.flavorId));
@@ -3220,7 +3489,7 @@
      * Stock form below. Adds brand-new pan(s) of a chosen flavor directly
      * into `loc` (mirrors onAddStock's logic — not pulled from other stock). */
     function openFreezerAssignModal(loc) {
-        const offMenu = flavors.filter(f => !f.isDummy && (!menuIds || !menuIds.has(f.id)));
+        const offMenu = flavors.filter(f => !f.isDummy && !onMenu(f));
         const choices = [...menuFlavors, ...offMenu]
             .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         document.getElementById('g-modal-title').textContent = `Assign a flavor to ${LOCATION_LABELS[loc]}`;
@@ -3346,8 +3615,9 @@
         const prev = sel.value;
         let opts;
         if (stockSource() === 'pending') {
-            opts = pendingList.length
-                ? pendingList.map(p => {
+            const pend = pendingUnique();   // one option per flavor, not per doc
+            opts = pend.length
+                ? pend.map(p => {
                     const inv = byId(p.id) || {};
                     return `<option value="${p.id}"
                         data-name="${esc(p.name)}"
@@ -3449,7 +3719,7 @@
         const sel = document.getElementById('t-flavor');
         const prev = sel.value;
         // merge: all menu flavors + any off-menu flavors that still have stock
-        const offMenu = flavors.filter(f => !f.isDummy && (!menuIds || !menuIds.has(f.id)));
+        const offMenu = flavors.filter(f => !f.isDummy && !onMenu(f));
         const allOpts = [...menuFlavors, ...offMenu]
             .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         sel.innerHTML = allOpts.length

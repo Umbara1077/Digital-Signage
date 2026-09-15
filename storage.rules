@@ -1,0 +1,33 @@
+rules_version = '2';
+
+/* =========================================================================
+ * Storage rules — menu images, gelato images and promo videos.
+ *
+ * Reads stay public: the TV displays and menu boards load these assets
+ * directly by download URL with no sign-in. Uploads and deletes are limited
+ * to the approved accounts (same list as auth-guard.js and firestore.rules).
+ * ========================================================================= */
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function callerEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function isAllowedUser() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email_verified == true
+        && (
+          callerEmail() == 'corsodante8@gmail.com'
+          || callerEmail() == 'nick@dolcevitagelateria.com'
+          || callerEmail().matches('^[^@]+@dolcevitasewell[.]com$')
+        );
+    }
+
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if isAllowedUser();
+    }
+  }
+}

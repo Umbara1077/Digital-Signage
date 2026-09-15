@@ -1,0 +1,56 @@
+rules_version = '2';
+
+/* =========================================================================
+ * Firestore rules — dolcevitasinage (Digital-Signage)
+ *
+ * READS STAY OPEN. The TV viewer (index.html), the early/closed screen, the
+ * cafe signage and the mobile-order site all read this data with no sign-in,
+ * so locking reads would take the displays down. Only WRITES are restricted.
+ *
+ * The allowlist below must match public/auth-guard.js. If you add someone
+ * there, add them here too — this file is the one that actually enforces it.
+ * ========================================================================= */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function callerEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function isAllowedUser() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email_verified == true
+        && (
+          callerEmail() == 'corsodante8@gmail.com'
+          || callerEmail() == 'nick@dolcevitagelateria.com'
+          || callerEmail().matches('^[^@]+@dolcevitasewell[.]com$')
+        );
+    }
+
+    /* The always-on signage mirrors TODAY's resolved hours into the flat
+     * openTime/closeTime fields (index.html and early.html do this with no
+     * sign-in). That one write has to keep working, so it is allowed here —
+     * but ONLY as an update to an existing doc, ONLY those two keys, and
+     * ONLY as integers. Everything else about business hours needs an
+     * approved account. */
+    function isSignageHoursMirror() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['openTime', 'closeTime'])
+        && request.resource.data.openTime is int
+        && request.resource.data.closeTime is int;
+    }
+
+    match /business_hours/{docId} {
+      allow read: if true;
+      allow update: if isAllowedUser() || isSignageHoursMirror();
+      allow create, delete: if isAllowedUser();
+    }
+
+    /* Everything else: world-readable, staff-writable. */
+    match /{document=**} {
+      allow read: if true;
+      allow write: if isAllowedUser();
+    }
+  }
+}

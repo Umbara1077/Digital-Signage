@@ -1,42 +1,145 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
 <head>
+    <meta charset="UTF-8">
     <title>Admin Sign In</title>
-    <link rel="stylesheet" type="text/css" href="login.css">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="login.css">
+    <link rel="icon" href="dolce-logo.png" type="image/x-icon">
+
     <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-firestore.js"></script>
     <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-storage.js"></script>
 
     <script src="firebaseConfig.js"></script>
+    <script src="auth-guard.js"></script>
     <script src="signInScript.js"></script>
-    <link rel="icon"href="dolce-logo.png" type="image/x-icon">
-    <style>
-    .logo-container {
-        text-align: center;
-        margin-bottom: 20px;
-    }
 
-    .centered-logo {
-        max-width: 100px;
-        height: auto;
-    }
+    <style>
+        /* Self-contained so it doesn't depend on login.css, which was written
+           for the old email/password form. */
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: #10141c;
+            color: #eef2f8;
+            font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        }
+
+        .signin-card {
+            width: 100%;
+            max-width: 400px;
+            background: #182030;
+            border: 1px solid #2a3550;
+            border-radius: 18px;
+            padding: 36px 30px 30px;
+            text-align: center;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, .45);
+        }
+
+        .signin-card img {
+            max-width: 110px;
+            height: auto;
+            margin-bottom: 18px;
+        }
+
+        .signin-card h1 {
+            margin: 0 0 6px;
+            font-size: 1.24rem;
+            letter-spacing: .2px;
+        }
+
+        .signin-card .sub {
+            margin: 0 0 24px;
+            color: #a8b3c7;
+            font-size: .92rem;
+        }
+
+        .google-btn {
+            width: 100%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 11px;
+            padding: 13px 18px;
+            font: inherit;
+            font-weight: 600;
+            color: #1f1f1f;
+            background: #fff;
+            border: 1px solid #dadce0;
+            border-radius: 11px;
+            cursor: pointer;
+            transition: box-shadow .15s ease, transform .15s ease;
+        }
+
+        .google-btn:hover:not(:disabled) {
+            box-shadow: 0 4px 14px rgba(0, 0, 0, .3);
+        }
+
+        .google-btn:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+
+        .google-btn:disabled {
+            opacity: .6;
+            cursor: default;
+        }
+
+        .google-btn svg {
+            width: 19px;
+            height: 19px;
+            flex: none;
+        }
+
+        #error-message {
+            margin-top: 16px;
+            min-height: 1.2em;
+            color: #ff9d9d;
+            font-size: .9rem;
+            word-break: break-word;
+        }
+
+        .note {
+            margin-top: 22px;
+            padding-top: 16px;
+            border-top: 1px solid #2a3550;
+            color: #7f8aa0;
+            font-size: .8rem;
+            line-height: 1.5;
+        }
     </style>
 </head>
+
 <body>
-    <main>
-        <form id="signInForm">
-            <div class="logo-container">
-                <img src="logo.png" alt="Logo" class="centered-logo">
-            </div>
-            <label for="email">Email:</label>
-            <input type="email" id="email" name="email" required>
-            <label for="password">Password:</label>
-            <input type="password" id="password" name="password" required>
-            <button type="submit">Sign In</button>
-        </form>
-        <div id="error-message"></div>
+    <main class="signin-card">
+        <img src="logo.png" alt="Dolce Vita">
+        <h1>Admin Sign In</h1>
+        <p class="sub">Staff access only.</p>
+
+        <button type="button" id="googleSignInBtn" class="google-btn">
+            <svg viewBox="0 0 48 48" aria-hidden="true">
+                <path fill="#EA4335"
+                    d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                <path fill="#4285F4"
+                    d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                <path fill="#FBBC05"
+                    d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                <path fill="#34A853"
+                    d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+            </svg>
+            Continue with Google
+        </button>
+
+        <div id="error-message" role="alert"></div>
+
+        <p class="note">Only approved Dolce Vita accounts can open the admin panel.</p>
     </main>
 </body>
+
 </html>

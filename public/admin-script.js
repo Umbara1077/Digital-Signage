@@ -9,6 +9,41 @@ document.addEventListener('DOMContentLoaded', () => {
         const storageRef = firebase.storage().ref();
         const db = firebase.firestore();
 
+        /* ----- Duplicate-flavor guards ---------------------------------------
+         * pendingItems used to gain a brand-new doc every single time a flavor
+         * was moved off the menu, so the same flavor built up many copies and
+         * the pending pickers listed it once per copy. Names are compared
+         * case/whitespace-insensitively, and every write into pendingItems now
+         * goes through upsertPendingItem so a second copy is never created. */
+        const normalizeName = s => String(s == null ? '' : s).trim().toLowerCase();
+
+        // Write a flavor into pendingItems, reusing its existing doc if it has
+        // one and collapsing any leftover duplicates of that flavor.
+        async function upsertPendingItem(data) {
+            const name = data && data.name;
+            if (name) {
+                const existing = await db.collection('pendingItems').where('name', '==', name).get();
+                if (!existing.empty) {
+                    const first = existing.docs[0];
+                    await first.ref.set(data, { merge: true });
+                    await Promise.all(existing.docs.slice(1).map(d => d.ref.delete()));
+                    return first.id;
+                }
+            }
+            const ref = await db.collection('pendingItems').add(data);
+            return ref.id;
+        }
+
+        // Clear EVERY pendingItems doc for a flavor, not just the first one.
+        // Deleting only the first is why a flavor could still appear in the
+        // pending list right after being added back to the menu.
+        async function deletePendingByName(name) {
+            if (!name) return 0;
+            const snap = await db.collection('pendingItems').where('name', '==', name).get();
+            await Promise.all(snap.docs.map(d => d.ref.delete()));
+            return snap.size;
+        }
+
         // === SNOW TOGGLE
         const snowToggle = document.getElementById('snowToggle');
 
@@ -77,9 +112,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 imageUrls.push({ name: data.name, url: data.imageURL });
             });
 
+            // One entry per flavor NAME, not per pendingItems doc -- otherwise
+            // any flavor with leftover duplicate docs is listed several times.
             const pendingItemsByName = {};
+            const seenPendingNames = new Set();
             pendingItemsSnapshot.forEach(doc => {
                 const data = doc.data();
+                const key = normalizeName(data.name);
+                if (!key || seenPendingNames.has(key)) return;
+                seenPendingNames.add(key);
                 pendingItemNames.push(data.name);
                 imageUrls.push({ name: data.name, url: data.imageURL });
                 pendingItemsByName[data.name] = { ...data, id: doc.id };
@@ -99,9 +140,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 dropdown.innerHTML = window._allPendingItems.map(name => `<option value="${name}">${name}</option>`).join('');
             });
 
+            // menuItems and pendingItems can both contribute the same flavor
+            // name here, so collapse to one option per flavor
+            const seenImageNames = new Set();
+            const uniqueImageUrls = imageUrls.filter(image => {
+                const key = normalizeName(image.name);
+                if (!key || seenImageNames.has(key)) return false;
+                seenImageNames.add(key);
+                return true;
+            });
             const existingImageDropdowns = document.querySelectorAll('#existingItemImageReplace');
             existingImageDropdowns.forEach(dropdown => {
-                dropdown.innerHTML = imageUrls.map(image => `<option value="${image.url}">${image.name}</option>`).join('');
+                dropdown.innerHTML = uniqueImageUrls.map(image => `<option value="${image.url}">${image.name}</option>`).join('');
             });
 
             // Populate "Temporarily Unavailable" dropdown for each item
@@ -305,12 +355,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Wire modal-level handlers once (not per-card)
-        document.getElementById('cimClose').addEventListener('click', closeCim);
-        document.getElementById('changeImgModal').addEventListener('click', (e) => {
+        /* Wire modal-level handlers once (not per-card).
+         * Guarded on purpose: this runs inside the same auth callback as every
+         * other handler below, so one missing element used to throw here and
+         * silently stop the entire rest of the admin panel from wiring up. */
+        const cimCloseBtn = document.getElementById('cimClose');
+        if (cimCloseBtn) cimCloseBtn.addEventListener('click', closeCim);
+
+        const cimOverlayEl = document.getElementById('changeImgModal');
+        if (cimOverlayEl) cimOverlayEl.addEventListener('click', (e) => {
             if (e.target === e.currentTarget) closeCim();
         });
-        document.getElementById('cimFileInput').addEventListener('change', async (e) => {
+
+        const cimFileEl = document.getElementById('cimFileInput');
+        if (cimFileEl) cimFileEl.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file || !_cimCallback || !_cimStorageFolder) return;
             try {
@@ -426,8 +484,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!confirmRemove) return;
 
             try {
-                // Move to pendingItems, then delete from menuItems
-                await db.collection('pendingItems').add(itemData);
+                // Move to pendingItems, then delete from menuItems. Writing
+                // through upsertPendingItem means removing the same flavor
+                // twice reuses its pending doc instead of adding a second copy.
+                await upsertPendingItem(itemData);
                 await db.collection('menuItems').doc(itemId).delete();
                 alert(`"${itemData.name}" has been removed from the menu and moved to pending items.`);
                 populateDropdowns();
@@ -485,8 +545,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const pendingData = pendingDoc.data();
                 if (!confirm(`Add "${pendingData.name}" back to the menu?`)) return;
 
-                await db.collection('menuItems').add(pendingData);
-                await db.collection('pendingItems').doc(pendingDoc.id).delete();
+                // Reuse the flavor's existing menu doc if it has one, so
+                // adding a flavor back doesn't mint a new menuItems id -- a new
+                // id is what used to make the gelato panel seed another
+                // gelatoInventory doc for the very same flavor.
+                const existingMenu = await db.collection('menuItems')
+                    .where('name', '==', pendingData.name).get();
+                if (!existingMenu.empty) {
+                    await existingMenu.docs[0].ref.set(pendingData, { merge: true });
+                } else {
+                    await db.collection('menuItems').add(pendingData);
+                }
+                // clear every pending copy of this flavor, not just this one
+                await deletePendingByName(pendingData.name);
                 alert(`"${pendingData.name}" has been added back to the menu.`);
                 populateDropdowns();
                 displayCurrentMenuItems();
@@ -561,7 +632,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     gelatoSnap.ref.getDownloadURL(),
                 ]);
 
-                await db.collection('pendingItems').add({
+                // upsert, so re-adding an existing flavor updates it in place
+                // instead of creating a second pending entry with the same name
+                await upsertPendingItem({
                     name: itemName,
                     description: itemDescription,
                     imageURL: imageURL,                   // main image in images/
@@ -615,6 +688,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.log("Current menu item details:", currentItemDetails);
                         console.log("Current item has gelatoImage?", currentItemDetails.hasOwnProperty('gelatoImage'));
 
+                        // The outgoing menu flavor is about to be pushed into
+                        // pendingItems. Point at its existing pending doc when
+                        // it has one, so a swap doesn't leave a duplicate
+                        // pending entry behind. Resolved before the transaction
+                        // because a transaction can't run a query.
+                        let outgoingPendingRef = db.collection('pendingItems').doc();
+                        if (currentItemDetails.name) {
+                            const existingOutgoing = await db.collection('pendingItems')
+                                .where('name', '==', currentItemDetails.name).get();
+                            const reusable = existingOutgoing.docs.find(d => d.id !== pendingItemDoc.id);
+                            if (reusable) outgoingPendingRef = reusable.ref;
+                        }
+
                         await db.runTransaction(async (transaction) => {
                             const pendingItemData = pendingItemDoc.data();
 
@@ -628,7 +714,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             const oldItemData = { ...currentItemDetails };
                             transaction.delete(pendingItemDoc.ref);
-                            transaction.set(db.collection('pendingItems').doc(), oldItemData);
+                            transaction.set(outgoingPendingRef, oldItemData);
 
                             console.log("Transaction complete - items should be swapped with all fields preserved");
                         });
@@ -642,20 +728,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         alert('Menu item replaced successfully');
                         document.getElementById('replaceMenuItemForm').reset();
-                        // Initial population of dropdowns and menu display
+                        // The live listeners are registered once at start-up
+                        // (see the bottom of this file). They used to be
+                        // registered HERE, inside the submit handler, so every
+                        // replace added another pair that was never detached --
+                        // after three replaces the grid rebuilt three times per
+                        // change and the image buttons were rebuilt with it.
                         populateDropdowns();
                         displayCurrentMenuItems();
-
-                        // Real-time listener for pending items changes
-                        db.collection('pendingItems').onSnapshot(() => {
-                            populateDropdowns();
-                        });
-
-                        // Real-time listener for menu items changes
-                        db.collection('menuItems').onSnapshot(() => {
-                            populateDropdowns();
-                            displayCurrentMenuItems();
-                        });
                     } else {
                         alert('Menu item not found');
                     }
@@ -824,6 +904,16 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initial population of dropdowns and menu display
         populateDropdowns();
         displayCurrentMenuItems();
+
+        /* Live refresh, registered exactly once for the life of the page. Any
+         * change to either collection -- from this tab, another tab, or the
+         * gelato panel -- repaints the dropdowns and the menu grid. */
+        db.collection('pendingItems').onSnapshot(
+            () => populateDropdowns(),
+            err => console.error('pendingItems snapshot error:', err));
+        db.collection('menuItems').onSnapshot(
+            () => { populateDropdowns(); displayCurrentMenuItems(); },
+            err => console.error('menuItems snapshot error:', err));
 
         // === SAVE ARRANGE ORDER ===
         document.getElementById('saveOrderBtn').addEventListener('click', async () => {

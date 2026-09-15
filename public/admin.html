@@ -2,6 +2,7 @@
 <html>
 
 <head>
+    <meta charset="UTF-8">
     <title>Admin Panel</title>
     <link rel="stylesheet" type="text/css" href="admin-style.css">
     <link rel="stylesheet" type="text/css" href="gelato-style.css">
@@ -11,6 +12,7 @@
     <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-storage.js"></script>
     <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-auth.js"></script>
     <script src="firebaseConfig.js"></script>
+    <script src="auth-guard.js"></script>
     <script src="admin-script.js"></script>
     <script defer src="gelato-intelligence.js"></script>
     <link rel="icon" href="DolceLogo-Admin.png" type="image/x-icon">
@@ -35,45 +37,10 @@
             background-color: #004085;
         }
     </style>
+    <!-- Google-only access gate. The allowlist lives in auth-guard.js and is
+         mirrored by firestore.rules / storage.rules. -->
     <script>
-        document.addEventListener("DOMContentLoaded", () => {
-            if (sessionStorage.getItem('authChecked')) {
-                console.log("Auth already checked, skipping redundant checks.");
-                return;
-            }
-
-            firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL)
-                .then(() => {
-                    firebase.auth().onAuthStateChanged(async user => {
-                        const currentPath = window.location.pathname;
-
-                        sessionStorage.setItem('authChecked', 'true');
-
-                        if (user) {
-                            console.log("✅ Authenticated as:", user.uid);
-
-                            try {
-                                await user.getIdToken(true); // Refresh token
-                            } catch (error) {
-                                console.error("🚨 Token refresh error:", error);
-                            }
-
-                            if (currentPath !== '/admin.html') {
-                                window.location.href = 'admin.html';
-                            }
-                        } else {
-                            console.warn("❌ Not authenticated. Redirecting...");
-
-                            if (currentPath !== '/login.html') {
-                                window.location.href = 'login.html';
-                            }
-                        }
-                    });
-                })
-                .catch(error => {
-                    console.error("🚨 Error setting persistence:", error);
-                });
-        });
+        DVAuth.guard();
     </script>
 
     <style>
@@ -1395,6 +1362,412 @@
         }
     </style>
 
+    <style>
+        /* =====================================================================
+           WORKBENCH — everything below the Live Overview.
+
+           The tools used to be one long column of full-width sections. They are
+           now grouped into collapsible cards in a responsive grid with a sticky
+           jump bar, so the page is a fraction of its old height and any tool is
+           one click away. Every form, input and button id is unchanged, so
+           admin-script.js is untouched by this.
+
+           Colours come from the light "paper" palette this page defines in the
+           :root block above (--paper/--card/--border/--text/--gold), NOT from
+           admin-style.css's dark defaults.
+           ===================================================================== */
+        .wb {
+            width: 100%;
+            max-width: 1360px;
+            margin: 0 auto;
+            text-align: left;
+        }
+
+        /* The global `section` rule is display:flex/align-items:center, which
+           would shrink the grid to its content width. Reset it for our own
+           section wrappers. */
+        .wb-group,
+        .wb-grid>section.wb-card {
+            display: block;
+            width: 100%;
+            align-items: stretch;
+        }
+
+        .wb-jump {
+            position: sticky;
+            top: 0;
+            z-index: 30;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            padding: 10px 12px;
+            margin: 0 0 24px;
+            background: rgba(251, 250, 247, .93);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .wb-jump-lbl {
+            font-size: .72rem;
+            font-weight: 800;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            color: var(--muted);
+            padding-left: 4px;
+        }
+
+        .wb-jump a {
+            text-decoration: none;
+            color: var(--text-2);
+            font-weight: 700;
+            font-size: .87rem;
+            padding: 7px 13px;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            transition: background .15s ease, color .15s ease, border-color .15s ease;
+        }
+
+        .wb-jump a:hover,
+        .wb-jump a:focus-visible {
+            background: var(--gold-wash);
+            color: var(--gold-dk);
+            border-color: var(--border);
+        }
+
+        .wb-group {
+            margin: 0 0 34px;
+            scroll-margin-top: 80px;
+        }
+
+        .wb-group-title {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin: 0 0 14px;
+            font-size: .9rem;
+            font-weight: 900;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+            color: var(--muted);
+            text-align: left;
+        }
+
+        .wb-group-title::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: var(--line-strong);
+            opacity: .7;
+        }
+
+        .wb-grid {
+            display: grid;
+            gap: 18px;
+            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+            align-items: start;
+            width: 100%;
+        }
+
+        .wb-card.is-wide {
+            grid-column: 1 / -1;
+        }
+
+        .wb-det {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: clip;
+            box-shadow: var(--shadow-sm);
+            transition: box-shadow .18s ease;
+        }
+
+        .wb-det:hover {
+            box-shadow: var(--shadow-lg);
+        }
+
+        .wb-sum {
+            list-style: none;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 15px 18px;
+        }
+
+        .wb-sum::-webkit-details-marker {
+            display: none;
+        }
+
+        .wb-sum:hover {
+            background: var(--gold-wash);
+        }
+
+        .wb-sum:focus-visible {
+            outline: 2px solid var(--gold);
+            outline-offset: -2px;
+        }
+
+        .wb-sum h2 {
+            margin: 0;
+            flex: 1;
+            font-size: 1rem;
+            font-weight: 800;
+            letter-spacing: .1px;
+            color: var(--text);
+            text-align: left;
+            width: auto;
+        }
+
+        /* the global section>h2 tricolour underline must not appear in a summary */
+        .wb-sum h2::after {
+            content: none;
+        }
+
+        .wb-hint {
+            font-size: .77rem;
+            font-weight: 600;
+            color: var(--muted);
+            white-space: nowrap;
+        }
+
+        .wb-chev {
+            width: 9px;
+            height: 9px;
+            flex: none;
+            border-right: 2px solid var(--muted);
+            border-bottom: 2px solid var(--muted);
+            transform: rotate(-45deg);
+            transition: transform .2s ease;
+        }
+
+        .wb-det[open] .wb-chev {
+            transform: rotate(45deg);
+        }
+
+        .wb-det[open] .wb-sum {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .wb-body {
+            padding: 16px 18px 20px;
+        }
+
+        /* Forms inside a card: flat, full width, one field per row — and not
+           animated. The global `form` rule floats forever, which is noise on a
+           page you are trying to work in. */
+        .wb-body form {
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            background: none;
+            box-shadow: none;
+            backdrop-filter: none;
+            animation: none;
+            overflow: visible;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+
+        .wb-body form::before {
+            content: none;
+        }
+
+        .wb-body form label {
+            align-self: start;
+            text-align: left;
+            font-size: .86rem;
+            font-weight: 700;
+            color: var(--text-2);
+            margin: 0;
+        }
+
+        .wb-body input[type="text"],
+        .wb-body input[type="number"],
+        .wb-body input[type="file"],
+        .wb-body select,
+        .wb-body textarea {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .wb-body textarea {
+            min-height: 84px;
+        }
+
+        .wb-body form button {
+            width: 100%;
+            margin: 6px 0 0;
+        }
+
+        .wb-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 6px;
+        }
+
+        .wb-actions button {
+            flex: 1 1 150px;
+            width: auto;
+            margin: 0;
+        }
+
+        .wb-note {
+            margin: 0 0 14px;
+            color: var(--text-2);
+            font-size: .85rem;
+            line-height: 1.55;
+            text-align: left;
+        }
+
+        .wb-check {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            font-weight: 700;
+            color: var(--text);
+            padding: 10px 13px;
+            border: 1px solid var(--border);
+            border-radius: 11px;
+            background: var(--paper);
+            cursor: pointer;
+        }
+
+        .wb-check:hover {
+            background: var(--gold-wash);
+        }
+
+        .wb-check input {
+            width: auto;
+            margin: 0;
+            flex: none;
+        }
+
+        .wb-stack {
+            display: grid;
+            gap: 10px;
+        }
+
+        /* The "don't use this" card reads as dangerous and stays shut. */
+        .wb-danger .wb-det {
+            border-color: #e3a3a4;
+            background: #fdf5f5;
+        }
+
+        .wb-danger .wb-sum h2 {
+            color: #a3302f;
+        }
+
+        .wb-danger .wb-sum:hover {
+            background: #fbeaea;
+        }
+
+        .wb-body .arrange-grid,
+        .wb-body .current-menu-grid {
+            margin: 0;
+        }
+
+        .wb-body #saveOrderBtn {
+            margin: 16px auto 0;
+        }
+
+        /* Business-hours day table */
+        .wb-days {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        .wb-days th {
+            text-align: left;
+            font-size: .74rem;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            color: var(--muted);
+            font-weight: 800;
+            padding: 6px 8px;
+            border-bottom: 1px solid var(--line-strong);
+        }
+
+        .wb-days td {
+            padding: 7px 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .wb-days tr:last-child td {
+            border-bottom: 0;
+        }
+
+        .wb-days .wb-day-name {
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .wb-days input[type="number"] {
+            width: 100%;
+            min-width: 84px;
+        }
+
+        .wb-days input[type="checkbox"] {
+            width: auto;
+        }
+
+        .wb-hours-top {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 14px;
+        }
+
+        .wb-field {
+            display: grid;
+            gap: 6px;
+        }
+
+        @media (max-width: 760px) {
+            .wb-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .wb-jump {
+                padding: 9px 10px;
+                gap: 6px;
+            }
+
+            .wb-jump a {
+                font-size: .82rem;
+                padding: 6px 11px;
+            }
+
+            .wb-jump-lbl {
+                display: none;
+            }
+
+            .wb-body {
+                padding: 14px 14px 18px;
+            }
+
+            .wb-days th,
+            .wb-days td {
+                padding: 6px 5px;
+            }
+
+            .wb-days input[type="number"] {
+                min-width: 62px;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .wb-chev {
+                transition: none;
+            }
+        }
+    </style>
 </head>
 
 <body>
@@ -1402,10 +1775,10 @@
         <div class="header-content">
             <img src="DolceLogo-Admin.png" alt="Dolce Vita Gelateria Logo" class="logo">
             <div class="adm-headbar">
-                <button type="button" class="adm-chip-btn" id="admFxToggle" aria-controls="admShowcase"
-                    aria-expanded="true" title="Show or hide the animated tool buttons">
+                <button type="button" class="adm-chip-btn is-off" id="admFxToggle" aria-controls="admShowcase"
+                    aria-expanded="false" title="Show or hide the animated tool buttons">
                     <span class="adm-chip-ico" aria-hidden="true">✦</span>
-                    <span class="adm-chip-txt" id="admFxToggleLabel">Hide Showcase</span>
+                    <span class="adm-chip-txt" id="admFxToggleLabel">Show Showcase</span>
                 </button>
                 <button type="button" class="adm-chip-btn adm-nav-toggle" id="admNavToggle" aria-controls="admNav"
                     aria-expanded="false" aria-label="Toggle navigation">
@@ -1421,6 +1794,9 @@
         <nav class="adm-nav" id="admNav" aria-label="Admin tools">
             <div class="adm-nav-inner">
                 <a href="index.html" class="adm-nav-link is-primary">View Menu Page</a>
+                <a href="https://dolcevitasewell.com/admin" target="_blank" rel="noopener noreferrer"
+                    class="adm-nav-link" title="dolcevitasewell.com admin">Website Admin<span
+                        class="adm-tag">New</span></a>
                 <a href="https://dolcecaffesignage.web.app/admin.html" class="adm-nav-link">Pricing Menu<span
                         class="adm-tag">New</span></a>
                 <a href="gelato.html" class="adm-nav-link">Gelato Inventory</a>
@@ -1599,13 +1975,14 @@
              white-on-colour) and can be hidden wholesale from the header chip.
              Every link here is duplicated in the header nav, so hiding this
              never takes a destination away. -->
-        <section class="adm-showcase" id="admShowcase" aria-label="Tool showcase">
+        <section class="adm-showcase" id="admShowcase" aria-label="Tool showcase" hidden>
             <div class="adm-showcase-head">
                 <span class="adm-eyebrow">Connected Tools</span>
                 <p class="adm-showcase-note">Same links as the top nav — hide this strip any time.</p>
             </div>
             <div class="top-actions">
             <button id="view-main-button" class="hero-btn"><span class="blob-clip"></span>View Menu Page</button>
+            <a href="https://dolcevitasewell.com/admin" target="_blank" rel="noopener noreferrer" class="btn hero-btn" title="dolcevitasewell.com admin"><span class="blob-clip"></span>Website Admin<span class="new-badge">✨ NEW</span></a>
             <a href="https://dolcecaffesignage.web.app/admin.html" class="btn hero-btn"><span class="blob-clip"></span>Pricing Menu<span class="new-badge">✨ NEW</span></a>
             <a href="gelato.html" class="btn hero-btn"><span class="blob-clip"></span>Gelato Inventory</a>
             <a href="https://dolcevitagelato-inventory.web.app" target="_blank" rel="noopener noreferrer" class="btn hero-btn" title="Stock & Supplies"><span class="blob-clip"></span>Supply Hub<span class="new-badge">✨ NEW</span></a>
@@ -1619,179 +1996,422 @@
             </div>
         </section>
 
-        <section>
-            <h2>Snow & Flag Effect</h2>
-            <label>
-                <input type="checkbox" id="snowToggle">
-                Enable Snow & Italian Flag Effects
-            </label>
-            <br>
-            <label>
-                <input type="checkbox" id="heartToggle">
-                Enable Italian Flags & Hearts
-            </label>
-        </section>
-        <section>
-            <h2>Update Stock Status</h2>
-            <form id="updateStockStatusForm">
-                <label for="stockItemName">Item Name:</label>
-                <select id="stockItemName" name="stockItemName" class="item-name-dropdown" required></select>
-                <label for="stockStatus">Stock Status:</label>
-                <select id="stockStatus" name="stockStatus" required>
-                    <option value="inStock">In Stock</option>
-                    <option value="outOfStock">Out of Stock</option>
-                </select>
-                <button type="submit">Update Stock Status</button>
-            </form>
-            <div id="menuManageBlock">
-                <div class="manage-mode-toggle">
-                    <button type="button" id="showRemoveMode" class="manage-mode-btn active">Remove from Menu</button>
-                    <button type="button" id="showAddBackMode" class="manage-mode-btn">Add to Menu</button>
+        <!-- ===================== WORKBENCH =====================
+             Grouped, collapsible tools. Every id and class the admin script
+             looks up is unchanged — only the wrapping markup moved. -->
+        <div class="wb">
+            <nav class="wb-jump" aria-label="Jump to a section">
+                <span class="wb-jump-lbl">Jump to</span>
+                <a href="#wb-menu">Menu</a>
+                <a href="#wb-layout">Order &amp; Layout</a>
+                <a href="#wb-content">Content</a>
+                <a href="#wb-settings">Settings</a>
+                <a href="#wb-advanced">Advanced</a>
+            </nav>
+
+            <!-- ---------- MENU ---------- -->
+            <section class="wb-group" id="wb-menu" aria-label="Menu tools">
+                <h2 class="wb-group-title">Menu</h2>
+                <div class="wb-grid">
+
+                    <section class="wb-card">
+                        <details class="wb-det" open>
+                            <summary class="wb-sum">
+                                <h2>Stock Status</h2>
+                                <span class="wb-hint">In / out of stock</span>
+                                <span class="wb-chev" aria-hidden="true"></span>
+                            </summary>
+                            <div class="wb-body">
+                                <p class="wb-note">Marks a flavor as sold out on the TV menu without removing it.</p>
+                                <form id="updateStockStatusForm">
+                                    <label for="stockItemName">Item</label>
+                                    <select id="stockItemName" name="stockItemName" class="item-name-dropdown"
+                                        required></select>
+                                    <label for="stockStatus">Stock status</label>
+                                    <select id="stockStatus" name="stockStatus" required>
+                                        <option value="inStock">In Stock</option>
+                                        <option value="outOfStock">Out of Stock</option>
+                                    </select>
+                                    <button type="submit">Update Stock Status</button>
+                                </form>
+                            </div>
+                        </details>
+                    </section>
+
+                    <section class="wb-card" id="temporaryAvailabilitySection">
+                        <details class="wb-det" open>
+                            <summary class="wb-sum">
+                                <h2>Temporary Availability</h2>
+                                <span class="wb-hint">Hide for now</span>
+                                <span class="wb-chev" aria-hidden="true"></span>
+                            </summary>
+                            <div class="wb-body">
+                                <p class="wb-note">Greys a flavor out for a short stretch — it stays on the menu.</p>
+                                <form id="toggleTemporaryAvailabilityForm">
+                                    <label for="tempAvailabilityItemName">Item</label>
+                                    <select id="tempAvailabilityItemName" class="item-name-dropdown"></select>
+                                    <label class="wb-check">
+                                        <input type="checkbox" id="tempAvailabilityStatus">
+                                        Mark as temporarily unavailable
+                                    </label>
+                                    <button type="submit">Update Availability</button>
+                                </form>
+                            </div>
+                        </details>
+                    </section>
+
+                    <section class="wb-card">
+                        <details class="wb-det" open>
+                            <summary class="wb-sum">
+                                <h2>Add &amp; Remove Flavors</h2>
+                                <span class="wb-hint">Menu &harr; pending</span>
+                                <span class="wb-chev" aria-hidden="true"></span>
+                            </summary>
+                            <div class="wb-body">
+                                <p class="wb-note">Removing a flavor moves it to pending — nothing is deleted, and it
+                                    can be put back any time.</p>
+                                <div id="menuManageBlock">
+                                    <div class="manage-mode-toggle">
+                                        <button type="button" id="showRemoveMode"
+                                            class="manage-mode-btn active">Remove from Menu</button>
+                                        <button type="button" id="showAddBackMode" class="manage-mode-btn">Add to
+                                            Menu</button>
+                                    </div>
+                                    <form id="removeFromMenuForm">
+                                        <label for="removeItemName">Item to remove</label>
+                                        <select id="removeItemName" class="item-name-dropdown" required></select>
+                                        <button type="submit" class="remove-btn">Remove from Menu</button>
+                                    </form>
+                                    <form id="addFromPendingForm" style="display:none;">
+                                        <label for="addBackItemName">Pending flavor</label>
+                                        <input type="text" id="addBackSearchBox" placeholder="Search pending flavors…"
+                                            autocomplete="off">
+                                        <select id="addBackItemName" class="pending-item-name-dropdown"
+                                            required></select>
+                                        <img id="addBackPreview" class="flavor-preview" src="" alt="" hidden>
+                                        <button type="submit" class="addback-btn">Add to Menu</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </details>
+                    </section>
+
+                    <section class="wb-card">
+                        <details class="wb-det">
+                            <summary class="wb-sum">
+                                <h2>Replace Menu Item</h2>
+                                <span class="wb-hint">Swap in place</span>
+                                <span class="wb-chev" aria-hidden="true"></span>
+                            </summary>
+                            <div class="wb-body">
+                                <p class="wb-note">Swaps a flavor on the menu for one from pending. The outgoing flavor
+                                    goes back to pending.</p>
+                                <form id="replaceMenuItemForm">
+                                    <label for="currentItemName">Currently on the menu</label>
+                                    <select id="currentItemName" name="currentItemName" class="item-name-dropdown"
+                                        required></select>
+                                    <label for="newPendingItemName">Replace it with</label>
+                                    <input type="text" id="pendingSearchBox" placeholder="Search pending flavors…"
+                                        autocomplete="off">
+                                    <select id="newPendingItemName" name="newPendingItemName"
+                                        class="pending-item-name-dropdown" required></select>
+                                    <img id="newPendingPreview" class="flavor-preview" src="" alt="" hidden>
+                                    <label for="newItemDescription">Description</label>
+                                    <textarea id="newItemDescription" name="newItemDescription" required
+                                        readonly></textarea>
+                                    <label for="existingItemImage">Use an existing image</label>
+                                    <select id="existingItemImageReplace" name="existingItemImage"></select>
+                                    <label for="newItemImageFile">…or upload a new one</label>
+                                    <input type="file" id="newItemImageFile" name="newItemImageFile" accept="image/*">
+                                    <button type="submit">Replace Menu Item</button>
+                                </form>
+                            </div>
+                        </details>
+                    </section>
+
                 </div>
-                <form id="removeFromMenuForm">
-                    <label for="removeItemName">Select Item to Remove:</label>
-                    <select id="removeItemName" class="item-name-dropdown" required></select>
-                    <button type="submit" class="remove-btn">Remove from Menu</button>
-                </form>
-                <form id="addFromPendingForm" style="display:none;">
-                    <label for="addBackItemName">Select Pending Item:</label>
-                    <input type="text" id="addBackSearchBox" placeholder="Search pending flavors..." autocomplete="off">
-                    <select id="addBackItemName" class="pending-item-name-dropdown" required></select>
-                    <img id="addBackPreview" class="flavor-preview" src="" alt="" hidden>
-                    <button type="submit" class="addback-btn">Add to Menu</button>
-                </form>
-            </div>
-        </section>
-        <section id="temporaryAvailabilitySection">
-            <h2>Manage Temporary Availability</h2>
-            <form id="toggleTemporaryAvailabilityForm">
-                <label for="tempAvailabilityItemName">Select Item to Toggle Availability:</label>
-                <select id="tempAvailabilityItemName" class="item-name-dropdown"></select>
-                <label>
-                    <input type="checkbox" id="tempAvailabilityStatus">
-                    Mark as Temporarily Unavailable
-                </label>
-                <button type="submit">Update Availability</button>
-            </form>
-        </section>
-        <section>
-            <h2>Replace Menu Item</h2>
-            <form id="replaceMenuItemForm">
-                <label for="currentItemName">Current Item Name:</label>
-                <select id="currentItemName" name="currentItemName" class="item-name-dropdown" required></select>
-                <label for="newPendingItemName">New Pending Item Name:</label>
-                <input type="text" id="pendingSearchBox" placeholder="Search pending flavors..." autocomplete="off">
-                <select id="newPendingItemName" name="newPendingItemName" class="pending-item-name-dropdown"
-                    required></select>
-                <img id="newPendingPreview" class="flavor-preview" src="" alt="" hidden>
-                <label for="newItemDescription">New Item Description:</label>
-                <textarea id="newItemDescription" name="newItemDescription" required readonly></textarea>
-                <label for="existingItemImage">Use Existing Image:</label>
-                <select id="existingItemImageReplace" name="existingItemImage"></select>
-                <label for="newItemImageFile">Or Upload New Image:</label>
-                <input type="file" id="newItemImageFile" name="newItemImageFile" accept="image/*">
-                <button type="submit">Replace Menu Item</button>
-            </form>
-        </section>
-        <section>
-            <h2>Update Business Hours (24 Hour Time)</h2>
-            <form id="updateBusinessHoursForm">
+            </section>
 
-                <label for="openTime">Default Opening Time 24HR (HHMM):</label>
-                <input type="number" id="openTime" name="openTime" min="0" max="2359" required>
+            <!-- ---------- ORDER & LAYOUT ---------- -->
+            <section class="wb-group" id="wb-layout" aria-label="Menu order and current menu">
+                <h2 class="wb-group-title">Order &amp; Layout</h2>
+                <div class="wb-grid">
 
-                <label for="closeTime">Default Closing Time 24HR (HHMM):</label>
-                <input type="number" id="closeTime" name="closeTime" min="0" max="2359" required>
-                <p style="color:#9aa3b2;font-size:.85rem;margin:6px 0 0;">Default hours apply to every open day unless you enter custom per-day hours below. (The mobile-order site and cafe signage always use these default hours.)</p>
+                    <section class="wb-card is-wide">
+                        <details class="wb-det" open>
+                            <summary class="wb-sum">
+                                <h2>Arrange Menu Order</h2>
+                                <span class="wb-hint">Drag to reorder</span>
+                                <span class="wb-chev" aria-hidden="true"></span>
+                            </summary>
+                            <div class="wb-body">
+                                <p class="wb-note">Drag the cards into the order they should appear on the TV, then
+                                    save.</p>
+                                <div class="arrange-grid" id="arrangeGrid"></div>
+                                <button type="button" id="saveOrderBtn" class="manage-mode-btn"
+                                    style="display:block;padding:12px 30px;font-size:1rem;">Save Order</button>
+                            </div>
+                        </details>
+                    </section>
 
-                <fieldset style="margin-top:12px">
-                    <legend>Open Days &amp; Per-Day Hours</legend>
-                    <p style="color:#9aa3b2;font-size:.85rem;margin:0 0 8px;">Check a day to open it. Leave its time boxes blank to use the default hours, or enter a custom Open/Close (HHMM) just for that day.</p>
-                    <table style="border-collapse:collapse;width:100%;max-width:440px;">
-                        <thead><tr style="text-align:left;font-size:.82rem;color:#9aa3b2;">
-                            <th style="padding:4px 8px;">Open</th><th style="padding:4px 8px;">Day</th><th style="padding:4px 8px;">Open (HHMM)</th><th style="padding:4px 8px;">Close (HHMM)</th>
-                        </tr></thead>
-                        <tbody>
-                            <tr><td style="padding:4px 8px;"><input type="checkbox" name="openDays" value="0" id="day0"></td><td style="padding:4px 8px;">Sun</td><td style="padding:4px 8px;"><input type="number" id="day0Open" min="0" max="2359" placeholder="default" style="width:96px;"></td><td style="padding:4px 8px;"><input type="number" id="day0Close" min="0" max="2359" placeholder="default" style="width:96px;"></td></tr>
-                            <tr><td style="padding:4px 8px;"><input type="checkbox" name="openDays" value="1" id="day1"></td><td style="padding:4px 8px;">Mon</td><td style="padding:4px 8px;"><input type="number" id="day1Open" min="0" max="2359" placeholder="default" style="width:96px;"></td><td style="padding:4px 8px;"><input type="number" id="day1Close" min="0" max="2359" placeholder="default" style="width:96px;"></td></tr>
-                            <tr><td style="padding:4px 8px;"><input type="checkbox" name="openDays" value="2" id="day2"></td><td style="padding:4px 8px;">Tue</td><td style="padding:4px 8px;"><input type="number" id="day2Open" min="0" max="2359" placeholder="default" style="width:96px;"></td><td style="padding:4px 8px;"><input type="number" id="day2Close" min="0" max="2359" placeholder="default" style="width:96px;"></td></tr>
-                            <tr><td style="padding:4px 8px;"><input type="checkbox" name="openDays" value="3" id="day3"></td><td style="padding:4px 8px;">Wed</td><td style="padding:4px 8px;"><input type="number" id="day3Open" min="0" max="2359" placeholder="default" style="width:96px;"></td><td style="padding:4px 8px;"><input type="number" id="day3Close" min="0" max="2359" placeholder="default" style="width:96px;"></td></tr>
-                            <tr><td style="padding:4px 8px;"><input type="checkbox" name="openDays" value="4" id="day4"></td><td style="padding:4px 8px;">Thu</td><td style="padding:4px 8px;"><input type="number" id="day4Open" min="0" max="2359" placeholder="default" style="width:96px;"></td><td style="padding:4px 8px;"><input type="number" id="day4Close" min="0" max="2359" placeholder="default" style="width:96px;"></td></tr>
-                            <tr><td style="padding:4px 8px;"><input type="checkbox" name="openDays" value="5" id="day5"></td><td style="padding:4px 8px;">Fri</td><td style="padding:4px 8px;"><input type="number" id="day5Open" min="0" max="2359" placeholder="default" style="width:96px;"></td><td style="padding:4px 8px;"><input type="number" id="day5Close" min="0" max="2359" placeholder="default" style="width:96px;"></td></tr>
-                            <tr><td style="padding:4px 8px;"><input type="checkbox" name="openDays" value="6" id="day6"></td><td style="padding:4px 8px;">Sat</td><td style="padding:4px 8px;"><input type="number" id="day6Open" min="0" max="2359" placeholder="default" style="width:96px;"></td><td style="padding:4px 8px;"><input type="number" id="day6Close" min="0" max="2359" placeholder="default" style="width:96px;"></td></tr>
-                        </tbody>
-                    </table>
-                </fieldset>
+                    <section class="wb-card is-wide">
+                        <details class="wb-det">
+                            <summary class="wb-sum">
+                                <h2>Current Menu</h2>
+                                <span class="wb-hint">Change images here</span>
+                                <span class="wb-chev" aria-hidden="true"></span>
+                            </summary>
+                            <div class="wb-body">
+                                <p class="wb-note">Every flavor live on the menu. Use a card's buttons to change its
+                                    menu image or its gelato image.</p>
+                                <div class="current-menu-grid"></div>
+                            </div>
+                        </details>
+                    </section>
 
-                <button type="submit">Update Business Hours</button>
-            </form>
-        </section>
-        <section>
-            <h2>Add Video</h2>
-            <form id="addVideoForm">
-                <label for="videoFile">Video File:</label>
-                <input type="file" id="videoFile" name="videoFile" accept="video/*" required>
-                <button type="submit">Upload Video</button>
-            </form>
-        </section>
-        <section>
-            <h2>Add Menu Item</h2>
-            <form id="addMenuItemForm">
-                <label for="itemName">Item Name:</label>
-                <input type="text" id="itemName" name="itemName" required>
-                <label for="itemDescription">Item Description:</label>
-                <textarea id="itemDescription" name="itemDescription" required></textarea>
-                <label for="itemImageFile">Item Image:</label>
-                <input type="file" id="itemImageFile" name="itemImageFile" accept="image/*" required>
-                <label for="gelatoImageFile">Gelato Image (gelatoImage):</label>
-                <input type="file" id="gelatoImageFile" name="gelatoImageFile" accept="image/*" required>
-                <button type="submit">Add Menu Item</button>
-            </form>
-        </section>
-        <section>
-            <h2>Manage Videos</h2>
-            <form id="videoActionsForm">
-                <label for="videoToManage">Select Video to Remove or Swap:</label>
-                <select id="videoToManage" name="videoToManage" required>
-                    <!-- Populated dynamically with current video names -->
-                </select>
+                </div>
+            </section>
 
-                <label for="existingVideoInStorage">Select Existing Video from Storage to Swap:</label>
-                <select id="existingVideoInStorage" name="existingVideoInStorage">
-                    <!-- Populated dynamically with videos from storage -->
-                </select>
+            <!-- ---------- CONTENT ---------- -->
+            <section class="wb-group" id="wb-content" aria-label="Add flavors and videos">
+                <h2 class="wb-group-title">Content</h2>
+                <div class="wb-grid">
 
-                <label for="newVideoFile">Or Upload a New Video to Swap:</label>
-                <input type="file" id="newVideoFile" name="newVideoFile" accept="video/*">
+                    <section class="wb-card">
+                        <details class="wb-det">
+                            <summary class="wb-sum">
+                                <h2>Add Menu Item</h2>
+                                <span class="wb-hint">Goes to pending</span>
+                                <span class="wb-chev" aria-hidden="true"></span>
+                            </summary>
+                            <div class="wb-body">
+                                <p class="wb-note">Creates a new flavor in pending. Put it on the menu with <em>Add
+                                        &amp; Remove Flavors</em> above.</p>
+                                <form id="addMenuItemForm">
+                                    <label for="itemName">Name</label>
+                                    <input type="text" id="itemName" name="itemName" required>
+                                    <label for="itemDescription">Description</label>
+                                    <textarea id="itemDescription" name="itemDescription" required></textarea>
+                                    <label for="itemImageFile">Menu image</label>
+                                    <input type="file" id="itemImageFile" name="itemImageFile" accept="image/*"
+                                        required>
+                                    <label for="gelatoImageFile">Gelato image</label>
+                                    <input type="file" id="gelatoImageFile" name="gelatoImageFile" accept="image/*"
+                                        required>
+                                    <button type="submit">Add Menu Item</button>
+                                </form>
+                            </div>
+                        </details>
+                    </section>
 
-                <button type="submit" id="removeVideoButton">Remove Video</button>
-                <button type="submit" id="swapVideoButton">Swap Video</button>
-            </form>
-        </section>
+                    <section class="wb-card">
+                        <details class="wb-det">
+                            <summary class="wb-sum">
+                                <h2>Add Video</h2>
+                                <span class="wb-hint">Upload</span>
+                                <span class="wb-chev" aria-hidden="true"></span>
+                            </summary>
+                            <div class="wb-body">
+                                <p class="wb-note">Uploaded videos join the rotation between menu screens.</p>
+                                <form id="addVideoForm">
+                                    <label for="videoFile">Video file</label>
+                                    <input type="file" id="videoFile" name="videoFile" accept="video/*" required>
+                                    <button type="submit">Upload Video</button>
+                                </form>
+                            </div>
+                        </details>
+                    </section>
 
-        <section>
-            <h2>Direct Add Menu Item (DO NOT USE)</h2>
-            <form id="directAddMenuItemForm">
-                <label for="directItemName">Item Name:</label>
-                <input type="text" id="directItemName" name="itemName" required>
-                <label for="directItemDescription">Item Description:</label>
-                <textarea id="directItemDescription" name="itemDescription" required></textarea>
-                <label for="directItemImageFile">Item Image:</label>
-                <input type="file" id="directItemImageFile" name="itemImageFile" accept="image/*" required>
-                <button type="submit">Add Menu Item Directly</button>
-            </form>
-        </section>
-        <section>
-            <h2>Arrange Menu Order</h2>
-            <p style="color:var(--muted);margin:0 0 10px;font-size:.9rem;">Drag and drop to reorder. Click Save when
-                done.</p>
-            <div class="arrange-grid" id="arrangeGrid"></div>
-            <button type="button" id="saveOrderBtn" class="manage-mode-btn"
-                style="margin:16px auto;display:block;padding:12px 30px;font-size:1rem;">Save Order</button>
-        </section>
-        <section>
-            <div class="current-menu-grid"></div>
-        </section>
+                    <section class="wb-card">
+                        <details class="wb-det">
+                            <summary class="wb-sum">
+                                <h2>Manage Videos</h2>
+                                <span class="wb-hint">Remove or swap</span>
+                                <span class="wb-chev" aria-hidden="true"></span>
+                            </summary>
+                            <div class="wb-body">
+                                <form id="videoActionsForm">
+                                    <label for="videoToManage">Video to remove or swap</label>
+                                    <select id="videoToManage" name="videoToManage" required></select>
+                                    <label for="existingVideoInStorage">Swap in an existing video</label>
+                                    <select id="existingVideoInStorage" name="existingVideoInStorage"></select>
+                                    <label for="newVideoFile">…or upload a new one</label>
+                                    <input type="file" id="newVideoFile" name="newVideoFile" accept="video/*">
+                                    <div class="wb-actions">
+                                        <button type="submit" id="removeVideoButton">Remove Video</button>
+                                        <button type="submit" id="swapVideoButton">Swap Video</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </details>
+                    </section>
+
+                </div>
+            </section>
+
+            <!-- ---------- SETTINGS ---------- -->
+            <section class="wb-group" id="wb-settings" aria-label="Signage settings">
+                <h2 class="wb-group-title">Settings</h2>
+                <div class="wb-grid">
+
+                    <section class="wb-card is-wide">
+                        <details class="wb-det">
+                            <summary class="wb-sum">
+                                <h2>Business Hours</h2>
+                                <span class="wb-hint">24-hour time (HHMM)</span>
+                                <span class="wb-chev" aria-hidden="true"></span>
+                            </summary>
+                            <div class="wb-body">
+                                <form id="updateBusinessHoursForm">
+                                    <div class="wb-hours-top">
+                                        <div class="wb-field">
+                                            <label for="openTime">Default opening (HHMM)</label>
+                                            <input type="number" id="openTime" name="openTime" min="0" max="2359"
+                                                required>
+                                        </div>
+                                        <div class="wb-field">
+                                            <label for="closeTime">Default closing (HHMM)</label>
+                                            <input type="number" id="closeTime" name="closeTime" min="0" max="2359"
+                                                required>
+                                        </div>
+                                    </div>
+                                    <p class="wb-note">Default hours apply to every open day unless a day has its own
+                                        times below. The mobile-order site and cafe signage always use these defaults.
+                                        <strong>Uncheck every day to show the shop as closed.</strong>
+                                    </p>
+                                    <table class="wb-days">
+                                        <thead>
+                                            <tr>
+                                                <th>Open</th>
+                                                <th>Day</th>
+                                                <th>Open (HHMM)</th>
+                                                <th>Close (HHMM)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td><input type="checkbox" name="openDays" value="0" id="day0"></td>
+                                                <td class="wb-day-name">Sun</td>
+                                                <td><input type="number" id="day0Open" min="0" max="2359"
+                                                        placeholder="default"></td>
+                                                <td><input type="number" id="day0Close" min="0" max="2359"
+                                                        placeholder="default"></td>
+                                            </tr>
+                                            <tr>
+                                                <td><input type="checkbox" name="openDays" value="1" id="day1"></td>
+                                                <td class="wb-day-name">Mon</td>
+                                                <td><input type="number" id="day1Open" min="0" max="2359"
+                                                        placeholder="default"></td>
+                                                <td><input type="number" id="day1Close" min="0" max="2359"
+                                                        placeholder="default"></td>
+                                            </tr>
+                                            <tr>
+                                                <td><input type="checkbox" name="openDays" value="2" id="day2"></td>
+                                                <td class="wb-day-name">Tue</td>
+                                                <td><input type="number" id="day2Open" min="0" max="2359"
+                                                        placeholder="default"></td>
+                                                <td><input type="number" id="day2Close" min="0" max="2359"
+                                                        placeholder="default"></td>
+                                            </tr>
+                                            <tr>
+                                                <td><input type="checkbox" name="openDays" value="3" id="day3"></td>
+                                                <td class="wb-day-name">Wed</td>
+                                                <td><input type="number" id="day3Open" min="0" max="2359"
+                                                        placeholder="default"></td>
+                                                <td><input type="number" id="day3Close" min="0" max="2359"
+                                                        placeholder="default"></td>
+                                            </tr>
+                                            <tr>
+                                                <td><input type="checkbox" name="openDays" value="4" id="day4"></td>
+                                                <td class="wb-day-name">Thu</td>
+                                                <td><input type="number" id="day4Open" min="0" max="2359"
+                                                        placeholder="default"></td>
+                                                <td><input type="number" id="day4Close" min="0" max="2359"
+                                                        placeholder="default"></td>
+                                            </tr>
+                                            <tr>
+                                                <td><input type="checkbox" name="openDays" value="5" id="day5"></td>
+                                                <td class="wb-day-name">Fri</td>
+                                                <td><input type="number" id="day5Open" min="0" max="2359"
+                                                        placeholder="default"></td>
+                                                <td><input type="number" id="day5Close" min="0" max="2359"
+                                                        placeholder="default"></td>
+                                            </tr>
+                                            <tr>
+                                                <td><input type="checkbox" name="openDays" value="6" id="day6"></td>
+                                                <td class="wb-day-name">Sat</td>
+                                                <td><input type="number" id="day6Open" min="0" max="2359"
+                                                        placeholder="default"></td>
+                                                <td><input type="number" id="day6Close" min="0" max="2359"
+                                                        placeholder="default"></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                    <button type="submit">Update Business Hours</button>
+                                </form>
+                            </div>
+                        </details>
+                    </section>
+
+                    <section class="wb-card">
+                        <details class="wb-det">
+                            <summary class="wb-sum">
+                                <h2>Screen Effects</h2>
+                                <span class="wb-hint">Seasonal</span>
+                                <span class="wb-chev" aria-hidden="true"></span>
+                            </summary>
+                            <div class="wb-body">
+                                <p class="wb-note">Decorative overlays on the TV menu. Changes apply instantly.</p>
+                                <div class="wb-stack">
+                                    <label class="wb-check">
+                                        <input type="checkbox" id="snowToggle">
+                                        Snow &amp; Italian flags
+                                    </label>
+                                    <label class="wb-check">
+                                        <input type="checkbox" id="heartToggle">
+                                        Italian flags &amp; hearts
+                                    </label>
+                                </div>
+                            </div>
+                        </details>
+                    </section>
+
+                </div>
+            </section>
+
+            <!-- ---------- ADVANCED ---------- -->
+            <section class="wb-group" id="wb-advanced" aria-label="Advanced tools">
+                <h2 class="wb-group-title">Advanced</h2>
+                <div class="wb-grid">
+
+                    <section class="wb-card wb-danger">
+                        <details class="wb-det">
+                            <summary class="wb-sum">
+                                <h2>Direct Add to Menu</h2>
+                                <span class="wb-hint">Don't use this</span>
+                                <span class="wb-chev" aria-hidden="true"></span>
+                            </summary>
+                            <div class="wb-body">
+                                <p class="wb-note">Pushes a flavor straight onto the live menu, skipping pending and
+                                    skipping the gelato image. Use <em>Add Menu Item</em> instead — this is kept only
+                                    for emergencies.</p>
+                                <form id="directAddMenuItemForm">
+                                    <label for="directItemName">Name</label>
+                                    <input type="text" id="directItemName" name="itemName" required>
+                                    <label for="directItemDescription">Description</label>
+                                    <textarea id="directItemDescription" name="itemDescription" required></textarea>
+                                    <label for="directItemImageFile">Menu image</label>
+                                    <input type="file" id="directItemImageFile" name="itemImageFile" accept="image/*"
+                                        required>
+                                    <button type="submit">Add Directly to Menu</button>
+                                </form>
+                            </div>
+                        </details>
+                    </section>
+
+                </div>
+            </section>
+        </div>
     </main>
     <script>
         document.getElementById('view-main-button').addEventListener('click', function () {
@@ -1839,9 +2459,11 @@
                 if (label) label.textContent = hidden ? 'Show Showcase' : 'Hide Showcase';
             }
 
+            /* Hidden by default: the showcase is a duplicate of the top nav,
+             * so it only appears if this browser was explicitly told to show it. */
             let saved = null;
             try { saved = localStorage.getItem(KEY); } catch (_) { }
-            apply(saved === '1');
+            apply(saved !== '0');
 
             btn.addEventListener('click', () => {
                 const next = !showcase.hidden;
@@ -2070,7 +2692,18 @@
             const today = new Date().getDay();
             const openDays = Array.isArray(data && data.openDays) ? data.openDays.map(n => parseInt(n, 10)) : [];
 
-            if (openDays.length && !openDays.includes(today)) {
+            /* An empty openDays means NO open days at all -- that is exactly how
+             * index.html and early.html read it (isBusinessDay = openDays.includes(day),
+             * with no length guard), so the signage already treats every day as
+             * closed. Guarding on .length here short-circuited the whole check,
+             * so the tile skipped straight to the default hours and advertised
+             * today as open while the signage was showing the closed screen. */
+            if (!openDays.length) {
+                valEl.textContent = "Closed";
+                if (lblEl) lblEl.textContent = "No open days set";
+                return;
+            }
+            if (!openDays.includes(today)) {
                 valEl.textContent = "Closed";
                 if (lblEl) lblEl.textContent = "Closed Today";
                 return;
@@ -2169,6 +2802,26 @@
 
         fetchCurrentBusinessHours();
     </script>
+
+    <!-- Change-image modal. admin-style.css has carried the full .cim-* styling
+         all along, but this markup was missing from the page, so the top-level
+         wiring in admin-script.js hit a null and threw. That throw happened
+         inside the same auth callback as everything else, which killed every
+         handler registered after it — including the first
+         populateDropdowns() / displayCurrentMenuItems() call. Restoring the
+         markup is what makes the Menu Image / Gelato Image buttons work. -->
+    <div class="cim-overlay" id="changeImgModal" role="dialog" aria-modal="true"
+        aria-labelledby="cimTitle">
+        <div class="cim-card">
+            <button type="button" class="cim-close" id="cimClose" aria-label="Close">&times;</button>
+            <h3 class="cim-title" id="cimTitle">Change Image</h3>
+            <label class="cim-upload" for="cimFileInput">Upload a new image</label>
+            <input type="file" id="cimFileInput" accept="image/*">
+            <p class="cim-or">&mdash; or choose one already uploaded &mdash;</p>
+            <div class="cim-gallery" id="cimGallery"></div>
+        </div>
+    </div>
+
 </body>
 
 </html>

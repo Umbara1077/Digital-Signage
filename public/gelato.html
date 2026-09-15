@@ -23,27 +23,13 @@
     <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-firestore.js"></script>
     <script src="https://www.gstatic.com/firebasejs/7.24.0/firebase-auth.js"></script>
     <script src="firebaseConfig.js"></script>
+    <script src="auth-guard.js"></script>
     <script defer src="gelato-intelligence.js"></script>
     <script defer src="gelato.js"></script>
 
-    <!-- Auth gate: identical behaviour to admin.html -->
+    <!-- Google-only access gate: identical behaviour to admin.html -->
     <script>
-        document.addEventListener("DOMContentLoaded", () => {
-            firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL)
-                .then(() => {
-                    firebase.auth().onAuthStateChanged(async user => {
-                        if (user) {
-                            try { await user.getIdToken(true); } catch (e) { console.error(e); }
-                        } else {
-                            console.warn("Not authenticated. Redirecting...");
-                            if (window.location.pathname !== '/login.html') {
-                                window.location.href = 'login.html';
-                            }
-                        }
-                    });
-                })
-                .catch(error => console.error("Error setting persistence:", error));
-        });
+        DVAuth.guard();
     </script>
     <style>
         /* =========================================================================
@@ -465,6 +451,8 @@
             <button id="sync-to-menu" class="btn g-btn-sync">&#x2191; Sync Case &rarr; Menu</button>
             <button id="restore-menu" class="btn g-btn-danger" hidden>&#x21A9; Undo Menu Sync</button>
             <button id="reset-inventory" class="btn g-btn-danger">&#x26A0; Reset Inventory</button>
+            <button id="merge-dupes" class="btn" title="Keep one doc per flavor and remove the empty duplicate copies">&#x21C4; Merge Duplicate Flavors</button>
+            <button id="undo-merge" class="btn g-btn-danger" hidden>&#x21A9; Undo Merge</button>
             <button type="button" id="gi-open" class="btn gi-open-btn" aria-expanded="false" aria-controls="gi-popover-root" title="DVG Intelligence">
                 <svg class="gi-star-mini" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2l1.7 6.2L20 12l-6.3 1.6L12 21.8l-1.7-8.2L4 12l6.3-3.6L12 2.2z"/></svg>
                 DVG Intelligence
