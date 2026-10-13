@@ -381,6 +381,30 @@
     justify-content: space-between;
 }
 
+/* the flavor name now heads the tile (where the pan number was); it shrinks
+   and truncates so the LOW / SWAP pill always fits beside it */
+.g-pan-head .g-pan-name {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    white-space: normal;            /* long names wrap to a second line rather than "Vin Sa…" */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow-wrap: anywhere;
+}
+
+.g-pan-head {
+    min-height: 2.2em;              /* every tile's header is two lines tall, so the tubs stay aligned */
+    align-items: flex-start;
+}
+
+.g-pan-head .g-pan-flag {
+    flex: none;
+    margin-left: 6px;
+}
+
 .g-pan-num {
     font-size: .64rem;
     letter-spacing: .08em;

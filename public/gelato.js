@@ -658,9 +658,9 @@
         body.innerHTML = `
             <p class="g-modal-hint">The menu will be set to exactly the <strong>${caseFlavors.length}</strong> flavor(s) currently in the case, ordered by pan. Review the changes, then start the 1-minute sync window.</p>
             <div class="g-sync-preview">
-                ${col('Added to menu', toAdd, 'add', f => `<li>Pan ${f.casePan} · ${esc(f.name)}</li>`)}
+                ${col('Added to menu', toAdd, 'add', f => `<li>${esc(f.name)}</li>`)}
                 ${col('Replaced (removed)', toRemove, 'remove', m => `<li>${esc(m.name || '(unnamed)')}</li>`)}
-                ${col('Already on menu', stay, 'stay', f => `<li>Pan ${f.casePan} · ${esc(f.name)}</li>`)}
+                ${col('Already on menu', stay, 'stay', f => `<li>${esc(f.name)}</li>`)}
             </div>
             <div class="g-modal-actions">
                 <button type="button" class="g-modal-cancel" id="sync-cancel">Cancel</button>
@@ -1067,7 +1067,7 @@
             <div class="g-fx-copy"><strong>${theme.verb}</strong><b></b><small></small></div>
         </div>`;
         fx.querySelector('.g-fx-copy b').textContent = title || 'Case updated';
-        fx.querySelector('.g-fx-copy small').textContent = detail || (pan ? `Pan ${pan}` : 'Action complete');
+        fx.querySelector('.g-fx-copy small').textContent = detail || 'Action complete';
         document.body.appendChild(fx);
         window.setTimeout(() => fx.remove(), 1900);
     }
@@ -1122,6 +1122,10 @@
         return slotsUsed(loc) - (f ? panCount(f, loc) : 0) + newArr.length;
     };
     const casePans = () => flavors.filter(f => f.casePan);
+    /* Display only: staff know case pans by the flavor in them, not by slot number, so
+     * on-screen text names the flavor. casePan, the queue and the history log text
+     * (which DVG Intelligence / analytics parse for "Pan N") still use the number. */
+    const panName = pan => { const f = flavors.find(x => x.casePan === pan); return f ? f.name : 'an empty slot'; };
     const storageStock = f => r2((f.shortTerm || 0) + (f.longTerm || 0));
     // the case is only ever filled from SHORT-TERM storage
     const caseStock = f => r2(f.shortTerm || 0);
@@ -1456,7 +1460,7 @@
                 const ready = !target || (target.active || 0) <= SWAP_THRESHOLD + EPS;
                 return `
                 <div class="g-mob-row">
-                    <span class="g-mob-name">${esc(nameById(q.flavorId) || q.name)} → Pan ${q.pan}</span>
+                    <span class="g-mob-name">${esc(nameById(q.flavorId) || q.name)} → replaces ${esc(panName(q.pan))}</span>
                     <span class="g-mob-state ${ready ? 'ready' : ''}">${ready ? 'READY' : `waiting · ${r2(target.active)}`}</span>
                     <button type="button" class="g-mob-btn go" data-act="mob-exec" data-i="${i}">Execute</button>
                     <button type="button" class="g-mob-btn danger" data-act="mob-qdel" data-i="${i}" aria-label="Remove swap">✕</button>
@@ -1618,13 +1622,12 @@
                 const swatch = img ? `style="background-image:url('${img}')"` : '';
                 html += `
                 <div class="g-pan ${staged ? 'low' : (low ? 'low-warn' : '')}" data-id="${f.id}" data-case-pan="${pan}" data-amt="${r2(f.active)}" draggable="true" title="Drag to Short-Term or Long-Term">
-                    <div class="g-pan-head"><span class="g-pan-num">PAN ${pan}</span>${flag ? `<span class="g-pan-flag${flag === 'LOW' ? ' g-pan-flag--low' : ''}">${flag}</span>` : ''}</div>
+                    <div class="g-pan-head"><div class="g-pan-name" title="${esc(f.name)}">${esc(f.name)}</div>${flag ? `<span class="g-pan-flag${flag === 'LOW' ? ' g-pan-flag--low' : ''}">${flag}</span>` : ''}</div>
                     <div class="g-tub">
                         <div class="g-tub-rim"></div>
                         <div class="g-gelato" style="height:${pct}%"><div class="g-gelato-top"></div></div>
                         <div class="g-scoop" ${swatch}></div>
                     </div>
-                    <div class="g-pan-name" title="${esc(f.name)}">${esc(f.name)}</div>
                     <div class="g-pan-meter"><span style="width:${pct}%"></span></div>
                     <div class="g-pan-amt"><span class="g-pan-qty">${r2(f.active)}</span> pan · <span class="g-pan-pct">${pct}%</span></div>
                     <div class="g-pan-use">
@@ -1643,7 +1646,7 @@
             } else {
                 html += `
                 <div class="g-pan empty" data-drop-pan="${pan}">
-                    <div class="g-pan-head"><span class="g-pan-num">PAN ${pan}</span></div>
+                    <div class="g-pan-head"><span class="g-pan-num">EMPTY SLOT</span></div>
                     <div class="g-tub empty"><span>empty</span></div>
                     <button type="button" class="g-assign-btn" data-pan="${pan}">+ Add flavor</button>
                 </div>`;
@@ -1677,7 +1680,7 @@
                 const f = byId(id);
                 if (!f) return;
                 showContextMenu(e.clientX, e.clientY, [
-                    { label: `Merge into Pan ${f.casePan}…`, action: () => openMergeModal(f.id) },
+                    { label: `Merge into ${f.name}…`, action: () => openMergeModal(f.id) },
                     { label: 'Send remainder to Short-Term', action: () => caseToShort(id) },
                     { label: 'Empty pan (use up remainder)', action: () => emptyPan(id) },
                     { divider: true },
@@ -1973,7 +1976,7 @@
         ]);
 
         bars('stat-case', casePans().slice().sort((a, b) => a.casePan - b.casePan)
-            .map(f => ({ name: `Pan ${f.casePan} · ${f.name}`, val: f.active || 0 })), 1, true, true);
+            .map(f => ({ name: f.name, val: f.active || 0 })), 1, true, true);
         bars('stat-short', withAmt('shortTerm').map(f => ({ name: f.name, val: f.shortTerm || 0 })),
             Math.max(SHORT_CAP / 4, maxVal('shortTerm')), false);
         bars('stat-long', withAmt('longTerm').filter(f => !f.isDummy).map(f => ({ name: f.name, val: f.longTerm || 0 })),
@@ -2016,7 +2019,7 @@
             const hasBackup = backupPans > 0;
             const queued = queue.some(q => q.pan === f.casePan);
             const pct = hasBackup ? Math.max(6, (backupPans / m) * 100) : 3;
-            const label = `Pan ${f.casePan} · ${f.name}${queued ? ' 🔄' : ''}`;
+            const label = `${f.name}${queued ? ' 🔄' : ''}`;
             const title = queued
                 ? 'Click to see the staged swap'
                 : (hasBackup ? `${backupPans} backup pan${backupPans === 1 ? '' : 's'} ready` : 'No backup pan in short-term');
@@ -2045,11 +2048,11 @@
         if (!q) return null;
         const name = nameById(q.flavorId) || q.name;
         const target = flavors.find(f => f.casePan === pan);
-        if (!target) return { ready: true, text: `${name} → Pan ${pan}: READY (pan is empty).` };
+        if (!target) return { ready: true, text: `${name} → empty slot: READY.` };
         const lvl = target.active || 0;
         return lvl <= SWAP_THRESHOLD + EPS
-            ? { ready: true, text: `${name} → Pan ${pan}: READY — pan is at ${r2(lvl)}.` }
-            : { ready: false, text: `${name} → Pan ${pan}: staged, waiting — pan still at ${r2(lvl)} (swaps in at ${SWAP_THRESHOLD}).` };
+            ? { ready: true, text: `${name} → replaces ${target.name}: READY — it is at ${r2(lvl)}.` }
+            : { ready: false, text: `${name} → replaces ${target.name}: staged, waiting — still at ${r2(lvl)} (swaps in at ${SWAP_THRESHOLD}).` };
     }
 
     /* Popover anchored right next to whatever was clicked, so checking a
@@ -2258,7 +2261,7 @@
         if (!f) { status('Flavor no longer available.'); return; }
 
         const fromLabel = src.kind === 'case'
-            ? `Case (Pan ${src.casePan})`
+            ? `Case (${f.name})`
             : LOCATION_LABELS[src.loc];
         const toLabel = LOCATION_LABELS[dest];
         const amt = r2(src.amt || 0);
@@ -2325,11 +2328,11 @@
                 return;
             }
             const slotNote = preferredPan
-                ? ` into empty Pan ${preferredPan}`
-                : (f.casePan ? ` (tops up Pan ${f.casePan})` : ' into the next free case slot');
+                ? ' into an empty case slot'
+                : (f.casePan ? ' (tops up its case pan)' : ' into the next free case slot');
             body.innerHTML = `
                 <p class="g-modal-hint">You dragged <strong>${esc(f.name)}</strong> (${amt} pan) from
-                    ${fromLabel} onto <strong>the Case</strong>${preferredPan ? ` (Pan ${preferredPan})` : ''}.</p>
+                    ${fromLabel} onto <strong>the Case</strong>.</p>
                 <p class="g-modal-hint">What should happen?</p>
                 <div class="g-modal-actions g-topup-actions" id="dnd-actions"></div>`;
             addBtn('dnd-go', `Move this ${amt} pan into the Case${slotNote}`);
@@ -2341,7 +2344,7 @@
                 const ok = await moveSpecificPan(src.id, src.loc, src.idx, src.amt, 'active', preferredPan);
                 if (ok) {
                     const slot = preferredPan || f.casePan || '';
-                    caseActionFx('transfer', f.name, `${amt} pan · ${fromLabel} \u2192 Case${slot ? ` (Pan ${slot})` : ''}`, slot || undefined);
+                    caseActionFx('transfer', f.name, `${amt} pan · ${fromLabel} \u2192 Case`, slot || undefined);
                 }
             });
             document.getElementById('dnd-cancel').addEventListener('click', closeModal);
@@ -2470,7 +2473,7 @@
             .sort((a, b) => b.total - a.total);
 
         const head = `<thead><tr>
-            <th>Flavor</th><th>Pan</th><th>Case</th><th>Short</th><th>Long</th><th>Total</th><th>Value</th>
+            <th>Flavor</th><th>In case</th><th>Case</th><th>Short</th><th>Long</th><th>Total</th><th>Value</th>
         </tr></thead>`;
         // colour storage cells with the same green/yellow/red tiers as the freezers
         const toneCell = v => v > EPS ? `<td class="tone-${freezerTone(v)}">${v}</td>` : `<td>—</td>`;
@@ -2480,7 +2483,7 @@
             return `
             <tr class="${lowRow ? 'low' : ''} ${ordered ? 'ordered' : ''}">
                 <td class="l"><span class="g-order-link" data-order-id="${r.id}" title="Click to queue this flavor for production">${esc(r.name)}</span></td>
-                <td>${r.pan || '—'}</td>
+                <td>${r.pan ? '✓' : '—'}</td>
                 <td>${r.active || '—'}</td>
                 ${toneCell(r.short)}
                 ${toneCell(r.long)}
@@ -2891,11 +2894,11 @@
             return `
             <div class="g-reco">
                 <div class="g-reco-head">
-                    <strong>Pan ${f.casePan}</strong> · ${esc(f.name)} is low
+                    <strong>${esc(f.name)}</strong> is low
                     <span class="g-reco-amt">${r2(f.active)} pan</span>
                 </div>
                 ${queued
-                    ? `<div class="g-reco-queued">✔ Staged: ${esc(nameById(queued.flavorId) || queued.name)} → Pan ${f.casePan} (ready below)</div>`
+                    ? `<div class="g-reco-queued">✔ Staged: ${esc(nameById(queued.flavorId) || queued.name)} → replaces ${esc(f.name)} (ready below)</div>`
                     : `<div class="g-reco-note">Stage a replacement in the Swap Queue panel →</div>`}
             </div>`;
         }).join('');
@@ -2909,7 +2912,7 @@
 
         const pans = casePans().sort((a, b) => a.casePan - b.casePan);
         panSel.innerHTML = pans.length
-            ? pans.map(f => `<option value="${f.casePan}">Pan ${f.casePan} — ${esc(f.name)} (${r2(f.active)})</option>`).join('')
+            ? pans.map(f => `<option value="${f.casePan}">${esc(f.name)} (${r2(f.active)})</option>`).join('')
             : `<option value="">No pans in the case yet</option>`;
 
         const avail = flavors.filter(f => caseStock(f) > EPS);
@@ -2951,7 +2954,7 @@
             return `
             <div class="g-qitem ${ready ? 'is-ready' : ''}">
                 <div class="g-qitem-main">
-                    <div><strong>${esc(nameById(q.flavorId) || q.name)}</strong> → Pan ${q.pan}</div>
+                    <div><strong>${esc(nameById(q.flavorId) || q.name)}</strong> → replaces ${esc(panName(q.pan))}</div>
                     ${state}
                 </div>
                 <span class="g-qitem-actions">
@@ -2972,7 +2975,7 @@
         const next = queue.filter(q => q.pan !== pan); // one staged swap per pan
         next.push({ pan, flavorId, name: f.name });
         await queueDocRef().set({ queue: next }, { merge: true });
-        status(`Staged ${f.name} → Pan ${pan}.`, true);
+        status(`Staged ${f.name} to replace ${panName(pan)}.`, true);
     }
 
     async function removeFromQueue(i) {
@@ -3017,7 +3020,7 @@
         const room = r2(1 - existingActive);
         const take = r2(Math.min(room, stock));
         if (take <= EPS) {
-            status(`Pan ${q.pan} is already full (1.0) — nothing to add.`); return;
+            status(`${panName(q.pan)} is already full (1.0) — nothing to add.`); return;
         }
         const nextActive = r2(existingActive + take);
 
@@ -3035,12 +3038,12 @@
         await queueDocRef().set({ queue: next }, { merge: true });
         if (isRefill) {
             logMove('swap', `Refilled ${incoming.name} in Pan ${q.pan} (+${take} from Short-Term — now ${nextActive})`);
-            status(`Refilled ${incoming.name} in Pan ${q.pan} — now ${nextActive}.`, true);
-            caseActionFx('swap', incoming.name, `Pan ${q.pan} topped up to ${nextActive}`, q.pan);
+            status(`Refilled ${incoming.name} — now ${nextActive}.`, true);
+            caseActionFx('swap', incoming.name, `Topped up to ${nextActive}`, q.pan);
         } else {
             logMove('swap', `Swapped ${incoming.name} into Pan ${q.pan} (${take} from Short-Term)`);
-            status(`Swapped ${incoming.name} into Pan ${q.pan}.`, true);
-            caseActionFx('swap', incoming.name, `Now in Pan ${q.pan}`, q.pan);
+            status(`Swapped ${incoming.name} into the case.`, true);
+            caseActionFx('swap', incoming.name, 'Now in the case', q.pan);
         }
     }
 
@@ -3070,11 +3073,11 @@
         amount = r2(amount);
         if (!(amount > 0)) { status('Pick an amount to add.'); return; }
         const room = r2(1 - (f.active || 0));
-        if (room <= EPS) { status(`Pan ${f.casePan} is already full (1.0).`); return; }
+        if (room <= EPS) { status(`${f.name} is already full (1.0).`); return; }
         const add = Math.min(amount, room);                 // never exceed a full pan
         const haveShort = caseStock(f);
 
-        document.getElementById('g-modal-title').textContent = `Add ${add} to ${f.name} (Pan ${f.casePan})`;
+        document.getElementById('g-modal-title').textContent = `Add ${add} to ${f.name}`;
         document.getElementById('g-modal-body').innerHTML = `
             <p class="g-modal-hint">Where should this ${add} pan come from?</p>
             <div class="g-modal-actions g-topup-actions">
@@ -3107,7 +3110,7 @@
         const src = fromShort > EPS ? `${r2(fromShort)} from Short-Term` : 'added (thin air)';
         logMove('transfer', `Added ${r2(actualAdd)} to Pan ${f.casePan} (${f.name}) — ${src} — now ${newActive}`);
         status(`Added ${r2(actualAdd)} to ${f.name}. Now ${newActive}.`, true);
-        caseActionFx('add', f.name, `+${r2(actualAdd)} \u00b7 ${newActive} in Pan ${f.casePan}`, f.casePan);
+        caseActionFx('add', f.name, `+${r2(actualAdd)} \u00b7 now ${newActive}`, f.casePan);
     }
 
     // ----- Merge into a pan -----------------------------------------------
@@ -3138,8 +3141,8 @@
         // short-term sources listed first (the common "top up a pan" case)
         const fromOpts =
             shortHoldings.map(f => `<option value="short:${f.id}">Short-Term · ${esc(f.name)} (${r2(f.shortTerm)})</option>`).join('') +
-            pans.map(f => `<option value="pan:${f.id}">Pan ${f.casePan} · ${esc(f.name)} (${r2(f.active)})</option>`).join('');
-        const intoOpts = pans.map(f => `<option value="${f.id}">Pan ${f.casePan} · ${esc(f.name)} (${r2(f.active)})</option>`).join('');
+            pans.map(f => `<option value="pan:${f.id}">${esc(f.name)} (${r2(f.active)})</option>`).join('');
+        const intoOpts = pans.map(f => `<option value="${f.id}">${esc(f.name)} (${r2(f.active)})</option>`).join('');
         body.innerHTML = `
             <label class="g-modal-label">Merge FROM (short-term, or another pan)</label>
             <select id="merge-from" class="g-modal-select">${fromOpts}</select>
@@ -3181,9 +3184,9 @@
             if (src.type === 'pan' && src.id === tgt.id) { hint.textContent = 'Source and target are the same pan.'; return; }
             const room = r2(1 - (tgt.active || 0));
             const moved = r2(Math.min(room, src.amount));
-            const label = src.type === 'short' ? `Short-Term ${src.f.name}` : `Pan ${src.f.casePan}`;
-            if (moved <= EPS) { hint.textContent = `Pan ${tgt.casePan} is already full.`; return; }
-            hint.textContent = `Move ${moved} from ${label} → Pan ${tgt.casePan} (now ${r2((tgt.active || 0) + moved)}). ${label} keeps ${r2(src.amount - moved)}.`;
+            const label = src.type === 'short' ? `Short-Term ${src.f.name}` : `Case ${src.f.name}`;
+            if (moved <= EPS) { hint.textContent = `${tgt.name} is already full.`; return; }
+            hint.textContent = `Move ${moved} from ${label} → ${tgt.name} (now ${r2((tgt.active || 0) + moved)}). ${label} keeps ${r2(src.amount - moved)}.`;
         };
         fromSel.addEventListener('change', () => { syncInto(); updateHint(); });
         intoSel.addEventListener('change', updateHint);
@@ -3200,7 +3203,7 @@
 
         const room = r2(1 - (tgt.active || 0));
         const moved = r2(Math.min(room, src.amount));
-        if (moved <= EPS) { status(`Pan ${tgt.casePan} is already full — nothing to merge in.`); return; }
+        if (moved <= EPS) { status(`${tgt.name} is already full — nothing to merge in.`); return; }
         const newActive = r2((tgt.active || 0) + moved);
         const label = src.type === 'short' ? `Short-Term (${src.f.name})` : `Pan ${src.f.casePan} (${src.f.name})`;
 
@@ -3226,8 +3229,8 @@
 
         closeModal();
         logMove('transfer', `Merged ${moved} from ${label} into Pan ${tgt.casePan} (${tgt.name}) — now ${newActive}`);
-        status(`Merged into Pan ${tgt.casePan}. Now ${newActive}.`, true);
-        caseActionFx('merge', tgt.name, `${moved} merged into Pan ${tgt.casePan}`, tgt.casePan);
+        status(`Merged into ${tgt.name}. Now ${newActive}.`, true);
+        caseActionFx('merge', tgt.name, `${moved} merged in`, tgt.casePan);
     }
 
     /* Send a case pan's remaining gelato back into short-term storage. */
@@ -3245,7 +3248,7 @@
             { active: 0, casePan: null, updatedAt: stamp() }, 'shortTerm', newArr));
         logMove('transfer', `${amt} ${f.name}: Case (Pan ${pan}) → Short-Term`);
         status(`Sent ${amt} of ${f.name} back to short-term.`, true);
-        caseActionFx('transfer', f.name, `Pan ${pan} \u2192 Short-Term`, pan);
+        caseActionFx('transfer', f.name, `Case \u2192 Short-Term`, pan);
     }
 
     /* Same rules as caseToShort, but into long-term — used by Visual drag-and-drop
@@ -3264,13 +3267,13 @@
             { active: 0, casePan: null, updatedAt: stamp() }, 'longTerm', newArr));
         logMove('transfer', `${amt} ${f.name}: Case (Pan ${pan}) → Long-Term`);
         status(`Sent ${amt} of ${f.name} back to long-term.`, true);
-        caseActionFx('transfer', f.name, `Pan ${pan} \u2192 Long-Term`, pan);
+        caseActionFx('transfer', f.name, `Case \u2192 Long-Term`, pan);
     }
 
     async function emptyPan(id) {
         const f = byId(id);
         if (!f) return;
-        if (!confirm(`Empty Pan ${f.casePan} (${f.name})? The remaining ${r2(f.active)} pan will be used up.`)) return;
+        if (!confirm(`Empty the ${f.name} pan? The remaining ${r2(f.active)} pan will be used up.`)) return;
         const pan = f.casePan, used = r2(f.active || 0);
         await doc(id).update({ active: 0, casePan: null, updatedAt: stamp() });
         addUsage('usedPans', used);  // emptying = a fast way to use the whole pan
@@ -3282,7 +3285,7 @@
             await queueDocRef().set({ queue: next }, { merge: true });
             logMove('auto-stage', `Auto-staged ${f.name} refill → Pan ${pan} (emptied)`);
         }
-        caseActionFx('remove', f.name, `Pan ${pan} emptied`, pan);
+        caseActionFx('remove', f.name, 'Pan emptied', pan);
     }
 
     /* Throw a case pan out (trash). NOT counted as used — no cost is recorded. */
@@ -3290,7 +3293,7 @@
         const f = byId(id);
         if (!f) return;
         const amt = r2(f.active || 0);
-        if (!confirm(`Discard Pan ${f.casePan} (${f.name})? The remaining ${amt} pan goes in the trash and is NOT counted as used.`)) return;
+        if (!confirm(`Discard the ${f.name} pan? The remaining ${amt} pan goes in the trash and is NOT counted as used.`)) return;
         const pan = f.casePan;
         await doc(id).update({ active: 0, casePan: null, updatedAt: stamp() });
         logMove('discard', `Discarded Pan ${pan} (${f.name}, ${amt} trashed — not counted)`);
@@ -3299,7 +3302,7 @@
             await queueDocRef().set({ queue: next }, { merge: true });
             logMove('auto-stage', `Auto-staged ${f.name} refill → Pan ${pan} (discarded)`);
         }
-        caseActionFx('remove', f.name, `${amt} discarded from Pan ${pan}`, pan);
+        caseActionFx('remove', f.name, `${amt} discarded`, pan);
     }
 
     /* Move every case pan's remaining gelato back into storage (short-term
@@ -3514,7 +3517,7 @@
         const choices = flavors.filter(f => !f.isDummy && !f.casePan && caseStock(f) > EPS)
             .sort((a, b) => caseStock(b) - caseStock(a));
         const body = document.getElementById('g-modal-body');
-        document.getElementById('g-modal-title').textContent = `Add a flavor to Pan ${pan}`;
+        document.getElementById('g-modal-title').textContent = 'Add a flavor to the case';
 
         if (!choices.length) {
             body.innerHTML = `<p class="g-empty-note">No flavors have short-term stock yet.
@@ -3533,7 +3536,7 @@
             <p class="g-modal-hint" id="assign-hint"></p>
             <div class="g-modal-actions">
                 <button type="button" class="g-modal-cancel" id="assign-cancel">Cancel</button>
-                <button type="button" class="g-modal-go" id="assign-go">Add to Pan ${pan}</button>
+                <button type="button" class="g-modal-go" id="assign-go">Add to case</button>
             </div>`;
 
         const sel = document.getElementById('assign-flavor');
@@ -3568,8 +3571,8 @@
             'shortTerm', pullPans(pansOf(f, 'shortTerm'), amount)));
         closeModal();
         logMove('assign', `Added ${f.name} to Pan ${pan} at ${amount} (from Short-Term)`);
-        status(`${f.name} added to Pan ${pan} at ${amount}.`, true);
-        caseActionFx('add', f.name, `Added to Pan ${pan} at ${amount}`, pan);
+        status(`${f.name} added to the case at ${amount}.`, true);
+        caseActionFx('add', f.name, `Added to the case at ${amount}`, pan);
     }
 
     // ----- Freezer assign modal (Long-Term "assign pans" shortcut) --------
