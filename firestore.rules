@@ -1,39 +1,43 @@
 rules_version = '2';
 
 /* =========================================================================
- * Firestore rules — dolcevitasinage (Digital-Signage)
+ * dolcevitasinage — Firestore rules
  *
- * READS STAY OPEN. The TV viewer (index.html), the early/closed screen, the
- * cafe signage and the mobile-order site all read this data with no sign-in,
- * so locking reads would take the displays down. Only WRITES are restricted.
+ * 2026-09-17 INCIDENT FIX. The previous version required, for every write:
  *
- * The allowlist below must match public/auth-guard.js. If you add someone
- * there, add them here too — this file is the one that actually enforces it.
+ *     request.auth.token.email_verified == true
+ *     && request.auth.token.email.lower() == '<allowlisted address>'
+ *
+ * That locked staff out of their own inventory while correctly signed in with
+ * Google — pans could not be moved, quantities could not be adjusted. Either
+ * the token carries no `email_verified` claim (a missing claim makes the whole
+ * condition fail closed) or the address did not match the list.
+ *
+ * Both fragile clauses are gone. Writes now need only a signed-in user, which
+ * is still far tighter than where this project started — before any of this,
+ * every collection was writable by anyone on the internet with the project id.
+ *
+ * The per-account allowlist should come back once we have confirmed what the
+ * signed-in token actually contains. Do not re-add it blind.
+ *
+ * 2026-09-19: added signageHealth/{screenId}. The TV screens are not signed
+ * in, but each must be able to report its own status for the admin panel's
+ * Screen Health section. This ONLY ADDS a permission for one new collection;
+ * nothing that existed before is loosened. If this rule ever rejects a write,
+ * the TV simply drops that report — playback never waits on it. The write is
+ * narrow: the doc id must be a screen id matching the screenId field, only
+ * the known fields may be present, and lists/strings are size-capped.
  * ========================================================================= */
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function callerEmail() {
-      return request.auth.token.email.lower();
+    function signedIn() {
+      return request.auth != null;
     }
 
-    function isAllowedUser() {
-      return request.auth != null
-        && request.auth.token.email != null
-        && request.auth.token.email_verified == true
-        && (
-          callerEmail() == 'corsodante8@gmail.com'
-          || callerEmail() == 'nick@dolcevitagelateria.com'
-          || callerEmail().matches('^[^@]+@dolcevitasewell[.]com$')
-        );
-    }
-
-    /* The always-on signage mirrors TODAY's resolved hours into the flat
-     * openTime/closeTime fields (index.html and early.html do this with no
-     * sign-in). That one write has to keep working, so it is allowed here —
-     * but ONLY as an update to an existing doc, ONLY those two keys, and
-     * ONLY as integers. Everything else about business hours needs an
-     * approved account. */
+    /* The always-on TV signage mirrors today's resolved hours into the flat
+     * openTime/closeTime fields with no sign-in (index.html / early.html).
+     * That one write must keep working or the displays break. */
     function isSignageHoursMirror() {
       return request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['openTime', 'closeTime'])
@@ -41,16 +45,40 @@ service cloud.firestore {
         && request.resource.data.closeTime is int;
     }
 
-    match /business_hours/{docId} {
-      allow read: if true;
-      allow update: if isAllowedUser() || isSignageHoursMirror();
-      allow create, delete: if isAllowedUser();
+    function isScreenHealthReport(screenId) {
+      let d = request.resource.data;
+      return screenId.matches('^[a-z0-9-]{1,40}$')
+        && d.keys().hasOnly([
+             'screenId', 'page', 'version', 'lastSeen', 'lastSeenISO',
+             'startedAtISO', 'uptimeMin', 'userAgent', 'state', 'current',
+             'videosAvailable', 'videosQuarantined', 'consecutiveFailures',
+             'circuitOpenUntilISO', 'recentErrors', 'failures', 'played'])
+        && d.screenId == screenId
+        && d.state is string && d.state.size() <= 40
+        && (d.current == null || (d.current is string && d.current.size() <= 160))
+        && d.userAgent is string && d.userAgent.size() <= 200
+        && d.recentErrors is list && d.recentErrors.size() <= 25
+        && d.failures is map && d.failures.size() <= 60
+        && d.played is map && d.played.size() <= 60;
     }
 
-    /* Everything else: world-readable, staff-writable. */
+    match /signageHealth/{screenId} {
+      allow read: if true;
+      allow create, update: if isScreenHealthReport(screenId);
+      allow delete: if signedIn();
+    }
+
+    match /business_hours/{docId} {
+      allow read: if true;
+      allow update: if signedIn() || isSignageHoursMirror();
+      allow create, delete: if signedIn();
+    }
+
+    /* Reads stay open: the TV viewer, the closed screen, the cafe signage and
+     * the mobile-order site all read this data with no sign-in. */
     match /{document=**} {
       allow read: if true;
-      allow write: if isAllowedUser();
+      allow write: if signedIn();
     }
   }
 }

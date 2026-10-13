@@ -586,19 +586,38 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        /* Every upload gets its own storage path (videos/<timestamp>_<name>).
+         * Uploading a file whose name was already used used to OVERWRITE the
+         * old file, which breaks the link the TV is holding for it — the TV
+         * then fails that video. The timestamp is hidden from every name shown
+         * in the admin and in Screen Health. */
+        function uniqueVideoPath(file) {
+            const safe = String(file.name || 'video.mp4').replace(/[^\w.\- ]+/g, '_').slice(-120);
+            return 'videos/' + Date.now() + '_' + safe;
+        }
+
         document.getElementById('addVideoForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const videoFile = document.getElementById('videoFile').files[0];
-            const videoRef = storageRef.child('videos/' + videoFile.name);
+            if (!videoFile) { alert('Choose a video file first.'); return; }
+            const videoRef = storageRef.child(uniqueVideoPath(videoFile));
 
             try {
-                const snapshot = await videoRef.put(videoFile);
+                /* cacheControl matters as much as the file. Without it the TV
+                 * re-downloads the whole video EVERY time it plays — hundreds
+                 * of times a day, which burns the project's download allowance
+                 * and fails on a weak connection. */
+                const snapshot = await videoRef.put(videoFile, {
+                    contentType: videoFile.type || 'video/mp4',
+                    cacheControl: 'public, max-age=604800'
+                });
                 const videoURL = await snapshot.ref.getDownloadURL();
                 await db.collection('videos').add({ url: videoURL });
                 alert('Video uploaded and added successfully');
                 document.getElementById('addVideoForm').reset();
             } catch (error) {
                 console.error('Error uploading video: ', error);
+                alert('The video did not upload: ' + (error && (error.code || error.message)));
             }
         });
 
@@ -813,7 +832,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function getCleanVideoName(videoURL) {
             const fullName = videoURL.split('/').pop().split('?')[0];
-            return decodeURIComponent(fullName);
+            /* strip the folder and the upload timestamp for display */
+            return decodeURIComponent(fullName).split('/').pop().replace(/^\d{13}_/, '');
         }
 
         function updateCurrentVideos(snapshot) {
@@ -875,8 +895,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Swap with a new uploaded video
                     if (newVideoFile) {
-                        const videoRef = storageRef.child('videos/' + newVideoFile.name);
-                        const snapshot = await videoRef.put(newVideoFile);
+                        const videoRef = storageRef.child(uniqueVideoPath(newVideoFile));
+                        const snapshot = await videoRef.put(newVideoFile, {
+                            contentType: newVideoFile.type || 'video/mp4',
+                            cacheControl: 'public, max-age=604800'
+                        });
                         newVideoURL = await snapshot.ref.getDownloadURL();
                     }
                     // Swap with an existing video from storage
@@ -893,11 +916,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 // Reset form and update display
+                /* (the current-videos list refreshes itself via onSnapshot; the
+                 * old displayCurrentVideos() call here didn't exist and threw,
+                 * which stopped the storage list from refreshing) */
                 document.getElementById('videoActionsForm').reset();
-                displayCurrentVideos();
                 displayAvailableVideos();
             } catch (error) {
                 console.error('Error managing videos: ', error);
+                alert('That did not work: ' + (error && (error.code || error.message)));
+            }
+        });
+
+        /* Let the TVs keep a copy of videos uploaded before the cache setting
+         * existed. Only the file's cache header changes; the video is untouched. */
+        const cacheFixBtn = document.getElementById('cacheFixBtn');
+        if (cacheFixBtn) cacheFixBtn.addEventListener('click', async () => {
+            cacheFixBtn.disabled = true;
+            const label = cacheFixBtn.textContent;
+            cacheFixBtn.textContent = 'Updating…';
+            let done = 0, failed = 0;
+            try {
+                const snap = await db.collection('videos').get();
+                for (const doc of snap.docs) {
+                    const url = (doc.data() || {}).url;
+                    if (!url) { failed++; continue; }
+                    try {
+                        await firebase.storage().refFromURL(url)
+                            .updateMetadata({ cacheControl: 'public, max-age=604800' });
+                        done++;
+                    } catch (err) { console.error('cache header update failed', url, err); failed++; }
+                }
+                alert(done + ' video(s) updated' + (failed ? ', ' + failed + ' could not be updated' : '') +
+                    '.\n\nThe TVs pick this up the next time they download each video, and keep it for a week after that.');
+            } catch (err) {
+                console.error('cache fix failed', err);
+                alert('Could not update the videos: ' + (err && (err.code || err.message)));
+            } finally {
+                cacheFixBtn.disabled = false;
+                cacheFixBtn.textContent = label;
             }
         });
 

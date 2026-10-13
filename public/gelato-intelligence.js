@@ -64,6 +64,131 @@
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+    /* One id per page load, so a shift's actions can be grouped together. */
+    const SESSION_ID = 'sess_' + Date.now().toString(36) + '_' +
+        Math.random().toString(36).slice(2, 8);
+
+    /* ----- Capture helpers ------------------------------------------------
+     * Everything below exists so the event log answers questions later that
+     * nobody thought to ask today. Storage is the cheap part; a movement that
+     * was never recorded is gone for good. */
+
+    const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    /* Local (shop-timezone) time parts, stored flat so they can be queried
+     * and grouped without pulling every document and re-deriving them. */
+    function timeParts() {
+        const now = new Date();
+        const fmt = new Intl.DateTimeFormat('en-US', {
+            timeZone: SHOP.timezone, hour12: false,
+            weekday: 'short', hour: '2-digit', minute: '2-digit',
+            year: 'numeric', month: '2-digit', day: '2-digit'
+        });
+        const p = {};
+        for (const part of fmt.formatToParts(now)) p[part.type] = part.value;
+        let hour = parseInt(p.hour, 10);
+        if (hour === 24) hour = 0;               // some ICU builds report 24
+        const minute = parseInt(p.minute, 10);
+        const weekday = p.weekday;
+        return {
+            hour,
+            minute,
+            localTime: String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0'),
+            minutesIntoDay: hour * 60 + minute,
+            weekday,
+            weekdayIndex: Math.max(0, WEEKDAYS.indexOf(weekday)),
+            isWeekend: weekday === 'Sat' || weekday === 'Sun',
+            month: Number(p.month),
+            year: Number(p.year),
+            partOfDay: hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening',
+            tzOffsetMinutes: -now.getTimezoneOffset(),
+            clientAt: now.toISOString()
+        };
+    }
+
+    /* Who is signed in. This is an internal operations log for the shop's own
+     * staff — it records the account that performed each action so patterns
+     * per person are visible. */
+    function actor() {
+        try {
+            const u = firebase.auth().currentUser;
+            if (!u) return null;
+            return { uid: u.uid, email: u.email || null, name: u.displayName || null };
+        } catch (e) { return null; }
+    }
+
+    /* Flavor identity used to live only inside the human-readable text. These
+     * patterns lift it back out into structured fields at write time, so
+     * nothing downstream has to parse prose. Each returns
+     * { kind, flavor, amount, pan, from, to, remaining }. */
+    const MOVE_PATTERNS = [
+        // Used 0.1 Menta (Pan 9) — 0.7 left
+        { kind: 'used', re: /^Used\s+([\d.]+)\s+(.+?)\s+\(Pan\s+(\d+)\)\s*—\s*([\d.]+)\s+left/,
+          map: m => ({ amount: +m[1], flavor: m[2], pan: +m[3], remaining: +m[4], from: 'Case' }) },
+        // Used a 0.5 pan of X directly from Short-Term
+        { kind: 'used', re: /^Used a\s+([\d.]+)\s+pan of\s+(.+?)\s+directly from\s+(.+)$/,
+          map: m => ({ amount: +m[1], flavor: m[2], from: m[3] }) },
+        // Used the rest of Pan 4 (Nocciola, 0.3)
+        { kind: 'used', re: /^Used the rest of Pan\s+(\d+)\s+\((.+?),\s*([\d.]+)\)/,
+          map: m => ({ pan: +m[1], flavor: m[2], amount: +m[3], from: 'Case' }) },
+        // Emptied a 0.4 pan of Moka from Long-Term
+        { kind: 'wasted', re: /^Emptied a\s+([\d.]+)\s+pan of\s+(.+?)\s+from\s+(.+)$/,
+          map: m => ({ amount: +m[1], flavor: m[2], from: m[3] }) },
+        // Discarded Pan 6 (Limone, 0.4 trashed — not counted)
+        { kind: 'wasted', re: /^Discarded Pan\s+(\d+)\s+\((.+?),\s*([\d.]+)\s+trashed/,
+          map: m => ({ pan: +m[1], flavor: m[2], amount: +m[3], from: 'Case' }) },
+        // 0.5 Menta: Short-Term → Case (Pan 9)
+        { kind: 'transfer', re: /^([\d.]+)\s+(.+?):\s+(.+?)\s+→\s+(.+?)\s+\(Pan\s+(\d+)\)/,
+          map: m => ({ amount: +m[1], flavor: m[2], from: m[3], to: m[4], pan: +m[5] }) },
+        // 0.5 Menta: Case (Pan 9) → Short-Term    /    A → B
+        { kind: 'transfer', re: /^([\d.]+)\s+(.+?):\s+(.+?)\s+→\s+(.+)$/,
+          map: m => ({ amount: +m[1], flavor: m[2], from: m[3], to: m[4] }) },
+        // Added 0.3 to Pan 5 (Pistacchio) — from Short-Term — now 0.9
+        { kind: 'transfer', re: /^Added\s+([\d.]+)\s+to Pan\s+(\d+)\s+\((.+?)\)/,
+          map: m => ({ amount: +m[1], pan: +m[2], flavor: m[3], to: 'Case' }) },
+        // Added Moka to Pan 10 at 1 (from Short-Term)
+        { kind: 'in', re: /^Added\s+(.+?)\s+to Pan\s+(\d+)\s+at\s+([\d.]+)/,
+          map: m => ({ flavor: m[1], pan: +m[2], amount: +m[3], to: 'Case' }) },
+        // Added 1 Moka (pending) → Short-Term   /   Assigned 1 Moka → Short-Term
+        { kind: 'in', re: /^(?:Added|Assigned)\s+([\d.]+)\s+(.+?)(?:\s+\(pending\))?\s+→\s+(.+)$/,
+          map: m => ({ amount: +m[1], flavor: m[2], to: m[3] }) },
+        // Made Moka — 1 pan → Short-Term (from order queue)
+        { kind: 'in', re: /^Made\s+(.+?)\s+—\s+([\d.]+)\s+pan\s+→\s+(.+?)(?:\s+\(|$)/,
+          map: m => ({ flavor: m[1], amount: +m[2], to: m[3] }) },
+        // Swapped/Refilled Moka into Pan 3 (0.5 from Short-Term)
+        { kind: 'transfer', re: /^(?:Swapped|Refilled)\s+(.+?)\s+(?:into|in)\s+Pan\s+(\d+)\s+\(\+?([\d.]+)/,
+          map: m => ({ flavor: m[1], pan: +m[2], amount: +m[3], to: 'Case' }) },
+        // Auto-staged Menta refill → Pan 9   (a recommendation, not a movement,
+        // but a useful demand-pressure signal so the flavor is still captured)
+        { kind: 'stage', re: /^Auto-staged\s+(.+?)\s+refill\s+→\s+Pan\s+(\d+)/,
+          map: m => ({ flavor: m[1], pan: +m[2] }) },
+        // Removed stale swap (Extra Noir → Pan 2) — no longer has backup
+        { kind: 'unstage', re: /^Removed stale swap\s+\((.+?)\s+→\s+Pan\s+(\d+)\)/,
+          map: m => ({ flavor: m[1], pan: +m[2] }) },
+        // Adjusted pan of Mango in Short-Term from 0.8 to 0.5  (a correction;
+        // amount is the signed delta so shrinkage is visible)
+        { kind: 'adjust', re: /^Adjusted pan of\s+(.+?)\s+in\s+(.+?)\s+from\s+([\d.]+)\s+to\s+([\d.]+)/,
+          map: m => ({ flavor: m[1], from: m[2], amount: +m[4] - +m[3], remaining: +m[4] }) }
+    ];
+
+    function parseMovement(type, text) {
+        const s = String(text == null ? '' : text).trim();
+        if (!s) return null;
+        for (const p of MOVE_PATTERNS) {
+            const m = s.match(p.re);
+            if (!m) continue;
+            const out = Object.assign({ kind: p.kind }, p.map(m));
+            if (out.flavor) out.flavor = String(out.flavor).trim();
+            if (!isFinite(out.amount)) delete out.amount;
+            return out;
+        }
+        return null;
+    }
+
+    /* Firestore map keys, safe for any flavor name. */
+    const slug = s => String(s == null ? '' : s).trim().toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'unknown';
+
     const eventsCol = () => db.collection('gelatoIntelligenceEvents');
     const dailyCol = () => db.collection('gelatoIntelligenceDaily');
     const chatCol = () => db.collection('gelatoIntelligenceChat');
@@ -149,6 +274,28 @@
     function recordEvent(partial) {
         if (!db || !partial) return;
         const shop = getSnapshot() || {};
+        const date = todayStr();
+        const tp = timeParts();
+
+        /* Structured movement: explicit meta from the caller wins; otherwise
+         * it is lifted out of the text so the fields exist either way. */
+        const parsed = parseMovement(partial.type, partial.text);
+        const meta = partial.meta || null;
+        const movement = (meta && meta.flavorName)
+            ? {
+                kind: meta.kind || (parsed && parsed.kind) || null,
+                flavor: meta.flavorName,
+                amount: meta.amount != null ? Number(meta.amount) : (parsed ? parsed.amount : null),
+                pan: meta.pan != null ? meta.pan : (parsed ? parsed.pan : null),
+                from: meta.from || (parsed ? parsed.from : null) || null,
+                to: meta.to || (parsed ? parsed.to : null) || null,
+                remaining: meta.remaining != null ? meta.remaining : (parsed ? parsed.remaining : null),
+                parsed: false
+            }
+            : (parsed ? Object.assign({ parsed: true }, parsed, { flavor: parsed.flavor || null }) : null);
+
+        const caseArr = Array.isArray(shop.case) ? shop.case : null;
+
         const payload = {
             type: partial.type || 'note',
             text: partial.text || '',
@@ -156,21 +303,62 @@
             shopId: SHOP.id,
             shopName: SHOP.name,
             city: SHOP.city,
-            date: todayStr(),
+            date: date,
             at: stamp(),
+
+            /* time, flattened for grouping without re-deriving from `at` */
+            hour: tp.hour,
+            minute: tp.minute,
+            localTime: tp.localTime,
+            minutesIntoDay: tp.minutesIntoDay,
+            weekday: tp.weekday,
+            weekdayIndex: tp.weekdayIndex,
+            isWeekend: tp.isWeekend,
+            partOfDay: tp.partOfDay,
+            month: tp.month,
+            year: tp.year,
+            clientAt: tp.clientAt,
+
+            /* who and where from */
+            actor: actor(),
+            sessionId: SESSION_ID,
+            page: (location.pathname.split('/').pop() || 'index.html'),
+            viewMode: (shop && shop.viewMode) || null,
+            screen: (typeof window !== 'undefined' && window.innerWidth)
+                ? window.innerWidth + 'x' + window.innerHeight : null,
+
+            /* what moved */
+            movement: movement,
+            flavor: movement ? movement.flavor : null,
+            flavorSlug: movement && movement.flavor ? slug(movement.flavor) : null,
+            amount: movement && movement.amount != null ? movement.amount : null,
+
+            /* shop state at the moment it happened */
             pricing: shop.pricing || null,
             totals: shop.totals || null,
-            case: Array.isArray(shop.case) ? shop.case : null,
+            case: caseArr,
+            caseFlavors: caseArr ? caseArr.map(c => c.name).filter(Boolean) : null,
+            caseCount: caseArr ? caseArr.length : null,
+            lowPans: shop.lowPans || null,
             usage: shop.usage || null,
             queueLength: shop.queueLength != null ? shop.queueLength : null,
+
             weather: weather ? {
                 tempF: weather.tempF,
+                feelsF: weather.feelsF != null ? weather.feelsF : null,
                 code: weather.code,
                 label: weather.label,
+                dayCode: weather.dayCode != null ? weather.dayCode : null,
+                dayLabel: weather.dayLabel || null,
                 humidity: weather.humidity,
-                windMph: weather.windMph
+                windMph: weather.windMph,
+                precipIn: weather.precipIn != null ? weather.precipIn : null,
+                precipChance: weather.precipChance != null ? weather.precipChance : null,
+                wet: !!weather.wet,
+                snowy: !!weather.snowy
             } : null,
-            meta: partial.meta || null
+
+            meta: meta
         };
 
         eventsCol().add(payload)
@@ -181,7 +369,43 @@
             }, { merge: true }))
             .catch(err => console.error('GelatoIntelligence recordEvent', err));
 
+        rollUpDaily(date, payload);
         maybeWriteDailySnapshot('event');
+    }
+
+    /* Running per-day tallies, incremented as things happen so the day's
+     * picture is readable without scanning the event log. Firestore's atomic
+     * increment means several tills/tablets can write at once safely. */
+    function rollUpDaily(date, ev) {
+        if (!db) return;
+        const inc = n => firebase.firestore.FieldValue.increment(n);
+        const update = {
+            date: date,
+            shopId: SHOP.id,
+            updatedAt: stamp(),
+            eventTotal: inc(1),
+            eventsByType: { [slug(ev.type)]: inc(1) },
+            eventsByHour: { ['h' + String(ev.hour).padStart(2, '0')]: inc(1) },
+            weekday: ev.weekday,
+            lastEventLocalTime: ev.localTime
+        };
+        if (ev.actor && ev.actor.email) {
+            update.eventsByActor = { [slug(ev.actor.email)]: inc(1) };
+        }
+        const mv = ev.movement;
+        if (mv && mv.flavor && isFinite(mv.amount) && mv.amount > 0) {
+            const key = slug(mv.flavor);
+            const bucket = mv.kind === 'used' ? 'used'
+                : mv.kind === 'wasted' ? 'wasted'
+                : mv.kind === 'in' ? 'madeIn' : 'moved';
+            update.flavorUsage = { [key]: { name: mv.flavor, [bucket]: inc(mv.amount) } };
+            if (bucket === 'used') update.pansUsed = inc(mv.amount);
+            if (bucket === 'wasted') update.pansWasted = inc(mv.amount);
+            if (bucket === 'madeIn') update.pansMade = inc(mv.amount);
+            update.usageByHour = { ['h' + String(ev.hour).padStart(2, '0')]: inc(bucket === 'used' ? mv.amount : 0) };
+        }
+        dailyCol().doc(date).set(update, { merge: true })
+            .catch(err => console.error('GelatoIntelligence rollUpDaily', err));
     }
 
     async function maybeWriteDailySnapshot(reason) {

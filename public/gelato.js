@@ -73,7 +73,8 @@
     let orderApproveLock = false;  // prevents double-approve while pans are writing
     let orderDragFrom = null;      // order-queue row index being dragged, null when idle
     let orderRerenderQueued = false;  // a remote snapshot landed mid-drag — redraw on dragend
-    let _started = false;  // prevents wireUi/start from running twice if auth fires twice
+    let _started = false;
+    const loaded = { menu: false, inventory: false, pending: false };   // first snapshots in?  // prevents wireUi/start from running twice if auth fires twice
     let pendingDummyFocusId = null;  // id of a just-created dummy pan to auto-focus once rendered
     let longFreezerCtxAttached = false;  // guards the one-time "empty space" right-click listener
     const queueDocRef = () => db.collection('gelatoSettings').doc('queue');
@@ -107,16 +108,25 @@
      * renders now goes through dedupeByName: group by normalized name, keep
      * the single best doc. Dummy pans are exempt -- they are deliberately
      * allowed to share a label. */
-    function dedupeByName(list, rank) {
+    function dedupeByName(list, rank, alwaysKeep) {
         const best = new Map();
         const keep = [];
+        const groups = new Map();
         (list || []).forEach(item => {
             if (!item) return;
             const key = normName(item.name);
             if (item.isDummy || !key) { keep.push(item); return; }   // never collapse dummy pans
+            (groups.get(key) || groups.set(key, []).get(key)).push(item);
             const cur = best.get(key);
             if (!cur || rank(item) > rank(cur)) best.set(key, item);
         });
+        /* A duplicate that still holds something is never hidden — hiding it
+         * would hide real pans. consolidateSplitStock() folds such duplicates'
+         * freezer pans into the main record, so this is normally a brief state
+         * (or two case pans of one flavor, which really are two rows). */
+        if (alwaysKeep) groups.forEach((items, key) => items.forEach(it => {
+            if (it !== best.get(key) && alwaysKeep(it)) keep.push(it);
+        }));
         return keep.concat([...best.values()]);
     }
     /* Survivor preference: any doc holding real stock wins outright, so
@@ -134,7 +144,25 @@
     /* Deduped views, computed on demand rather than cached, so they always
      * reflect the latest menuItems / gelatoInventory / pendingItems snapshot
      * whatever order those three happen to arrive in. */
-    const inventoryUnique = () => dedupeByName(inventory, invRank);
+    /* Group by the name the board actually SHOWS (the live menu/pending name),
+     * not the name stored on the inventory doc. They differ after "Replace
+     * Menu Item" reuses a doc id: that doc keeps the old flavor's stored name
+     * but is displayed as the new flavor. Grouping on the stale stored name
+     * put it in the OLD flavor's group, where it could win and hide that
+     * flavor's real stock — which is how every Menta pan went missing (the
+     * old Menta menu doc became Tiramisu and kept a case pan). */
+    const inventoryUnique = () => dedupeByName(inventory.map(enrich), invRank,
+        f => hasStock(f) || f.casePan != null);
+
+    /* The inventory doc the board currently shows for a flavor. New stock has
+     * to go onto that doc; written anywhere else it lands on a duplicate that
+     * the one-row-per-flavor view hides, and looks like it was never added. */
+    function visibleDocIdFor(id, name) {
+        const key = normName(name);
+        if (!key) return id;
+        const shown = inventoryUnique().find(f => !f.isDummy && normName(f.name) === key);
+        return shown ? shown.id : id;
+    }
     const pendingUnique = () => dedupeByName(pendingList, pendRank)
         .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
@@ -218,6 +246,7 @@
         initGelatoIntelligence();
 
         db.collection('menuItems').onSnapshot(snap => {
+            loaded.menu = true;
             menuIds = new Set(snap.docs.map(d => d.id));
             menuNames = new Set(snap.docs.map(d => normName((d.data() || {}).name)).filter(Boolean));
             menuFlavors = snap.docs
@@ -227,6 +256,7 @@
         }, err => console.error('menuItems snapshot error', err));
 
         db.collection('gelatoInventory').onSnapshot(snap => {
+            loaded.inventory = true;
             inventory = snap.docs.map(d => {
                 const data = { ...d.data(), id: d.id };
                 // normalize freezer storage into pan lists + synced totals
@@ -240,6 +270,7 @@
         }, err => console.error('inventory snapshot error', err));
 
         db.collection('pendingItems').onSnapshot(snap => {
+            loaded.pending = true;
             pendingList = snap.docs.map(d => ({ ...d.data(), id: d.id }))
                 .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
             renderStockFlavors();
@@ -901,9 +932,13 @@
         document.getElementById('t-flavor').addEventListener('change', () => { renderTransferAmounts(); refreshTransferHint(); });
 
         document.getElementById('addStockForm').addEventListener('submit', onAddStock);
-        document.getElementById('as-loc').addEventListener('change', refreshStockHint);
-        document.getElementById('as-flavor').addEventListener('change', refreshStockHint);
+        /* touching the form clears the last Add Stock result from the hint */
+        const clearStockResult = () => document.getElementById('as-hint').classList.remove('is-ok', 'is-error');
+        document.getElementById('as-loc').addEventListener('change', () => { clearStockResult(); refreshStockHint(); });
+        document.getElementById('as-flavor').addEventListener('change', () => { clearStockResult(); refreshStockHint(); });
+        document.getElementById('as-amt').addEventListener('input', clearStockResult);
         document.getElementById('as-source').addEventListener('change', () => {
+            clearStockResult();
             renderStockFlavors();
             refreshStockHint();
         });
@@ -1105,8 +1140,62 @@
         return (m && (m.gelatoImage || m.imageURL)) || f.gelatoImage || f.imageURL || '';
     }
 
+    /* ----- Fold split stock back onto one record ---------------------------
+     * The same flavor can have several inventory records (see dedupeByName).
+     * When more than one of them holds freezer pans, the board would show the
+     * flavor twice. This moves a duplicate's freezer pans onto the main record
+     * (the one the board shows), inside a transaction, so nothing is added or
+     * lost — the pans simply end up on one record. Case pans are left where
+     * they are: each is a physical slot. Runs only once the menu, pending and
+     * inventory lists have all loaded (the main record depends on all three),
+     * and each duplicate is handled at most once per page load. */
+    const consolidatedIds = new Set();
+    let consolidateTimer = null;
+    function scheduleConsolidate() {
+        clearTimeout(consolidateTimer);
+        consolidateTimer = setTimeout(consolidateSplitStock, 1500);
+    }
+    async function consolidateSplitStock() {
+        if (!loaded.menu || !loaded.inventory || !loaded.pending || !db) return;
+        const all = inventory.map(enrich).filter(f => !f.isDummy && normName(f.name));
+        const shown = new Map(dedupeByName(all, invRank).map(f => [normName(f.name), f]));
+        const moves = all.filter(f => {
+            const main = shown.get(normName(f.name));
+            return main && main.id !== f.id && !consolidatedIds.has(f.id)
+                && (pansOf(f, 'shortTerm').length || pansOf(f, 'longTerm').length);
+        });
+        for (const dup of moves) {
+            consolidatedIds.add(dup.id);
+            const main = shown.get(normName(dup.name));
+            try {
+                const moved = await db.runTransaction(async tx => {
+                    const [ms, ds] = await Promise.all([tx.get(doc(main.id)), tx.get(doc(dup.id))]);
+                    if (!ms.exists || !ds.exists) return null;
+                    const m = ms.data() || {}, d = ds.data() || {};
+                    const dShort = normPans(d.shortPans, d.shortTerm), dLong = normPans(d.longPans, d.longTerm);
+                    if (!dShort.length && !dLong.length) return null;
+                    const mu = { updatedAt: stamp() }, du = { updatedAt: stamp() };
+                    setPans(mu, 'shortTerm', normPans(m.shortPans, m.shortTerm).concat(dShort));
+                    setPans(mu, 'longTerm', normPans(m.longPans, m.longTerm).concat(dLong));
+                    setPans(du, 'shortTerm', []);
+                    setPans(du, 'longTerm', []);
+                    tx.update(doc(main.id), mu);
+                    tx.update(doc(dup.id), du);
+                    return { s: dShort.length, l: dLong.length };
+                });
+                if (moved) {
+                    const parts = [moved.s && `${moved.s} short-term`, moved.l && `${moved.l} long-term`].filter(Boolean).join(' and ');
+                    logMove('system', `Combined duplicate records for ${main.name}: ${parts} pan(s) now on its main record (no stock added or removed)`);
+                }
+            } catch (err) {
+                console.error('could not combine duplicate records for ' + dup.name, err);
+            }
+        }
+    }
+
     // ----- Rendering -------------------------------------------------------
     function renderAll() {
+        scheduleConsolidate();
         // show menu flavors always, plus any off-menu flavor that has stock,
         // with live name/image overlaid so stale stored copies never show
         flavors = inventoryUnique()
@@ -3618,7 +3707,7 @@
             const pend = pendingUnique();   // one option per flavor, not per doc
             opts = pend.length
                 ? pend.map(p => {
-                    const inv = byId(p.id) || {};
+                    const inv = byId(visibleDocIdFor(p.id, p.name)) || {};
                     return `<option value="${p.id}"
                         data-name="${esc(p.name)}"
                         data-short="${r2(inv.shortTerm || 0)}"
@@ -3629,7 +3718,7 @@
         } else {
             opts = menuFlavors.length
                 ? menuFlavors.map(f => {
-                    const inv = byId(f.id) || {};
+                    const inv = byId(visibleDocIdFor(f.id, f.name)) || {};
                     return `<option value="${f.id}"
                         data-name="${esc(f.name)}"
                         data-short="${r2(inv.shortTerm || 0)}"
@@ -3646,6 +3735,7 @@
         const loc = document.getElementById('as-loc').value;
         const cap = loc === 'shortTerm' ? SHORT_CAP : LONG_CAP;
         const hint = document.getElementById('as-hint');
+        if (hint.classList.contains('is-ok') || hint.classList.contains('is-error')) return;   // keep the Add Stock result on screen
         const sel = document.getElementById('as-flavor');
         const opt = sel.options[sel.selectedIndex];
         if (!opt || !opt.value) { hint.textContent = ''; return; }
@@ -3656,62 +3746,76 @@
         hint.textContent = `${name}: ${r2(cur)} in ${LOCATION_LABELS[loc]}. ${slotsOpen(loc)} of ${cap} slots open.`;
     }
 
+    /* Add Stock feedback goes right under the Add Stock button as well as
+     * the page status line — that line sits far above the form, and success
+     * messages clear after a few seconds, so a save could look like nothing
+     * happened. */
+    function stockMsg(msg, ok) {
+        status(msg, ok);
+        const hint = document.getElementById('as-hint');
+        if (!hint) return;
+        hint.textContent = msg;
+        hint.classList.toggle('is-error', !ok);
+        hint.classList.toggle('is-ok', !!ok);
+        clearTimeout(stockMsg._t);
+        if (ok) stockMsg._t = setTimeout(() => { hint.classList.remove('is-ok'); refreshStockHint(); }, 6000);
+    }
+
     async function onAddStock(e) {
         e.preventDefault();
         const loc = document.getElementById('as-loc').value;
         const amount = r2(document.getElementById('as-amt').value);
         const val = document.getElementById('as-flavor').value;
-        if (!val) { status('Pick a flavor.'); return; }
-        if (!(amount > 0)) { status('Enter a quantity greater than 0.'); return; }
+        if (!val) { stockMsg('Pick a flavor.'); return; }
+        if (!(amount > 0)) { stockMsg('Enter a quantity greater than 0.'); return; }
         const cap = loc === 'shortTerm' ? SHORT_CAP : LONG_CAP;
-        const newArr = addPans(pansOf(byId(val) || {}, loc), amount);   // added as new pan(s)
-        if (slotsAfter(loc, val, newArr) > cap) {
-            status(`${LOCATION_LABELS[loc]} freezer is full — ${slotsOpen(loc)} slot(s) open.`); return;
-        }
         const other = loc === 'shortTerm' ? 'longTerm' : 'shortTerm';
+        const pending = stockSource() === 'pending';
 
-        if (stockSource() === 'pending') {
-            const p = pendingList.find(x => x.id === val);
-            if (!p) { status('Pending flavor not found.'); return; }
-            // inventory doc keyed by the pendingItems id; create it if it doesn't exist yet
-            const base = byId(val) || {};
-            const u = {
-                name: base.name || p.name || '(unnamed)',
-                gelatoImage: base.gelatoImage || p.gelatoImage || p.imageURL || '',
-                imageURL: base.imageURL || p.imageURL || '',
-                active: base.active || 0,
-                casePan: base.casePan || null,
-                updatedAt: stamp()
-            };
-            setPans(u, loc, newArr);
-            setPans(u, other, pansOf(base, other));
-            await doc(val).set(u, { merge: true });
-            logMove('intake', `Added ${amount} ${p.name} (pending) → ${LOCATION_LABELS[loc]}`);
-            status(`Added ${amount} pan(s) of ${p.name} (pending) to ${LOCATION_LABELS[loc]}.`, true);
-        } else {
-            const f = byId(val);
-            const m = menuFlavors.find(x => x.id === val);
-            if (!f && !m) { status('Flavor not found.'); return; }
-            const name = (m || f).name;   // prefer the live menu name
-            if (f) {
-                const heal = m ? { name: m.name || f.name, gelatoImage: m.gelatoImage || m.imageURL || f.gelatoImage || '', imageURL: m.imageURL || f.imageURL || '' } : {};
-                await doc(val).update(setPans({ ...heal, updatedAt: stamp() }, loc, newArr));
+        const p = pending ? pendingList.find(x => x.id === val) : null;
+        const m = pending ? null : menuFlavors.find(x => x.id === val);
+        if (pending && !p) { stockMsg('Pending flavor not found — reload the page and try again.'); return; }
+        if (!pending && !m && !byId(val)) { stockMsg('Flavor not found — reload the page and try again.'); return; }
+        const name = (p || m || byId(val)).name || '(unnamed)';
+
+        // add onto the doc the board is showing for this flavor, if any
+        const target = visibleDocIdFor(val, name);
+        const base = byId(target) || null;
+        const newArr = addPans(pansOf(base || {}, loc), amount);   // added as new pan(s)
+        if (slotsAfter(loc, target, newArr) > cap) {
+            stockMsg(`${LOCATION_LABELS[loc]} freezer is full — ${slotsOpen(loc)} slot(s) open.`); return;
+        }
+
+        try {
+            if (base) {
+                const meta = p || m;
+                const heal = meta ? {
+                    name: meta.name || base.name,
+                    gelatoImage: meta.gelatoImage || meta.imageURL || base.gelatoImage || '',
+                    imageURL: meta.imageURL || base.imageURL || ''
+                } : {};
+                await doc(target).update(setPans({ ...heal, updatedAt: stamp() }, loc, newArr));
             } else {
-                // inventory doc doesn't exist yet — create it on the fly
+                // no inventory doc for this flavor yet — create it on the fly
+                const meta = p || m || {};
                 const u = {
-                    name: m.name || '(unnamed)',
-                    gelatoImage: m.gelatoImage || m.imageURL || '',
-                    imageURL: m.imageURL || '',
+                    name: meta.name || '(unnamed)',
+                    gelatoImage: meta.gelatoImage || meta.imageURL || '',
+                    imageURL: meta.imageURL || '',
                     active: 0, casePan: null,
                     updatedAt: stamp()
                 };
                 setPans(u, loc, newArr);
                 setPans(u, other, []);
-                await doc(val).set(u, { merge: true });
+                await doc(target).set(u, { merge: true });
             }
-            logMove('intake', `Added ${amount} ${name} → ${LOCATION_LABELS[loc]}`);
-            status(`Added ${amount} pan(s) of ${name} to ${LOCATION_LABELS[loc]}.`, true);
+        } catch (err) {
+            console.error('add stock failed', err);
+            stockMsg(`Couldn't add ${name}: ${err && (err.code || err.message) || 'unknown error'}. Nothing was saved.`);
+            return;
         }
+        logMove('intake', `Added ${amount} ${name}${pending ? ' (pending)' : ''} → ${LOCATION_LABELS[loc]}`);
+        stockMsg(`Added ${amount} pan(s) of ${name} to ${LOCATION_LABELS[loc]} — ${name} now has ${panSum(newArr)} there.`, true);
     }
 
     // ----- Transfer form ---------------------------------------------------

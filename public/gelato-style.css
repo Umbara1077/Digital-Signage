@@ -2088,6 +2088,25 @@
     text-align: center;
 }
 
+/* Add Stock result, shown right under the button */
+.g-transfer-hint.is-ok,
+.g-transfer-hint.is-error {
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: .88rem;
+    font-weight: 600;
+}
+
+.g-transfer-hint.is-ok {
+    color: #0b5d0b;
+    background: rgba(12, 163, 12, .12);
+}
+
+.g-transfer-hint.is-error {
+    color: #8f1d1d;
+    background: rgba(208, 59, 59, .12);
+}
+
 /* ====================== PRICING / VALUE ====================== */
 .g-price-cards {
     display: grid;
